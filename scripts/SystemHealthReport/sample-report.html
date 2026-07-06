@@ -196,7 +196,7 @@ tbody tr:hover { background: rgba(255,255,255,0.03); }
 <h1>System Health Report</h1>
 <div class="subtitle">DESKTOP-SAMPLE &middot; 2026-07-06 16:30 &middot; Catppuccin Mocha</div>
 </div>
-<button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">☽</button>
+<button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">🌙</button>
 </div>
 
 <div class="summary">
@@ -350,7 +350,7 @@ document.querySelectorAll('.bar-fill').forEach(bar => {
 const toggle = document.getElementById("themeToggle");
 const html = document.documentElement;
 const sub = document.querySelector('.subtitle');
-const themes = { mocha: '☽', latte: '☀️' };
+const themes = { mocha: '🌙', latte: '☀️' };
 const names = { mocha: 'Mocha', latte: 'Latte' };
 toggle.addEventListener("click", () => {
     const cur = html.getAttribute('data-theme');
