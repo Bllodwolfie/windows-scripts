@@ -2,25 +2,31 @@
 
 A collection of self-contained PowerShell scripts for Windows system maintenance and diagnostics.
 
+## Preview
+
+![System Health Report](assets/preview.png)
+
+*A sample report showing system information, summary cards, and themed tables.*
+
 ## Scripts
 
 | Script | What it does |
 |--------|-------------|
-| [SystemHealthReport](scripts/SystemHealthReport/) | Generates a beautiful Catppuccin-themed HTML system health report |
-| [ClearEventLogs](scripts/ClearEventLogs/) | Clears all Windows event logs |
-| [DownloadsCleanup](scripts/DownloadsCleanup/) | Organizes and cleans up the Downloads folder (deletes old archives, moves media/docs by type) |
-| [EmptyFolderCleanup](scripts/EmptyFolderCleanup/) | Recursively removes empty directories under Downloads |
-| [EmptyRecycleBin](scripts/EmptyRecycleBin/) | Empties the Recycle Bin |
-| [RestorePoint](scripts/RestorePoint/) | Creates a system restore point |
-| [ScreenshotsCleanup](scripts/ScreenshotsCleanup/) | Deletes old screenshots (older than 7 days) |
-| [SoftwareInventory](scripts/SoftwareInventory/) | Exports installed software list to a text file |
-| [TempCleanup](scripts/TempCleanup/) | Cleans old files from %TEMP% |
+| [SystemHealthReport](scripts/SystemHealthReport/) | Generates an HTML system health report. |
+| [ClearEventLogs](scripts/ClearEventLogs/) | Clears Windows event logs. |
+| [DownloadsCleanup](scripts/DownloadsCleanup/) | Sorts Downloads by file type and removes old archives. |
+| [EmptyFolderCleanup](scripts/EmptyFolderCleanup/) | Removes empty folders within the Downloads directory. |
+| [EmptyRecycleBin](scripts/EmptyRecycleBin/) | Empties the Recycle Bin. |
+| [RestorePoint](scripts/RestorePoint/) | Creates a Windows system restore point. |
+| [ScreenshotsCleanup](scripts/ScreenshotsCleanup/) | Deletes screenshots older than 7 days. |
+| [SoftwareInventory](scripts/SoftwareInventory/) | Exports a list of installed software to a text file. |
+| [TempCleanup](scripts/TempCleanup/) | Deletes temporary files from the %TEMP% folder. |
 
 ## Usage
 
 1. Clone the repo:
    ```powershell
-   git clone https://github.com/nekdo/windows-scripts.git
+   git clone https://github.com/Bllodwolfie/windows-scripts.git
    cd windows-scripts
    ```
 2. Run any script directly:
