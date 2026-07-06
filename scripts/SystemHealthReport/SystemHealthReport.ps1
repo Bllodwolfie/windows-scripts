@@ -3,9 +3,9 @@ $outputPath = "$outputDir\System_Health_Report.html"
 
 $isLight = (Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "AppsUseLightTheme" -ErrorAction SilentlyContinue).AppsUseLightTheme -eq 1
 
-# Copy both cat bobber images for theme toggle
-Copy-Item -LiteralPath "$env:USERPROFILE\Downloads\Cat_bobber-Dark.png" -Destination "$outputDir\cat_bobber-dark.png" -Force
-Copy-Item -LiteralPath "$env:USERPROFILE\Downloads\Cat_bobber-Light.png" -Destination "$outputDir\cat_bobber-light.png" -Force
+# Copy both cat bobber images from repo assets for theme toggle
+Copy-Item -LiteralPath "$PSScriptRoot\..\..\assets\Cat_bobber-dark.png" -Destination "$outputDir\cat_bobber-dark.png" -Force
+Copy-Item -LiteralPath "$PSScriptRoot\..\..\assets\Cat_bobber-light.png" -Destination "$outputDir\cat_bobber-light.png" -Force
 
 $themeName = if ($isLight) { "Latte" } else { "Mocha" }
 
