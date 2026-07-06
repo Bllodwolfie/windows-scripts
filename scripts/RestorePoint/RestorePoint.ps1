@@ -1,1 +1,5 @@
-Checkpoint-Computer -Description "Monthly Cleanup"
+$Config = @{
+    Description = "Monthly Cleanup"
+}
+
+Checkpoint-Computer -Description $Config.Description
