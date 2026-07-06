@@ -104,7 +104,7 @@ tbody tr:hover { background: rgba(255,255,255,0.03); }
 .theme-toggle {
     width: 40px; height: 40px; border-radius: 50%;
     background: var(--toolbar-bg); border: 2px solid var(--surface0);
-    color: var(--text); font-size: 18px; cursor: pointer;
+    color: var(--text); font-size: 22px; cursor: pointer;
     line-height: 1; box-sizing: border-box;
     flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
@@ -142,7 +142,7 @@ tbody tr:hover { background: rgba(255,255,255,0.03); }
 .sidebar-toggle {
     width: 40px; height: 40px; border-radius: 50%;
     background: var(--toolbar-bg); border: 2px solid var(--surface0);
-    color: var(--text); font-size: 18px; cursor: pointer;
+    color: var(--text); font-size: 22px; cursor: pointer;
     line-height: 1; box-sizing: border-box;
     flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
@@ -350,7 +350,7 @@ document.querySelectorAll('.bar-fill').forEach(bar => {
 const toggle = document.getElementById("themeToggle");
 const html = document.documentElement;
 const sub = document.querySelector('.subtitle');
-const themes = { mocha: '☽', latte: '☀' };
+const themes = { mocha: '☽', latte: '☀️' };
 const names = { mocha: 'Mocha', latte: 'Latte' };
 toggle.addEventListener("click", () => {
     const cur = html.getAttribute('data-theme');
