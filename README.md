@@ -29,12 +29,22 @@ A collection of self-contained PowerShell scripts for Windows system maintenance
    git clone https://github.com/Bllodwolfie/windows-scripts.git
    cd windows-scripts
    ```
-2. Run any script directly:
+2. PowerShell blocks script execution by default. Allow it for the current user:
+   ```powershell
+   Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+   ```
+   Or run a script without changing the policy:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\scripts\SystemHealthReport\SystemHealthReport.ps1
+   ```
+3. Run any script:
    ```powershell
    .\scripts\SystemHealthReport\SystemHealthReport.ps1
    ```
 
-   Some scripts require admin rights (e.g., `ClearEventLogs`, `RestorePoint`).
+   **Requires Administrator:**
+   - `ClearEventLogs`
+   - `RestorePoint`
 
 ## Requirements
 
