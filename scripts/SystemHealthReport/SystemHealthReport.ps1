@@ -1,4 +1,4 @@
-﻿$outputDir = "C:\Users\nekdo\Documents"
+$outputDir = "$env:USERPROFILE\Documents"
 $outputPath = "$outputDir\System_Health_Report.html"
 
 $isLight = (Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "AppsUseLightTheme" -ErrorAction SilentlyContinue).AppsUseLightTheme -eq 1

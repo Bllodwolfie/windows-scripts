@@ -6,4 +6,4 @@ Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*,
     Select-Object DisplayName, DisplayVersion, Publisher, InstallDate |
     Format-Table -AutoSize -Wrap |
     Out-String -Width 4096 |
-    Out-File -FilePath "C:\Users\nekdo\Documents\Software_Inventory.txt" -Encoding UTF8
+    Out-File -FilePath "$env:USERPROFILE\Documents\Software_Inventory.txt" -Encoding UTF8
