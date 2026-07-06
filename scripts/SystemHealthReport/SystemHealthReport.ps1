@@ -1,11 +1,100 @@
-$outputDir = "$env:USERPROFILE\Documents"
-$outputPath = "$outputDir\System_Health_Report.html"
+# Generates a self-contained HTML system health report (system info, CPU, GPU,
+# memory, storage, network, top processes, recent event-log errors, Windows
+# Update status) using a Catppuccin Mocha/Latte theme that follows the
+# Windows dark/light mode setting. Output is a single .html file plus two
+# cat-mascot images copied alongside it.
 
+$Config = @{
+    # Output
+    OutputDir           = "$env:USERPROFILE\Documents"     # Where the report (and images) are written
+    OutputFile          = "System_Health_Report.html"
+    CatImageDark        = "cat_bobber-dark.png"             # Mascot image shown in dark (Mocha) theme
+    CatImageLight       = "cat_bobber-light.png"             # Mascot image shown in light (Latte) theme
+
+    # Data collection
+    MaxTopProcesses     = 10   # How many processes to list in the "Top Processes" table
+    MaxErrorEvents      = 20   # Max System-log error/critical events to pull
+    ErrorWindowHours    = 24   # Only look back this many hours for errors
+
+    # Risk thresholds (percent) — below Green = low, below Yellow = medium, above = high
+    # Used to color usage bars (RAM, disk) via Get-RiskColor
+    RiskGreen           = 60
+    RiskYellow          = 80
+
+    # Catppuccin Mocha (dark) color palette. Emitted as CSS variables (see Write-Palette).
+    Mocha = @{
+        base     = '#1e1e2e'
+        mantle   = '#181825'
+        crust    = '#11111b'
+        surface0 = '#313244'
+        surface1 = '#45475a'
+        surface2 = '#585b70'
+        overlay0 = '#6c7086'
+        overlay1 = '#7f849c'
+        overlay2 = '#9399b2'
+        subtext0 = '#a6adc8'
+        subtext1 = '#bac2de'
+        text     = '#cdd6f4'
+        lavender = '#b4befe'
+        blue     = '#89b4fa'
+        mauve    = '#cba6f7'
+        green    = '#a6e3a1'
+        yellow   = '#f9e2af'
+        peach    = '#fab387'
+        red      = '#f38ba8'
+        pink     = '#f5c2e7'
+        toolbarBg = 'rgba(255,255,255,0.1)'
+    }
+
+    # Catppuccin Latte (light) color palette. Emitted as CSS variables (see Write-Palette).
+    Latte = @{
+        base     = '#eff1f5'
+        mantle   = '#e6e9ef'
+        crust    = '#dce0e8'
+        surface0 = '#ccd0da'
+        surface1 = '#bcc0cc'
+        surface2 = '#acb0be'
+        overlay0 = '#9ca0b0'
+        overlay1 = '#8c8fa1'
+        overlay2 = '#7c7f93'
+        subtext0 = '#6c6f85'
+        subtext1 = '#5c5f77'
+        text     = '#4c4f69'
+        lavender = '#7287fd'
+        blue     = '#1e66f5'
+        mauve    = '#8839ef'
+        green    = '#40a02b'
+        yellow   = '#df8e1d'
+        peach    = '#fe640b'
+        red      = '#d20f39'
+        pink     = '#ea76cb'
+        toolbarBg = 'rgba(0,0,0,0.05)'
+    }
+}
+
+# Converts a palette hashtable (Mocha or Latte) into CSS custom-property
+# declarations (--base, --text, --green, etc.) used inside :root / [data-theme].
+function Write-Palette($p) {
+    "    --base: $($p.base); --mantle: $($p.mantle); --crust: $($p.crust);"
+    "    --surface0: $($p.surface0); --surface1: $($p.surface1); --surface2: $($p.surface2);"
+    "    --overlay0: $($p.overlay0); --overlay1: $($p.overlay1); --overlay2: $($p.overlay2);"
+    "    --subtext0: $($p.subtext0); --subtext1: $($p.subtext1); --text: $($p.text);"
+    "    --lavender: $($p.lavender); --blue: $($p.blue); --mauve: $($p.mauve);"
+    "    --green: $($p.green); --yellow: $($p.yellow); --peach: $($p.peach); --red: $($p.red); --pink: $($p.pink);"
+    "    --toolbar-bg: $($p.toolbarBg);"
+}
+
+$outputDir = $Config.OutputDir
+$outputPath = "$outputDir\$($Config.OutputFile)"
+
+# Read the Windows setting for light vs dark apps theme to pick the palette
 $isLight = (Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "AppsUseLightTheme" -ErrorAction SilentlyContinue).AppsUseLightTheme -eq 1
 
-# Copy both cat bobber images from repo assets for theme toggle
-Copy-Item -LiteralPath "$PSScriptRoot\..\..\assets\Cat_bobber-dark.png" -Destination "$outputDir\cat_bobber-dark.png" -Force
-Copy-Item -LiteralPath "$PSScriptRoot\..\..\assets\Cat_bobber-light.png" -Destination "$outputDir\cat_bobber-light.png" -Force
+# Mascot images live in a shared "assets" folder two levels up from the script;
+# fall back to Downloads if that folder isn't found (e.g. script run standalone)
+$assetDir = if (Test-Path "$PSScriptRoot\..\..\assets") { "$PSScriptRoot\..\..\assets" } else { "$env:USERPROFILE\Downloads" }
+Copy-Item -LiteralPath "$assetDir\Cat_bobber-dark.png" -Destination "$outputDir\$($Config.CatImageDark)" -Force -ErrorAction SilentlyContinue
+Copy-Item -LiteralPath "$assetDir\Cat_bobber-light.png" -Destination "$outputDir\$($Config.CatImageLight)" -Force -ErrorAction SilentlyContinue
 
 $themeName = if ($isLight) { "Latte" } else { "Mocha" }
 
@@ -13,14 +102,15 @@ $themeName = if ($isLight) { "Latte" } else { "Mocha" }
 $os = Get-CimInstance Win32_OperatingSystem
 $cs = Get-CimInstance Win32_ComputerSystem
 $cpu = Get-CimInstance Win32_Processor
-$mem = Get-CimInstance Win32_OperatingSystem
-$disks = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3"
+$mem = Get-CimInstance Win32_OperatingSystem                       # Reused for memory figures (same class as $os)
+$disks = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3"   # DriveType=3 = fixed local disks only
 $net = Get-CimInstance Win32_NetworkAdapterConfiguration | Where-Object { $_.IPEnabled }
 $gpu = Get-CimInstance Win32_VideoController | Select-Object -First 1
-$procs = Get-Process | Sort-Object WorkingSet64 -Descending | Select-Object -First 10
+$procs = Get-Process | Sort-Object WorkingSet64 -Descending | Select-Object -First $($Config.MaxTopProcesses)
 $bootTime = $os.LastBootUpTime
 $uptime = if ($bootTime) { (Get-Date) - $bootTime } else { [TimeSpan]0 }
-$errors = Get-WinEvent -FilterHashtable @{LogName='System'; Level=1,2; StartTime=(Get-Date).AddHours(-24)} -MaxEvents 20 -ErrorAction SilentlyContinue | Select-Object TimeCreated, Id, LevelDisplayName, ProviderName, Message
+# Level 1,2 = Critical and Error entries in the System log from the last ErrorWindowHours
+$errors = Get-WinEvent -FilterHashtable @{LogName='System'; Level=1,2; StartTime=(Get-Date).AddHours(-$Config.ErrorWindowHours)} -MaxEvents $Config.MaxErrorEvents -ErrorAction SilentlyContinue | Select-Object TimeCreated, Id, LevelDisplayName, ProviderName, Message
 
 # VRAM: prefer nvidia-smi for accuracy, fallback to WMI
 $vramGB = "Unknown"
@@ -49,14 +139,16 @@ try {
     }
 } catch {}
 
+# Note: TotalVisibleMemorySize/FreePhysicalMemory are reported in KB, so /1MB converts to GB
 $totalMem = [math]::Round($mem.TotalVisibleMemorySize / 1MB, 1)
 $freeMem = [math]::Round($mem.FreePhysicalMemory / 1MB, 1)
 $usedMem = [math]::Round($totalMem - $freeMem, 1)
 $memPct = if ($totalMem -gt 0) { [math]::Round($usedMem / $totalMem * 100, 0) } else { 0 }
 
+# Maps a usage percentage to a CSS color variable based on the RiskGreen/RiskYellow thresholds
 function Get-RiskColor($pct) {
-    if ($pct -lt 60) { return "var(--green)" }
-    elseif ($pct -lt 80) { return "var(--yellow)" }
+    if ($pct -lt $Config.RiskGreen) { return "var(--green)" }
+    elseif ($pct -lt $Config.RiskYellow) { return "var(--yellow)" }
     else { return "var(--red)" }
 }
 
@@ -185,6 +277,9 @@ if ($errors) {
 # Section: Windows Update
 $wuRows = "<tr><td class='key'>Last Successful Check</td><td>$wuLastCheck</td></tr>"
 
+# ----- HTML assembly -----
+# The full HTML/CSS/JS is built line-by-line into a StringBuilder for
+# performance (much faster than repeated string concatenation).
 $html = [System.Text.StringBuilder]::new()
 [void]$html.AppendLine('<!DOCTYPE html>')
 [void]$html.AppendLine("<html lang=""en"" data-theme=""$(if ($isLight) { 'latte' } else { 'mocha' })"">")
@@ -193,32 +288,16 @@ $html = [System.Text.StringBuilder]::new()
 [void]$html.AppendLine('<meta name="viewport" content="width=device-width, initial-scale=1.0">')
 [void]$html.AppendLine("<title>System Health Report - $($cs.Name)</title>")
 [void]$html.AppendLine('<style>')
+# :root defaults to Mocha; [data-theme="..."] overrides let the in-page toggle
+# switch palettes instantly by flipping the html element's data-theme attribute
 [void]$html.AppendLine(':root {')
-[void]$html.AppendLine('    --base: #1e1e2e; --mantle: #181825; --crust: #11111b;')
-[void]$html.AppendLine('    --surface0: #313244; --surface1: #45475a; --surface2: #585b70;')
-[void]$html.AppendLine('    --overlay0: #6c7086; --overlay1: #7f849c; --overlay2: #9399b2;')
-[void]$html.AppendLine('    --subtext0: #a6adc8; --subtext1: #bac2de; --text: #cdd6f4;')
-[void]$html.AppendLine('    --lavender: #b4befe; --blue: #89b4fa; --mauve: #cba6f7;')
-[void]$html.AppendLine('    --green: #a6e3a1; --yellow: #f9e2af; --peach: #fab387; --red: #f38ba8; --pink: #f5c2e7;')
-[void]$html.AppendLine('    --toolbar-bg: rgba(255,255,255,0.1);')
+foreach ($line in (Write-Palette $Config.Mocha)) { [void]$html.AppendLine($line) }
 [void]$html.AppendLine('}')
 [void]$html.AppendLine('[data-theme="mocha"] {')
-[void]$html.AppendLine('    --base: #1e1e2e; --mantle: #181825; --crust: #11111b;')
-[void]$html.AppendLine('    --surface0: #313244; --surface1: #45475a; --surface2: #585b70;')
-[void]$html.AppendLine('    --overlay0: #6c7086; --overlay1: #7f849c; --overlay2: #9399b2;')
-[void]$html.AppendLine('    --subtext0: #a6adc8; --subtext1: #bac2de; --text: #cdd6f4;')
-[void]$html.AppendLine('    --lavender: #b4befe; --blue: #89b4fa; --mauve: #cba6f7;')
-[void]$html.AppendLine('    --green: #a6e3a1; --yellow: #f9e2af; --peach: #fab387; --red: #f38ba8; --pink: #f5c2e7;')
-[void]$html.AppendLine('    --toolbar-bg: rgba(255,255,255,0.1);')
+foreach ($line in (Write-Palette $Config.Mocha)) { [void]$html.AppendLine($line) }
 [void]$html.AppendLine('}')
 [void]$html.AppendLine('[data-theme="latte"] {')
-[void]$html.AppendLine('    --base: #eff1f5; --mantle: #e6e9ef; --crust: #dce0e8;')
-[void]$html.AppendLine('    --surface0: #ccd0da; --surface1: #bcc0cc; --surface2: #acb0be;')
-[void]$html.AppendLine('    --overlay0: #9ca0b0; --overlay1: #8c8fa1; --overlay2: #7c7f93;')
-[void]$html.AppendLine('    --subtext0: #6c6f85; --subtext1: #5c5f77; --text: #4c4f69;')
-[void]$html.AppendLine('    --lavender: #7287fd; --blue: #1e66f5; --mauve: #8839ef;')
-[void]$html.AppendLine('    --green: #40a02b; --yellow: #df8e1d; --peach: #fe640b; --red: #d20f39; --pink: #ea76cb;')
-[void]$html.AppendLine('    --toolbar-bg: rgba(0,0,0,0.05);')
+foreach ($line in (Write-Palette $Config.Latte)) { [void]$html.AppendLine($line) }
 [void]$html.AppendLine('}')
 [void]$html.AppendLine('* { margin: 0; padding: 0; box-sizing: border-box; }')
 [void]$html.AppendLine('html { scroll-behavior: smooth; }')
@@ -349,13 +428,15 @@ $html = [System.Text.StringBuilder]::new()
 [void]$html.AppendLine('</style>')
 [void]$html.AppendLine('</head>')
 [void]$html.AppendLine('<body>')
+# Full-screen intro/splash panel shown before the report content
 [void]$html.AppendLine('<div class="intro">')
-[void]$html.AppendLine("    <img src='cat_bobber-dark.png' alt='Cat' class='intro-cat intro-cat-mocha'>")
-[void]$html.AppendLine("    <img src='cat_bobber-light.png' alt='Cat' class='intro-cat intro-cat-latte'>")
+[void]$html.AppendLine("    <img src='$($Config.CatImageDark)' alt='Cat' class='intro-cat intro-cat-mocha'>")
+[void]$html.AppendLine("    <img src='$($Config.CatImageLight)' alt='Cat' class='intro-cat intro-cat-latte'>")
 [void]$html.AppendLine("    <h1>Hello $($env:USERNAME)</h1>")
 [void]$html.AppendLine("    <p class='intro-body'>Ready to see today's system report?</p>")
 [void]$html.AppendLine("    <p class='intro-scroll'>&#9660; &#9660;</p>")
 [void]$html.AppendLine('</div>')
+# Collapsible jump-to navigation, toggled by the hamburger button
 [void]$html.AppendLine('<nav class="sidebar" id="sidebar">')
 [void]$html.AppendLine("    <h3>Jump to</h3>")
 [void]$html.AppendLine("    <a href='#sysinfo'>System Information</a>")
@@ -380,6 +461,8 @@ $html = [System.Text.StringBuilder]::new()
 [void]$html.AppendLine('')
 [void]$html.AppendLine($summaryCards)
 [void]$html.AppendLine('')
+# Each report section below is wrapped in a .fade-section div, which the
+# IntersectionObserver script (further down) fades/slides it into view on scroll
 [void]$html.AppendLine('<div class="fade-section">')
 [void]$html.AppendLine('<h2 id="sysinfo"><span class="accent">&#9670;</span> System Information</h2>')
 [void]$html.AppendLine('<table><tbody>')
@@ -451,6 +534,7 @@ if ($gpuRows) {
 [void]$html.AppendLine('')
 [void]$html.AppendLine("<div class=""footer"">Generated by SystemHealthReport.ps1 &middot; Catppuccin $themeName</div>")
 [void]$html.AppendLine('')
+# Page behavior: fade-in sections on scroll, animate usage bars, theme toggle, sidebar nav
 [void]$html.AppendLine('<script>')
 [void]$html.AppendLine('const observer = new IntersectionObserver((entries) => {')
 [void]$html.AppendLine('  entries.forEach(entry => {')
@@ -505,4 +589,5 @@ if ($gpuRows) {
 [void]$html.AppendLine('</body>')
 [void]$html.AppendLine('</html>')
 
+# Write with a UTF-8 BOM so the browser reliably renders special characters/icons
 [System.IO.File]::WriteAllText($outputPath, $html.ToString(), [System.Text.UTF8Encoding]::new($true))
