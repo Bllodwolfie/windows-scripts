@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="mocha">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System Health Report — SAMPLE</title>
+<style>
+:root {
+    --base: #1e1e2e; --mantle: #181825; --crust: #11111b;
+    --surface0: #313244; --surface1: #45475a; --surface2: #585b70;
+    --overlay0: #6c7086; --overlay1: #7f849c; --overlay2: #9399b2;
+    --subtext0: #a6adc8; --subtext1: #bac2de; --text: #cdd6f4;
+    --lavender: #b4befe; --blue: #89b4fa; --mauve: #cba6f7;
+    --green: #a6e3a1; --yellow: #f9e2af; --peach: #fab387; --red: #f38ba8; --pink: #f5c2e7;
+    --toolbar-bg: rgba(255,255,255,0.1);
+}
+[data-theme="mocha"] {
+    --base: #1e1e2e; --mantle: #181825; --crust: #11111b;
+    --surface0: #313244; --surface1: #45475a; --surface2: #585b70;
+    --overlay0: #6c7086; --overlay1: #7f849c; --overlay2: #9399b2;
+    --subtext0: #a6adc8; --subtext1: #bac2de; --text: #cdd6f4;
+    --lavender: #b4befe; --blue: #89b4fa; --mauve: #cba6f7;
+    --green: #a6e3a1; --yellow: #f9e2af; --peach: #fab387; --red: #f38ba8; --pink: #f5c2e7;
+    --toolbar-bg: rgba(255,255,255,0.1);
+}
+[data-theme="latte"] {
+    --base: #eff1f5; --mantle: #e6e9ef; --crust: #dce0e8;
+    --surface0: #ccd0da; --surface1: #bcc0cc; --surface2: #acb0be;
+    --overlay0: #9ca0b0; --overlay1: #8c8fa1; --overlay2: #7c7f93;
+    --subtext0: #6c6f85; --subtext1: #5c5f77; --text: #4c4f69;
+    --lavender: #7287fd; --blue: #1e66f5; --mauve: #8839ef;
+    --green: #40a02b; --yellow: #df8e1d; --peach: #fe640b; --red: #d20f39; --pink: #ea76cb;
+    --toolbar-bg: rgba(0,0,0,0.05);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { font-family: 'Segoe UI', -apple-system, sans-serif; background: var(--base); color: var(--text); padding: 20px; }
+
+.header { display: flex; align-items: center; padding: 12px 20px; margin-bottom: 28px; background: color-mix(in srgb, var(--mantle) 80%, transparent); backdrop-filter: blur(8px); border-radius: 12px; position: sticky; top: 0; gap: 12px; z-index: 100; }
+.header-body { flex: 1; text-align: center; }
+h1 { font-size: 28px; font-weight: 700; color: var(--text); }
+.subtitle { color: var(--subtext0); font-size: 14px; margin-top: 6px; }
+
+h2 { font-size: 18px; font-weight: 600; margin: 32px 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--surface0); color: var(--text); display: flex; align-items: center; gap: 8px; }
+h2 .accent { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--mauve); animation: pulse-dot 2s ease-in-out infinite; overflow: hidden; font-size: 0; }
+@keyframes pulse-dot { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(0.8); } }
+
+.summary { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-bottom: 8px; }
+.card { background: var(--mantle); border-radius: 10px; padding: 16px 18px; transition: transform 0.25s cubic-bezier(0.4,0,0.2,1), box-shadow 0.25s cubic-bezier(0.4,0,0.2,1); cursor: default; position: relative; overflow: hidden; }
+.card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
+.card::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, transparent 60%, rgba(255,255,255,0.02)); pointer-events: none; }
+.card-label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--subtext0); margin-bottom: 4px; }
+.card-value { display: block; font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: -0.3px; }
+.card-sub { display: block; font-size: 12px; color: var(--overlay1); margin-top: 2px; }
+
+.bar { height: 6px; background: var(--surface0); border-radius: 4px; margin-top: 6px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 4px; transition: width 1.2s cubic-bezier(0.4,0,0.2,1); }
+
+table { width: 100%; border-collapse: collapse; background: var(--mantle); border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+th { background: var(--surface0); color: var(--subtext1); font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; padding: 11px 14px; text-align: left; font-weight: 600; }
+td { padding: 9px 14px; border-bottom: 1px solid var(--surface0); font-size: 13px; vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+tbody tr { transition: background 0.2s; }
+tbody tr:hover { background: rgba(255,255,255,0.03); }
+.key { color: var(--subtext0); white-space: nowrap; width: 180px; font-weight: 500; }
+
+.fade-section { opacity: 0; transform: translateY(20px); transition: opacity 0.6s cubic-bezier(0.4,0,0.2,1), transform 0.6s cubic-bezier(0.4,0,0.2,1); }
+.fade-section.visible { opacity: 1; transform: translateY(0); }
+
+.footer { margin-top: 40px; padding: 20px; border-top: 1px solid var(--surface0); font-size: 12px; color: var(--overlay0); text-align: center; }
+
+/* Intro */
+.intro {
+    height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; gap: 16px;
+}
+.intro-cat {
+    width: 200px; height: auto;
+    image-rendering: pixelated;
+}
+.intro-cat-mocha { display: block; }
+.intro-cat-latte { display: none; }
+[data-theme="latte"] .intro-cat-mocha { display: none; }
+[data-theme="latte"] .intro-cat-latte { display: block; }
+.intro h1 {
+    font-size: 32px; font-weight: 700; color: var(--text);
+    margin: 0; border: none;
+}
+.intro-body {
+    font-size: 18px; color: var(--subtext1);
+}
+.intro-scroll {
+    font-size: 14px; color: var(--overlay0);
+    margin-top: 24px; letter-spacing: 8px;
+    animation: bob 2s ease-in-out infinite;
+}
+@keyframes bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(8px); }
+}
+
+/* Theme toggle */
+.theme-toggle {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--toolbar-bg); border: 2px solid var(--surface0);
+    color: var(--text); font-size: 20px; cursor: pointer;
+    box-sizing: border-box;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.3s, transform 0.2s;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.theme-toggle:hover { transform: scale(1.1); }
+
+/* Sidebar */
+.sidebar {
+    position: fixed; top: 0; left: 0; height: 100%; z-index: 9998;
+    width: 220px; background: color-mix(in srgb, var(--mantle) 95%, transparent);
+    backdrop-filter: blur(10px);
+    border-right: 1px solid var(--surface0);
+    padding: 0 0 24px;
+    transform: translateX(-100%); transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
+    overflow-y: auto;
+}
+.sidebar.open { transform: translateX(0); }
+.sidebar h3 {
+    position: sticky; top: 0; z-index: 1;
+    padding: 16px 16px 8px; margin: 0;
+    background: color-mix(in srgb, var(--mantle) 95%, transparent);
+    font-size: 12px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--overlay0);
+}
+.sidebar a {
+    display: block; padding: 8px 16px; border-radius: 6px;
+    color: var(--subtext1); text-decoration: none; font-size: 13px;
+    transition: background 0.2s, color 0.2s;
+}
+.sidebar a:hover {
+    background: var(--surface0); color: var(--text);
+}
+.sidebar-toggle {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--toolbar-bg); border: 2px solid var(--surface0);
+    color: var(--text); font-size: 18px; cursor: pointer;
+    box-sizing: border-box;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    transition: background 0.3s, transform 0.2s;
+}
+.sidebar-toggle:hover { transform: scale(1.1); }
+.sidebar-fade {
+    position: sticky; bottom: 0; height: 32px; margin-top: -32px;
+    background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--mantle) 95%, transparent));
+    pointer-events: none;
+}
+.sidebar::-webkit-scrollbar { width: 5px; }
+.sidebar::-webkit-scrollbar-track { background: transparent; }
+.sidebar::-webkit-scrollbar-thumb { background: var(--surface1); border-radius: 3px; }
+
+/* Sample banner */
+.sample-banner {
+    background: var(--yellow); color: var(--crust);
+    text-align: center; padding: 6px; font-size: 12px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 2px;
+    border-radius: 8px; margin-bottom: 16px;
+}
+</style>
+</head>
+<body>
+<div class="sample-banner">SAMPLE REPORT — All data shown is dummy / placeholder</div>
+<div class="intro">
+    <img src='../../assets/Cat_bobber-dark.png' alt='Cat' class='intro-cat intro-cat-mocha'>
+    <img src='../../assets/Cat_bobber-light.png' alt='Cat' class='intro-cat intro-cat-latte'>
+    <h1>Hello SampleUser</h1>
+    <p class='intro-body'>This is a preview of what a real report looks like.</p>
+    <p class='intro-scroll'>&#9660; &#9660;</p>
+</div>
+<nav class="sidebar" id="sidebar">
+    <h3>Jump to</h3>
+    <a href='#sysinfo'>System Information</a>
+    <a href='#cpu'>CPU</a>
+    <a href='#gpu'>Graphics</a>
+    <a href='#memory'>Memory</a>
+    <a href='#storage'>Storage</a>
+    <a href='#network'>Network</a>
+    <a href='#processes'>Top Processes</a>
+    <a href='#errors'>Recent Errors</a>
+    <a href='#windows-update'>Windows Update</a>
+    <div class="sidebar-fade"></div>
+</nav>
+<div class="header">
+<button class="sidebar-toggle" id="sidebarToggle" aria-label="Menu">☰</button>
+<div class="header-body">
+<h1>System Health Report</h1>
+<div class="subtitle">DESKTOP-SAMPLE &middot; 2026-07-06 16:30 &middot; Catppuccin Mocha</div>
+</div>
+<button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">🌙</button>
+</div>
+
+<div class="summary">
+    <div class="card" style="border-left: 4px solid var(--mauve);">
+        <span class="card-label">OS</span>
+        <span class="card-value">Windows 11 Pro</span>
+        <span class="card-sub">Build 26100</span>
+    </div>
+    <div class="card" style="border-left: 4px solid var(--blue);">
+        <span class="card-label">Uptime</span>
+        <span class="card-value">3d 14h</span>
+        <span class="card-sub">since Jul 03, 01:12</span>
+    </div>
+    <div class="card" style="border-left: 4px solid var(--peach);">
+        <span class="card-label">CPU</span>
+        <span class="card-value">AMD Ryzen 7 7800X3D</span>
+        <span class="card-sub">8 cores / 16 threads</span>
+    </div>
+    <div class="card" style="border-left: 4px solid var(--green);">
+        <span class="card-label">RAM</span>
+        <span class="card-value">9.5 / 32.0 GB</span>
+        <div class="bar"><div class="bar-fill" style="width:30%;background:var(--green);"></div></div>
+    </div>
+    <div class="card" style="border-left: 4px solid var(--green);">
+        <span class="card-label">OS (C:)</span>
+        <span class="card-value">189 / 476 GB</span>
+        <div class="bar"><div class="bar-fill" style="width:40%;background:var(--green);"></div></div>
+    </div>
+    <div class="card" style="border-left: 4px solid var(--yellow);">
+        <span class="card-label">Data (D:)</span>
+        <span class="card-value">1340 / 1863 GB</span>
+        <div class="bar"><div class="bar-fill" style="width:72%;background:var(--yellow);"></div></div>
+    </div>
+</div>
+
+<div class="fade-section">
+<h2 id="sysinfo"><span class="accent">&#9670;</span> System Information</h2>
+<table><tbody>
+    <tr><td class="key">Hostname</td><td>DESKTOP-SAMPLE</td></tr>
+    <tr><td class="key">OS</td><td>Microsoft Windows 11 Pro</td></tr>
+    <tr><td class="key">Version</td><td>10.0.26100 (Build 26100)</td></tr>
+    <tr><td class="key">Architecture</td><td>64-bit</td></tr>
+    <tr><td class="key">Install Date</td><td>2026-01-15 09:30</td></tr>
+    <tr><td class="key">Last Boot</td><td>2026-07-03 01:12:45</td></tr>
+    <tr><td class="key">Uptime</td><td>3 days, 14 hours, 18 minutes</td></tr>
+    <tr><td class="key">Manufacturer</td><td>Micro-Star International Co., Ltd.</td></tr>
+    <tr><td class="key">Model</td><td>MPG X670E CARBON WIFI</td></tr>
+</tbody></table>
+</div>
+
+<div class="fade-section">
+<h2 id="cpu"><span class="accent">&#9670;</span> CPU</h2>
+<table><tbody>
+    <tr><td class="key">Processor</td><td>AMD Ryzen 7 7800X3D</td></tr>
+    <tr><td class="key">Cores</td><td>8 physical / 16 logical</td></tr>
+    <tr><td class="key">Max Clock</td><td>5050 MHz</td></tr>
+    <tr><td class="key">L2 Cache</td><td>8192 KB</td></tr>
+    <tr><td class="key">L3 Cache</td><td>98304 KB</td></tr>
+</tbody></table>
+</div>
+
+<div class="fade-section">
+<h2 id="gpu"><span class="accent">&#9670;</span> Graphics</h2>
+<table><tbody>
+    <tr><td class="key">GPU</td><td>NVIDIA GeForce RTX 4080 Super</td></tr>
+    <tr><td class="key">VRAM</td><td>16.0 GB</td></tr>
+    <tr><td class="key">Driver</td><td>31.0.15.7425</td></tr>
+</tbody></table>
+</div>
+
+<div class="fade-section">
+<h2 id="memory"><span class="accent">&#9670;</span> Memory</h2>
+<table><tbody>
+    <tr><td class="key">Total</td><td>32.0 GB</td></tr>
+    <tr><td class="key">Used</td><td>9.5 GB</td></tr>
+    <tr><td class="key">Free</td><td>22.5 GB</td></tr>
+    <tr><td class="key">Usage</td><td><div class="bar" style="max-width:300px"><div class="bar-fill" style="width:30%;background:var(--green);"></div></div> 30%</td></tr>
+</tbody></table>
+</div>
+
+<div class="fade-section">
+<h2 id="storage"><span class="accent">&#9670;</span> Storage</h2>
+<table><tbody>
+    <tr><td class="key">OS (C:)</td><td><div class="bar" style="max-width:300px"><div class="bar-fill" style="width:40%;background:var(--green);"></div></div> 189 / 476 GB (40%)</td></tr>
+    <tr><td class="key">Data (D:)</td><td><div class="bar" style="max-width:300px"><div class="bar-fill" style="width:72%;background:var(--yellow);"></div></div> 1340 / 1863 GB (72%)</td></tr>
+    <tr><td class="key">Backup (E:)</td><td><div class="bar" style="max-width:300px"><div class="bar-fill" style="width:88%;background:var(--red);"></div></div> 3526 / 3726 GB (88%)</td></tr>
+</tbody></table>
+</div>
+
+<div class="fade-section">
+<h2 id="network"><span class="accent">&#9670;</span> Network</h2>
+<table><tbody>
+    <tr><td class="key">Realtek Gaming 2.5GbE</td><td>Connected</td></tr>
+    <tr><td class="key">Intel Wi-Fi 7 BE200</td><td>Connected</td></tr>
+</tbody></table>
+</div>
+
+<div class="fade-section">
+<h2 id="processes"><span class="accent">&#9670;</span> Top Processes (by memory)</h2>
+<table><thead><tr><th>#</th><th>Name</th><th>File</th><th>Memory</th><th>PID</th></tr></thead><tbody>
+    <tr><td>1</td><td>Firefox</td><td>firefox.exe</td><td>1824.3 MB</td><td>14832</td></tr>
+    <tr><td>2</td><td>Code</td><td>code.exe</td><td>945.6 MB</td><td>2204</td></tr>
+    <tr><td>3</td><td>Discord</td><td>discord.exe</td><td>612.8 MB</td><td>9012</td></tr>
+    <tr><td>4</td><td>Spotify</td><td>spotify.exe</td><td>401.2 MB</td><td>7654</td></tr>
+    <tr><td>5</td><td>Windows Explorer</td><td>explorer.exe</td><td>298.5 MB</td><td>4321</td></tr>
+    <tr><td>6</td><td>PowerShell</td><td>pwsh.exe</td><td>215.0 MB</td><td>12345</td></tr>
+    <tr><td>7</td><td>System</td><td>ntoskrnl.exe</td><td>189.3 MB</td><td>4</td></tr>
+    <tr><td>8</td><td>Microsoft Teams</td><td>ms-teams.exe</td><td>156.7 MB</td><td>6789</td></tr>
+    <tr><td>9</td><td>OneDrive</td><td>onedrive.exe</td><td>134.2 MB</td><td>1122</td></tr>
+    <tr><td>10</td><td>Windows Defender</td><td>MsMpEng.exe</td><td>98.1 MB</td><td>3344</td></tr>
+</tbody></table>
+</div>
+
+<div class="fade-section">
+<h2 id="errors"><span class="accent">&#9670;</span> Recent Errors (last 24h)</h2>
+<table><thead><tr><th>Level</th><th>Time</th><th>Source</th><th>Message</th></tr></thead><tbody>
+    <tr><td style="color:var(--red)">Critical</td><td>Jul 06 14:22</td><td>Microsoft-Windows-Kernel-Power</td><td>The system has rebooted without cleanly shutting down first. This error could be caused by the system stopping responding, crashing, or losing power unexpectedly.</td></tr>
+    <tr><td style="color:var(--yellow)">Warning</td><td>Jul 06 13:15</td><td>DCOM</td><td>The application-specific permission settings do not grant Local Activation permission for the COM Server application with CLSID {2593F8B9-4EAF-457C-B68A-50F6B8EA...</td></tr>
+    <tr><td style="color:var(--yellow)">Warning</td><td>Jul 06 11:08</td><td>DistributedCOM</td><td>The server {00000000-0000-0000-0000-000000000000} did not register with DCOM within the required timeout.</td></tr>
+    <tr><td style="color:var(--red)">Critical</td><td>Jul 06 09:45</td><td>Microsoft-Windows-DNS-Client</td><td>Failed to resolve DNS name resolver-identity.opencode.ai with error 9003 (DNS name does not exist.)</td></tr>
+    <tr><td style="color:var(--yellow)">Warning</td><td>Jul 06 07:30</td><td>WMI</td><td>WMI Performance Adapter service terminated unexpectedly. It has done this 1 time(s).</td></tr>
+</tbody></table>
+</div>
+
+<div class="fade-section">
+<h2 id="windows-update"><span class="accent">&#9670;</span> Windows Update</h2>
+<table><tbody>
+    <tr><td class="key">Last Successful Check</td><td>2026-07-06 12:00</td></tr>
+</tbody></table>
+</div>
+
+<div class="footer">Generated by SystemHealthReport.ps1 &middot; Catppuccin Mocha</div>
+
+<script>
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add("visible");
+    }
+  });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('.fade-section').forEach(el => observer.observe(el));
+
+document.querySelectorAll('.bar-fill').forEach(bar => {
+  const width = bar.style.width;
+  bar.style.width = '0%';
+  setTimeout(() => { bar.style.width = width; }, 100);
+});
+
+const toggle = document.getElementById("themeToggle");
+const html = document.documentElement;
+const sub = document.querySelector('.subtitle');
+const themes = { mocha: '🌙', latte: '☀️' };
+const names = { mocha: 'Mocha', latte: 'Latte' };
+toggle.addEventListener("click", () => {
+    const cur = html.getAttribute('data-theme');
+    const next = cur === 'mocha' ? 'latte' : 'mocha';
+    html.setAttribute('data-theme', next);
+    toggle.textContent = themes[next];
+    if (sub) sub.textContent = sub.textContent.replace(/Mocha|Latte/, names[next]);
+});
+
+const sidebar = document.getElementById("sidebar");
+const sToggle = document.getElementById("sidebarToggle");
+
+sToggle.addEventListener("click", () => {
+    sidebar.classList.toggle("open");
+});
+
+sidebar.querySelectorAll('a').forEach(a => {
+    a.addEventListener("click", () => sidebar.classList.remove("open"));
+});
+
+document.addEventListener("click", (e) => {
+    if (!sidebar.contains(e.target) && e.target !== sToggle) {
+        sidebar.classList.remove("open");
+    }
+});
+</script>
+</body>
+</html>

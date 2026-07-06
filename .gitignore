@@ -1,0 +1,20 @@
+# Generated output files
+*.html
+!scripts/*/sample-report.html
+
+# Script logs
+Script_Logs/
+
+# Windows temp
+*.tmp
+*.log
+Thumbs.db
+
+# PowerShell
+*.ps1xml
+
+# IDE
+.vs/
+.vscode/
+*.suo
+*.user
