@@ -1,4 +1,4 @@
-$path = "C:\Users\nekdo\Downloads"
+$path = "$env:USERPROFILE\Downloads"
 if (Test-Path -LiteralPath $path) {
     do {
         $empty = Get-ChildItem -LiteralPath $path -Directory -Recurse -ErrorAction SilentlyContinue |
