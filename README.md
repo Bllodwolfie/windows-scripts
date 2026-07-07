@@ -1,5 +1,8 @@
 # windows-scripts
 
+![License](https://img.shields.io/github/license/Bllodwolfie/windows-scripts)
+[![Catppuccin](https://img.shields.io/badge/catppuccin-Mocha%20%26%20Latte-DDB6F2?style=flat)](https://github.com/catppuccin/catppuccin)
+
 A collection of self-contained PowerShell scripts for Windows system maintenance and diagnostics.
 
 ## Preview

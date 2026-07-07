@@ -36,7 +36,7 @@
 html { scroll-behavior: smooth; }
 body { font-family: 'Segoe UI', -apple-system, sans-serif; background: var(--base); color: var(--text); padding: 20px; }
 
-.header { display: flex; align-items: center; padding: 12px 20px; margin-bottom: 28px; background: color-mix(in srgb, var(--mantle) 80%, transparent); backdrop-filter: blur(8px); border-radius: 12px; position: sticky; top: 0; gap: 12px; z-index: 100; }
+.header { display: flex; align-items: center; padding: 12px 20px; margin-bottom: 28px; background: color-mix(in srgb, var(--mantle) 80%, transparent); backdrop-filter: blur(8px); border-radius: 12px; position: sticky; top: 0; z-index: 100; }
 .header-body { flex: 1; text-align: center; }
 h1 { font-size: 28px; font-weight: 700; color: var(--text); }
 .subtitle { color: var(--subtext0); font-size: 14px; margin-top: 6px; }
@@ -100,18 +100,44 @@ tbody tr:hover { background: rgba(255,255,255,0.03); }
     50% { transform: translateY(8px); }
 }
 
-/* Theme toggle */
-.theme-toggle {
+/* Both header buttons - shared style */
+.header .sidebar-toggle,
+.header .theme-toggle {
     width: 40px; height: 40px; border-radius: 50%;
     background: var(--toolbar-bg); border: 2px solid var(--surface0);
     color: var(--text); cursor: pointer;
-    box-sizing: border-box;
     flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
     box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-    transition: background 0.3s, transform 0.2s;
+    transition: opacity 0.3s ease, transform 0.2s;
 }
-.theme-toggle:hover { transform: scale(1.1); }
+.header .sidebar-toggle:hover,
+.header .theme-toggle:hover { transform: scale(1.1); }
+.header .sidebar-toggle:focus-visible {
+    outline: 2px solid var(--mauve);
+    outline-offset: 3px;
+}
+
+/* Floating mode: buttons fixed to viewport corners, out of flex flow */
+.header.floating .sidebar-toggle {
+    position: fixed;
+    top: 22px;
+    left: 40px;
+    z-index: 9999;
+}
+.header.floating .theme-toggle {
+    position: fixed;
+    top: 22px;
+    right: 40px;
+    z-index: 9999;
+}
+
+/* Docked mode: in flex flow — centered by align-items: center */
+
+/* Hide hamburger when sidebar is open */
+.sidebar.open ~ .header .sidebar-toggle { display: none; }
+
+/* Theme icon visibility */
 .theme-toggle .icon-moon { display: flex; align-items: center; justify-content: center; }
 .theme-toggle .icon-sun { display: none; align-items: center; justify-content: center; }
 [data-theme="latte"] .theme-toggle .icon-moon { display: none; }
@@ -162,19 +188,8 @@ tbody tr:hover { background: rgba(255,255,255,0.03); }
 .sidebar a:hover {
     background: var(--surface0); color: var(--text);
 }
-.sidebar-toggle {
-    width: 40px; height: 40px; border-radius: 50%;
-    background: var(--toolbar-bg); border: 2px solid var(--surface0);
-    color: var(--text); cursor: pointer;
-    box-sizing: border-box;
-    flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-    transition: background 0.3s, transform 0.2s;
-}
-.sidebar-toggle:hover { transform: scale(1.1); }
 .sidebar-fade {
-    position: sticky; bottom: 0; height: 32px; margin-top: -32px;
+    position: sticky; bottom: 0; height: 32px;
     background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--mantle) 95%, transparent));
     pointer-events: none;
 }
@@ -220,7 +235,7 @@ tbody tr:hover { background: rgba(255,255,255,0.03); }
     </div>
     <div class="sidebar-fade"></div>
 </nav>
-<div class="header">
+<div class="header" id="header">
 <button class="sidebar-toggle" id="sidebarToggle" aria-label="Menu">
     <svg viewBox="0 0 24 24" width="22" height="22"><line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="3" y1="12" x2="21" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="3" y1="18" x2="21" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
 </button>
@@ -386,6 +401,14 @@ document.querySelectorAll('.bar-fill').forEach(bar => {
   setTimeout(() => { bar.style.width = width; }, 100);
 });
 
+// Header floating/docked state
+const header = document.getElementById("header");
+function updateFloating() {
+  header.classList.toggle("floating", header.getBoundingClientRect().top > 0);
+}
+window.addEventListener("scroll", updateFloating, { passive: true });
+updateFloating();
+
 const toggle = document.getElementById("themeToggle");
 const html = document.documentElement;
 const sub = document.querySelector('.subtitle');
@@ -398,14 +421,9 @@ toggle.addEventListener("click", () => {
 });
 
 const sidebar = document.getElementById("sidebar");
-const sToggle = document.getElementById("sidebarToggle");
 const sClose = document.getElementById("sidebarClose");
 
 function closeSidebar() { sidebar.classList.remove("open"); }
-
-sToggle.addEventListener("click", () => {
-    sidebar.classList.toggle("open");
-});
 
 sClose.addEventListener("click", closeSidebar);
 
@@ -414,7 +432,13 @@ sidebar.querySelectorAll('a').forEach(a => {
 });
 
 document.addEventListener("click", (e) => {
-    if (!sidebar.contains(e.target) && e.target !== sToggle) {
+    if (e.target.closest("#sidebarToggle")) {
+        sidebar.classList.toggle("open");
+    }
+});
+
+document.addEventListener("click", (e) => {
+    if (!sidebar.contains(e.target) && !e.target.closest("#sidebarToggle")) {
         closeSidebar();
     }
 });
