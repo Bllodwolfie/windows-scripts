@@ -84,6 +84,37 @@ function Write-Palette($p) {
     "    --toolbar-bg: $($p.toolbarBg);"
 }
 
+# Returns a VRAM label for a single GPU object.
+# Priority: registry HardwareInformation.qwMemorySize (64-bit, vendor-neutral) -> WMI AdapterRAM (32-bit fallback).
+# Appends "(dedicated)" for small-pool integrated GPUs so shared-memory configs are clear.
+function Get-GpuVRAMLabel($gpuObj) {
+    $gb = $null
+
+    $classGuid = '{4d36e968-e325-11ce-bfc1-08002be10318}'
+    $classPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Class\$classGuid"
+    foreach ($inst in (Get-ChildItem $classPath -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -match '^\d{4}$' })) {
+        $props = Get-ItemProperty "$classPath\$($inst.PSChildName)" -ErrorAction SilentlyContinue
+        if ($props.'HardwareInformation.qwMemorySize' -gt 0 -and
+            ($props.MatchingDeviceId -replace '#', '\') -eq $gpuObj.PNPDeviceID) {
+            $gb = [math]::Round($props.'HardwareInformation.qwMemorySize' / 1GB, 1)
+            break
+        }
+    }
+
+    if (-not $gb -and $gpuObj.AdapterRAM -gt 0) {
+        $gb = [math]::Round($gpuObj.AdapterRAM / 1GB, 1)
+    }
+
+    if (-not $gb -or $gb -le 0) { return "Unknown" }
+
+    $isLikelyIGPU = ($gpuObj.Name -match 'Intel|AMD Radeon(TM) Graphics|AMD Radeon HD|AMD Ryzen') -and
+                    ($gpuObj.Name -notmatch 'GeForce|RTX|GTX|Radeon RX|Radeon Pro|Radeon VII|Arc|FirePro|Quadro|Tesla')
+    if ($isLikelyIGPU -and $gb -lt 2) {
+        return "$gb GB (dedicated)"
+    }
+    return "$gb GB"
+}
+
 $outputDir = $Config.OutputDir
 $outputPath = "$outputDir\$($Config.OutputFile)"
 
@@ -105,25 +136,12 @@ $cpu = Get-CimInstance Win32_Processor
 $mem = Get-CimInstance Win32_OperatingSystem                       # Reused for memory figures (same class as $os)
 $disks = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3"   # DriveType=3 = fixed local disks only
 $net = Get-CimInstance Win32_NetworkAdapterConfiguration | Where-Object { $_.IPEnabled }
-$gpu = Get-CimInstance Win32_VideoController | Select-Object -First 1
+$gpuObjs = Get-CimInstance Win32_VideoController | Where-Object { $_.PNPDeviceID -notlike 'ROOT\*' }
 $procs = Get-Process | Sort-Object WorkingSet64 -Descending | Select-Object -First $($Config.MaxTopProcesses)
 $bootTime = $os.LastBootUpTime
 $uptime = if ($bootTime) { (Get-Date) - $bootTime } else { [TimeSpan]0 }
 # Level 1,2 = Critical and Error entries in the System log from the last ErrorWindowHours
 $errors = Get-WinEvent -FilterHashtable @{LogName='System'; Level=1,2; StartTime=(Get-Date).AddHours(-$Config.ErrorWindowHours)} -MaxEvents $Config.MaxErrorEvents -ErrorAction SilentlyContinue | Select-Object TimeCreated, Id, LevelDisplayName, ProviderName, Message
-
-# VRAM: prefer nvidia-smi for accuracy, fallback to WMI
-$vramGB = "Unknown"
-try {
-    $nvidiaOut = & nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>&1
-    if ($nvidiaOut -match '^\d+') {
-        $vramGB = [math]::Round([double]$matches[0] / 1024, 1)
-    } else { throw "no match" }
-} catch {
-    if ($gpu.AdapterRAM -and $gpu.AdapterRAM -gt 0) {
-        $vramGB = [math]::Round($gpu.AdapterRAM / 1GB, 1)
-    }
-}
 
 # Windows Update last check
 $wuLastCheck = "Unknown"
@@ -240,11 +258,21 @@ foreach ($n in $net) {
 
 # Section: GPU
 $gpuRows = ""
-if ($gpu) {
-    $gpuRows = @"
-            <tr><td class="key">GPU</td><td>$($gpu.Name)</td></tr>
-            <tr><td class="key">VRAM</td><td>$vramGB GB</td></tr>
-            <tr><td class="key">Driver</td><td>$($gpu.DriverVersion)</td></tr>
+$gpuIndex = 0
+foreach ($gpu in $gpuObjs) {
+    $gpuIndex++
+    $name = $gpu.Name -replace '\(R\)|\(TM\)|®|™'
+    $vramLabel = Get-GpuVRAMLabel $gpu
+    $driverVer = $gpu.DriverVersion
+
+    if ($gpuIndex -gt 1) {
+        $gpuRows += '<tr><td colspan="2" style="padding:0;border-bottom:2px solid var(--surface1);"></td></tr>'
+    }
+
+    $gpuRows += @"
+            <tr><td class="key">GPU $gpuIndex</td><td>$name</td></tr>
+            <tr><td class="key">VRAM $gpuIndex</td><td>$vramLabel</td></tr>
+            <tr><td class="key">Driver $gpuIndex</td><td>$driverVer</td></tr>
 "@
 }
 
