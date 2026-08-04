@@ -85,19 +85,48 @@ function Write-Palette($p) {
 }
 
 # Returns a VRAM label for a single GPU object.
-# Priority: registry HardwareInformation.qwMemorySize (64-bit, vendor-neutral) -> WMI AdapterRAM (32-bit fallback).
+# Resolution order:
+#   1. Registry HardwareInformation.qwMemorySize (64-bit, vendor-neutral), matched by
+#      normalizing the WMI device ID (PNPDeviceID minus its instance path and &REV_xxxx
+#      suffix) against each display-class subkey's MatchingDeviceId. The previous exact
+#      -eq comparison could never match, because the registry stores a bare device ID
+#      while WMI returns the full instance path, so every lookup fell through to the
+#      32-bit AdapterRAM field (which wraps above 4 GB).
+#   2. nvidia-smi for NVIDIA adapters (exact, works even if the registry is restricted).
+#   3. WMI AdapterRAM as a last resort (32-bit field — unreliable above 4 GB).
 # Appends "(dedicated)" for small-pool integrated GPUs so shared-memory configs are clear.
 function Get-GpuVRAMLabel($gpuObj) {
     $gb = $null
 
+    # Strip the instance path (\4&1FC990D7&0&0019) and the revision (&REV_A1) from the
+    # WMI PNPDeviceID so it lines up with the registry MatchingDeviceId, which omits both.
+    $deviceId = if ($gpuObj.PNPDeviceID) {
+        (($gpuObj.PNPDeviceID -split '\\')[0..1] -join '\') -replace '&REV_.*$', ''
+    } else { '' }
+
     $classGuid = '{4d36e968-e325-11ce-bfc1-08002be10318}'
     $classPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Class\$classGuid"
-    foreach ($inst in (Get-ChildItem $classPath -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -match '^\d{4}$' })) {
-        $props = Get-ItemProperty "$classPath\$($inst.PSChildName)" -ErrorAction SilentlyContinue
-        if ($props.'HardwareInformation.qwMemorySize' -gt 0 -and
-            ($props.MatchingDeviceId -replace '#', '\') -eq $gpuObj.PNPDeviceID) {
+    foreach ($inst in (Get-ChildItem -LiteralPath $classPath -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -match '^\d{4}$' })) {
+        $props = Get-ItemProperty -LiteralPath "$classPath\$($inst.PSChildName)" -ErrorAction SilentlyContinue
+        $regId  = $props.MatchingDeviceId -replace '#', '\'
+        if ($props.'HardwareInformation.qwMemorySize' -gt 0 -and $deviceId -and $regId -eq $deviceId) {
             $gb = [math]::Round($props.'HardwareInformation.qwMemorySize' / 1GB, 1)
             break
+        }
+    }
+
+    # Fall back to nvidia-smi if the registry match didn't find the adapter
+    # (e.g. restricted registry access or a non-WDDM configuration).
+    if (-not $gb -and $gpuObj.Name -match 'NVIDIA|GeForce|Quadro|RTX|GTX|Tesla') {
+        $smiPath = (Get-Command nvidia-smi -ErrorAction SilentlyContinue).Source
+        if ($smiPath) {
+            try {
+                $smi = & $smiPath --query-gpu=name,memory.total --format=csv,noheader 2>$null
+                $line = $smi | Where-Object { $_ -match [regex]::Escape(($gpuObj.Name -replace 'NVIDIA\s*', '')) } | Select-Object -First 1
+                if ($line -match '(\d+)\s*MiB') {
+                    $gb = [math]::Round([int]$Matches[1] / 1024, 1)
+                }
+            } catch {}
         }
     }
 
