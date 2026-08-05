@@ -27,35 +27,36 @@ A collection of self-contained PowerShell scripts for Windows system maintenance
 
 ## Usage
 
-1. **Clone the repo** (recommended — no extra steps needed):
-   ```powershell
-   git clone https://github.com/Bllodwolfie/windows-scripts.git
-   cd windows-scripts
-   ```
-   `git clone` doesn't attach the "Mark of the Web" attribute, so scripts run directly.
+### Get the files
 
-   **Downloaded the ZIP instead?** Windows marks every extracted `.ps1` as coming from the Internet, and the default `RemoteSigned` execution policy blocks such scripts with "not digitally signed" errors. Remove the mark once, after extracting:
-   ```powershell
-   Get-ChildItem .\scripts -Recurse -Filter *.ps1 | Unblock-File
-   ```
+Clone the repo (no Mark of the Web, so no unblocking needed):
+```powershell
+git clone https://github.com/Bllodwolfie/windows-scripts.git
+cd windows-scripts
+```
 
-2. If execution is still blocked (some machines ship with `Restricted` or no policy set), allow scripts for the current user:
-   ```powershell
-   Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
-   ```
-   Or bypass the policy for a single run, with no permanent change:
-   ```powershell
-   pwsh -ExecutionPolicy Bypass -File .\scripts\SystemHealthReport\SystemHealthReport.ps1
-   ```
+Or download the ZIP and extract it. Windows then marks every `.ps1` as coming from the Internet, which blocks them — remove the mark once:
+```powershell
+Get-ChildItem .\scripts -Recurse -Filter *.ps1 | Unblock-File
+```
 
-3. Run any script:
-   ```powershell
-   .\scripts\SystemHealthReport\SystemHealthReport.ps1
-   ```
+### Run a script
 
-   **Requires Administrator:**
-   - `ClearEventLogs`
-   - `RestorePoint`
+If your PowerShell policy already allows local scripts (`Get-ExecutionPolicy` returns `RemoteSigned`):
+```powershell
+.\scripts\SystemHealthReport\SystemHealthReport.ps1
+```
+
+On a fresh Windows machine the policy is `Restricted`, which blocks **all** scripts. Either allow them for your user once:
+```powershell
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+or skip the policy for a single run — works on every machine, no permanent change:
+```powershell
+pwsh -ExecutionPolicy Bypass -File .\scripts\SystemHealthReport\SystemHealthReport.ps1
+```
+
+**Requires Administrator:** `ClearEventLogs`, `RestorePoint`
 
 ## Requirements
 
