@@ -27,19 +27,27 @@ A collection of self-contained PowerShell scripts for Windows system maintenance
 
 ## Usage
 
-1. Clone the repo:
+1. **Clone the repo** (recommended — no extra steps needed):
    ```powershell
    git clone https://github.com/Bllodwolfie/windows-scripts.git
    cd windows-scripts
    ```
-2. PowerShell blocks script execution by default. Allow it for the current user:
+   `git clone` doesn't attach the "Mark of the Web" attribute, so scripts run directly.
+
+   **Downloaded the ZIP instead?** Windows marks every extracted `.ps1` as coming from the Internet, and the default `RemoteSigned` execution policy blocks such scripts with "not digitally signed" errors. Remove the mark once, after extracting:
+   ```powershell
+   Get-ChildItem .\scripts -Recurse -Filter *.ps1 | Unblock-File
+   ```
+
+2. If execution is still blocked (some machines ship with `Restricted` or no policy set), allow scripts for the current user:
    ```powershell
    Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
    ```
-   Or run a script without changing the policy:
+   Or bypass the policy for a single run, with no permanent change:
    ```powershell
-   powershell -ExecutionPolicy Bypass -File .\scripts\SystemHealthReport\SystemHealthReport.ps1
+   pwsh -ExecutionPolicy Bypass -File .\scripts\SystemHealthReport\SystemHealthReport.ps1
    ```
+
 3. Run any script:
    ```powershell
    .\scripts\SystemHealthReport\SystemHealthReport.ps1
