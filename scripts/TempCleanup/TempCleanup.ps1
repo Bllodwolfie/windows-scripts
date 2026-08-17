@@ -8,6 +8,6 @@ $Config = @{
 $cutoff = (Get-Date).AddDays(-$Config.CutoffDays)
 
 # Recurse through %TEMP%, keep only files older than the cutoff, delete them
-Get-ChildItem -Path $env:TEMP -File -Recurse -ErrorAction SilentlyContinue |
+Get-ChildItem -LiteralPath $env:TEMP -File -Recurse -ErrorAction SilentlyContinue |
     Where-Object { $_.LastWriteTime -lt $cutoff } |
     Remove-Item -Force -ErrorAction SilentlyContinue

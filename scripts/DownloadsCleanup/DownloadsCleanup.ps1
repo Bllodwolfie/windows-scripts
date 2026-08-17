@@ -37,6 +37,12 @@ $categories = $Config.Categories
 
 $null = New-Item -ItemType Directory -Path $logDir -Force -ErrorAction SilentlyContinue
 
+# Appends one line to the log file with the suite-standard timestamp prefix
+function Write-Log($message) {
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    "[$timestamp] $message" | Out-File -FilePath $logFile -Append -Encoding utf8
+}
+
 # Flatten Categories into a lookup table: extension -> destination folder
 # (built once up front so each file only needs a single hashtable lookup)
 $extMap = @{}
@@ -46,8 +52,7 @@ foreach ($dest in $categories.Keys) {
     }
 }
 
-$timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-"[$timestamp] Cleanup started" | Out-File -FilePath $logFile -Append -Encoding utf8
+Write-Log "Cleanup started"
 
 # Process every file in Downloads that's older than the cutoff
 Get-ChildItem -LiteralPath $source -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -lt $cutoff } | ForEach-Object {
@@ -58,11 +63,9 @@ Get-ChildItem -LiteralPath $source -File -ErrorAction SilentlyContinue | Where-O
     if ($deleteExts -contains $ext) {
         try {
             Remove-Item -LiteralPath $_.FullName -Force -ErrorAction Stop
-            $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-            "[$timestamp] DELETED : $name" | Out-File -FilePath $logFile -Append -Encoding utf8
+            Write-Log "DELETED : $name"
         } catch {
-            $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-            "[$timestamp] ERROR   : Failed to delete $name : $_" | Out-File -FilePath $logFile -Append -Encoding utf8
+            Write-Log "ERROR   : Failed to delete $name : $_"
         }
         return
     }
@@ -73,18 +76,14 @@ Get-ChildItem -LiteralPath $source -File -ErrorAction SilentlyContinue | Where-O
         try {
             $null = New-Item -ItemType Directory -Path $destDir -Force -ErrorAction Stop
             Move-Item -LiteralPath $_.FullName -Destination $destDir -Force -ErrorAction Stop
-            $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-            "[$timestamp] MOVED   : $name -> $destDir" | Out-File -FilePath $logFile -Append -Encoding utf8
+            Write-Log "MOVED   : $name -> $destDir"
         } catch {
-            $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-            "[$timestamp] ERROR   : Failed to move $name to $destDir : $_" | Out-File -FilePath $logFile -Append -Encoding utf8
+            Write-Log "ERROR   : Failed to move $name to $destDir : $_"
         }
     } else {
         # Case 3: extension not recognized anywhere -> leave it alone, just log it
-        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-        "[$timestamp] SKIPPED : $name (unrecognized extension: $ext)" | Out-File -FilePath $logFile -Append -Encoding utf8
+        Write-Log "SKIPPED : $name (unrecognized extension: $ext)"
     }
 }
 
-$timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-"[$timestamp] Cleanup finished" | Out-File -FilePath $logFile -Append -Encoding utf8
+Write-Log "Cleanup finished"
