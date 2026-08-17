@@ -169,8 +169,15 @@ $gpuObjs = Get-CimInstance Win32_VideoController | Where-Object { $_.PNPDeviceID
 $procs = Get-Process | Sort-Object WorkingSet64 -Descending | Select-Object -First $($Config.MaxTopProcesses)
 $bootTime = $os.LastBootUpTime
 $uptime = if ($bootTime) { (Get-Date) - $bootTime } else { [TimeSpan]0 }
-# Level 1,2 = Critical and Error entries in the System log from the last ErrorWindowHours
-$errors = Get-WinEvent -FilterHashtable @{LogName='System'; Level=1,2; StartTime=(Get-Date).AddHours(-$Config.ErrorWindowHours)} -MaxEvents $Config.MaxErrorEvents -ErrorAction SilentlyContinue | Select-Object TimeCreated, Id, LevelDisplayName, ProviderName, Message
+# Level 1,2 = Critical and Error entries in the System log from the last ErrorWindowHours.
+# Deduplicated by (Provider + Message) so repeat-spam sources (e.g. recurring DCOM/GameBar
+# timeouts) occupy a single row, letting unique errors surface instead of flooding the list.
+$errors = Get-WinEvent -FilterHashtable @{LogName='System'; Level=1,2; StartTime=(Get-Date).AddHours(-$Config.ErrorWindowHours)} -MaxEvents 500 -ErrorAction SilentlyContinue |
+    Select-Object TimeCreated, Id, LevelDisplayName, ProviderName, Message |
+    Group-Object ProviderName, Message |
+    ForEach-Object { ($_.Group | Sort-Object TimeCreated -Descending | Select-Object -First 1) } |
+    Sort-Object TimeCreated -Descending |
+    Select-Object -First $Config.MaxErrorEvents
 
 # Windows Update last check
 $wuLastCheck = "Unknown"
@@ -212,7 +219,7 @@ $summaryCards = @"
             <div class="card" style="border-left: 4px solid var(--blue);">
                 <span class="card-label">Uptime</span>
                 <span class="card-value">$($uptime.Days)d $($uptime.Hours)h</span>
-                <span class="card-sub">since $($bootTime.ToString('MMM dd, HH:mm'))</span>
+                <span class="card-sub">since $($bootTime.ToString('MMM dd, HH:mm', [System.Globalization.CultureInfo]::InvariantCulture))</span>
             </div>
             <div class="card" style="border-left: 4px solid var(--peach);">
                 <span class="card-label">CPU</span>
@@ -324,7 +331,7 @@ if ($errors) {
         if ($msg.Length -gt 150) { $msg = $msg.Substring(0,150) + "..." }
         $color = if ($e.LevelDisplayName -eq 'Critical') { "var(--red)" } else { "var(--yellow)" }
         $errRows += @"
-            <tr><td style="color:$color">$($e.LevelDisplayName)</td><td>$($e.TimeCreated.ToString('MMM dd HH:mm'))</td><td>$($e.ProviderName)</td><td>$msg</td></tr>
+            <tr><td style="color:$color">$($e.LevelDisplayName)</td><td>$($e.TimeCreated.ToString('MMM dd HH:mm', [System.Globalization.CultureInfo]::InvariantCulture))</td><td>$($e.ProviderName)</td><td>$msg</td></tr>
 "@
     }
 } else {
@@ -364,6 +371,9 @@ foreach ($line in (Write-Palette $Config.Latte)) { [void]$html.AppendLine($line)
 [void]$html.AppendLine('.header-body { flex: 1; text-align: center; }')
 [void]$html.AppendLine('h1 { font-size: 28px; font-weight: 700; color: var(--text); }')
 [void]$html.AppendLine('.subtitle { color: var(--subtext0); font-size: 14px; margin-top: 6px; }')
+# Light-mode subtitle reads smaller due to subpixel ClearType antialiasing on dark-on-light;
+# bump the weight only for Latte so it visually matches Mocha.
+[void]$html.AppendLine('[data-theme="latte"] .subtitle { font-weight: 500; }')
 [void]$html.AppendLine('')
 [void]$html.AppendLine('h2 { font-size: 18px; font-weight: 600; margin: 32px 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--surface0); color: var(--text); display: flex; align-items: center; gap: 8px; }')
 [void]$html.AppendLine('h2 .accent { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--mauve); animation: pulse-dot 2s ease-in-out infinite; overflow: hidden; font-size: 0; }')
@@ -558,7 +568,7 @@ foreach ($line in (Write-Palette $Config.Latte)) { [void]$html.AppendLine($line)
 [void]$html.AppendLine('</button>')
 [void]$html.AppendLine('<div class="header-body">')
 [void]$html.AppendLine('<h1>System Health Report</h1>')
-[void]$html.AppendLine("<div class=""subtitle"">$($cs.Name) &middot; $(Get-Date -Format 'yyyy-MM-dd HH:mm') &middot; Catppuccin $themeName</div>")
+[void]$html.AppendLine("<div class=""subtitle"">$($cs.Name) &middot; $(Get-Date -Format 'dd''/''MM''/''yyyy HH:mm') &middot; Catppuccin $themeName</div>")
 [void]$html.AppendLine('</div>')
 [void]$html.AppendLine('<button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">')
 [void]$html.AppendLine('    <span class="icon-moon">')
