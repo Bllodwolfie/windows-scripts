@@ -3,10 +3,14 @@
 # per-user installs), then writes it to OutputFile.
 
 $Config = @{
-    OutputFile = "$env:USERPROFILE\Documents\Software_Inventory.txt"
+    OutputFile = "$env:USERPROFILE\Documents\Script_Logs\Software_Inventory.txt"
 }
 
 $outputFile = $Config.OutputFile
+
+# Ensure the Script_Logs folder exists before writing (same guard the other
+# scripts in this suite use), in case this runs before any cleanup script
+$null = New-Item -ItemType Directory -Path (Split-Path $outputFile) -Force -ErrorAction SilentlyContinue
 
 # The three registry paths together cover machine-wide 64-bit apps,
 # machine-wide 32-bit apps (WOW6432Node), and apps installed for the current user only

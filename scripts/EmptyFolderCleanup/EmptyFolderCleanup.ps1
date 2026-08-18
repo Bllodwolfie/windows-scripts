@@ -3,6 +3,12 @@
 # behind, which needs another pass to catch. Each pass tracks whether any
 # folder was actually deleted; if a pass removes nothing (e.g. a locked folder
 # keeps re-appearing as empty), the loop stops instead of spinning forever.
+#
+# Log format note: this script logs the FULL folder path (e.g.
+# "DELETED : C:\Users\...\leaf") rather than the bare filename convention used
+# by DownloadsCleanup.ps1. That's deliberate: this script operates recursively
+# across nested subfolders, so a bare name like "leaf" would be ambiguous if it
+# appears under multiple parent paths. Keep the full path in log lines.
 
 $Config = @{
     TargetDir = "$env:USERPROFILE\Downloads"  # Root folder to scan for empty subfolders

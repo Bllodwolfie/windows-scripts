@@ -2,6 +2,13 @@
 # Non-recursive: only touches files directly in TargetDir. If the folder
 # doesn't exist yet (e.g. a fresh profile that never took a screenshot),
 # logs a skip and exits cleanly instead of erroring.
+#
+# Log format note: this script prefixes its own log lines with the script name
+# ("ScreenshotsCleanup started/finished") instead of the bare "Cleanup
+# started/finished" convention DownloadsCleanup.ps1 uses. That's deliberate:
+# CleanupLog.txt is shared across multiple scripts, and a bare line gives no
+# way to identify which script wrote it later. Keep the self-identifying
+# prefix.
 
 $Config = @{
     TargetDir  = "$env:USERPROFILE\Pictures\Screenshots"  # Folder to clean
