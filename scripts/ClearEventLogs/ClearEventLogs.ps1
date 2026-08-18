@@ -1,8 +1,8 @@
 # Clears Windows event logs. Enumerates logs with Get-WinEvent -ListLog,
-# restricts clearing to enabled, non-empty, circular-mode logs (Retain-mode
-# logs are write-once and can't be cleared), clears each via wevtutil, and
-# prints a summary of cleared vs failed. Errors are surfaced, not blanket-
-# suppressed, so real problems (permissions, corrupt logs) are visible.
+# clears every enabled, non-empty log via wevtutil (Retain-mode logs clear
+# fine with sufficient permissions), and prints a summary of cleared vs
+# failed. Errors are surfaced, not blanket-suppressed, so real problems
+# (permissions, corrupt logs) are visible.
 
 # Enumerate logs (restricted/denied logs are skipped silently; the ones we
 # actually clear will surface their own errors below)
@@ -10,7 +10,6 @@ $logs = @(Get-WinEvent -ListLog * -ErrorAction SilentlyContinue)
 
 $targets = $logs | Where-Object {
     $_.IsEnabled -and
-    $_.LogMode -eq 'Circular' -and
     $_.RecordCount -gt 0
 }
 
@@ -29,7 +28,7 @@ foreach ($log in $targets) {
     }
 }
 
-Write-Host "Event log cleanup: $cleared cleared, $($failed.Count) failed, $($targets.Count - $cleared - $failed.Count) skipped."
+Write-Host "Event log cleanup: $cleared cleared, $($failed.Count) failed."
 
 if ($failed.Count -gt 0) {
     Write-Warning "Failed to clear the following logs:"
