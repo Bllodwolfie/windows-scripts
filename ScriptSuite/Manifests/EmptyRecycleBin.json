@@ -1,0 +1,10 @@
+{
+  "id": "EmptyRecycleBin",
+  "displayName": "Empty Recycle Bin",
+  "description": "Permanently empties the Recycle Bin. Deleted files cannot be recovered.",
+  "category": "Cleanup",
+  "requiresAdmin": false,
+  "supportsDryRun": true,
+  "scriptPath": "scripts/EmptyRecycleBin/EmptyRecycleBin.ps1",
+  "fields": []
+}

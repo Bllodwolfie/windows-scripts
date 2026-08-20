@@ -1,0 +1,54 @@
+<Window x:Class="ScriptSuite.FirstRunWizardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:controls="clr-namespace:ScriptSuite.Controls"
+        mc:Ignorable="d"
+        Title="Script Suite — First-run setup" Height="720" Width="840"
+        MinHeight="560" MinWidth="700"
+        WindowStartupLocation="CenterOwner"
+        Background="#FF1E1E2E" Foreground="#FFCDD6F4">
+    <Grid Margin="28,22,28,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="Script Suite" FontSize="26" FontWeight="Bold" Foreground="#FFCDD6F4" />
+            <TextBlock Text="First-run setup — configure each script below. Every change saves automatically."
+                       FontSize="13" Foreground="#FFBAC2DE" Margin="0,4,0,0" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Margin="0,18,0,0">
+            <TextBlock x:Name="StepHeaderText" FontSize="16" FontWeight="SemiBold" Foreground="#FFCDD6F4" />
+            <TextBlock x:Name="StepDescriptionText" FontSize="13" Foreground="#FFBAC2DE" TextWrapping="Wrap"
+                       Margin="0,4,0,0" />
+        </StackPanel>
+
+        <controls:SettingsForm x:Name="WizardFormControl" Grid.Row="2" Margin="0,10,0,0" />
+
+        <Grid Grid.Row="3" Margin="0,14,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Button Grid.Column="0" x:Name="RecommendedButton" Content="Use recommended defaults"
+                    Click="Recommended_Click" Padding="14,6" HorizontalAlignment="Left"
+                    AutomationProperties.Name="Use recommended defaults" />
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button x:Name="BackButton" Content="Back" Click="Back_Click" Padding="14,6" Margin="0,0,8,0"
+                        AutomationProperties.Name="Back" />
+                <Button x:Name="NextButton" Content="Next" Click="Next_Click" Padding="16,6" Margin="0,0,8,0"
+                        IsDefault="True" AutomationProperties.Name="Next" />
+                <Button x:Name="SkipButton" Content="Skip" Click="Skip_Click" Padding="14,6"
+                        AutomationProperties.Name="Skip" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

@@ -1,0 +1,19 @@
+{
+  "id": "SoftwareInventory",
+  "displayName": "Software Inventory",
+  "description": "Generates a text report of all installed software.",
+  "category": "Reports",
+  "requiresAdmin": false,
+  "supportsDryRun": false,
+  "scriptPath": "scripts/SoftwareInventory/SoftwareInventory.ps1",
+  "fields": [
+    {
+      "name": "OutputFile",
+      "label": "Report file",
+      "type": "path",
+      "pathKind": "file",
+      "default": "%USERPROFILE%\\Documents\\Script_Logs\\Software_Inventory.txt",
+      "helpText": "Where the generated software inventory report is written."
+    }
+  ]
+}

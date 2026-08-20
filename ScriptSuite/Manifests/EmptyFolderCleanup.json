@@ -1,0 +1,18 @@
+{
+  "id": "EmptyFolderCleanup",
+  "displayName": "Empty Folder Cleanup",
+  "description": "Recursively removes empty folders under a chosen root folder.",
+  "category": "Cleanup",
+  "requiresAdmin": false,
+  "supportsDryRun": true,
+  "scriptPath": "scripts/EmptyFolderCleanup/EmptyFolderCleanup.ps1",
+  "fields": [
+    {
+      "name": "TargetFolder",
+      "label": "Folder to scan",
+      "type": "path",
+      "default": "%USERPROFILE%\\Downloads",
+      "helpText": "The root folder whose empty subfolders will be removed."
+    }
+  ]
+}

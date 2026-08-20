@@ -1,0 +1,26 @@
+{
+  "id": "TempCleanup",
+  "displayName": "Temp File Cleanup",
+  "description": "Deletes files from the Windows temp folder that are older than the cutoff.",
+  "category": "Cleanup",
+  "requiresAdmin": false,
+  "supportsDryRun": true,
+  "scriptPath": "scripts/TempCleanup/TempCleanup.ps1",
+  "fields": [
+    {
+      "name": "TargetFolder",
+      "label": "Folder to clean",
+      "type": "path",
+      "default": "%TEMP%",
+      "helpText": "The temp folder this script cleans. Files older than the cutoff will be deleted from here."
+    },
+    {
+      "name": "CutoffDays",
+      "label": "Delete files older than",
+      "type": "int",
+      "unit": "days",
+      "default": 7,
+      "helpText": "Files in the temp folder older than this many days will be deleted."
+    }
+  ]
+}

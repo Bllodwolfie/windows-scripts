@@ -1,0 +1,26 @@
+{
+  "id": "ScreenshotsCleanup",
+  "displayName": "Screenshots Cleanup",
+  "description": "Deletes old screenshots from the Pictures\\Screenshots folder.",
+  "category": "Cleanup",
+  "requiresAdmin": false,
+  "supportsDryRun": true,
+  "scriptPath": "scripts/ScreenshotsCleanup/ScreenshotsCleanup.ps1",
+  "fields": [
+    {
+      "name": "TargetFolder",
+      "label": "Folder to clean",
+      "type": "path",
+      "default": "%USERPROFILE%\\Pictures\\Screenshots",
+      "helpText": "The Screenshots folder this script cleans."
+    },
+    {
+      "name": "CutoffDays",
+      "label": "Delete files older than",
+      "type": "int",
+      "unit": "days",
+      "default": 7,
+      "helpText": "Screenshots older than this many days will be deleted."
+    }
+  ]
+}

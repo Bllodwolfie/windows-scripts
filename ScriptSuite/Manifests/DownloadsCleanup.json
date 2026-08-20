@@ -1,0 +1,33 @@
+{
+  "id": "DownloadsCleanup",
+  "displayName": "Downloads Cleanup",
+  "description": "Sorts and cleans the Downloads folder: deletes old installer/archive files and moves others into matching category folders.",
+  "category": "Cleanup",
+  "requiresAdmin": false,
+  "supportsDryRun": true,
+  "scriptPath": "scripts/DownloadsCleanup/DownloadsCleanup.ps1",
+  "fields": [
+    {
+      "name": "SourceDir",
+      "label": "Folder to clean",
+      "type": "path",
+      "default": "%USERPROFILE%\\Downloads",
+      "helpText": "The Downloads folder this script sorts and cleans."
+    },
+    {
+      "name": "CutoffDays",
+      "label": "Only touch files older than",
+      "type": "int",
+      "unit": "days",
+      "default": 7,
+      "helpText": "Files younger than this are left untouched."
+    },
+    {
+      "name": "DeleteExts",
+      "label": "Extensions to delete",
+      "type": "stringList",
+      "default": [".zip", ".rar", ".7z", ".ttf", ".otf", ".exe", ".msi"],
+      "helpText": "Files with these extensions are deleted instead of moved. One extension per tag, starting with a dot."
+    }
+  ]
+}

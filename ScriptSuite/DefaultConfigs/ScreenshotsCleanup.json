@@ -1,0 +1,6 @@
+{
+  "TargetFolder": "%USERPROFILE%\\Pictures\\Screenshots",
+  "CutoffDays": 7,
+  "LogDir": "%USERPROFILE%\\Documents\\Script_Logs",
+  "LogFile": "CleanupLog.txt"
+}

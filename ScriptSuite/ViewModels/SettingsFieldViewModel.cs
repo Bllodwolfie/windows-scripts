@@ -1,0 +1,351 @@
+using System.Collections.ObjectModel;
+using System.Globalization;
+using System.IO;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Windows.Threading;
+using ScriptSuite.Models;
+
+namespace ScriptSuite.ViewModels;
+
+/// <summary>One editable field on a script's settings form. The rendered
+/// control is driven by the manifest field's Type; every edit auto-saves
+/// through the owning form's commit callback, and the form records an undo
+/// snapshot per committed change.
+///
+/// Text entry (string/path/int text box) updates the in-memory value on every
+/// keystroke but defers the actual save until CommitPending (a short pause
+/// after typing, focus loss, Enter, window close, or Undo), so a half-typed
+/// value is never written to disk.
+/// Discrete controls (stepper, checkbox, chip add/remove, browse) commit
+/// immediately.</summary>
+public sealed class SettingsFieldViewModel : ViewModelBase
+{
+    private readonly Action<SettingsFieldViewModel, JsonNode?, JsonNode?> _commit;
+    private string _textValue;
+    private int _intValue;
+    private string _intText;
+    private bool _boolValue;
+    private bool _savedShown;
+    private bool _textPending;
+    private string? _pendingTextPrior;
+    private bool _intPending;
+    private int? _pendingIntPrior;
+    private string _newItemText = "";
+    private string _pathWarning = "";
+    private DispatcherTimer? _savedTimer;
+    private DispatcherTimer? _debounce;
+
+    public SettingsFieldViewModel(ScriptField field, JsonNode? initial,
+        Action<SettingsFieldViewModel, JsonNode?, JsonNode?> commit)
+    {
+        Field = field;
+        _commit = commit;
+        var (text, intVal, boolVal, items) = FromNode(field, initial);
+        _textValue = text;
+        _intValue = intVal;
+        _intText = intVal.ToString(CultureInfo.InvariantCulture);
+        _boolValue = boolVal;
+        foreach (var item in items)
+            Items.Add(item);
+    }
+
+    public ScriptField Field { get; }
+    public string Label => Field.Label;
+    public string HelpText => Field.HelpText ?? "";
+    public string Unit => Field.Unit ?? "";
+    public bool ShowUnit => !string.IsNullOrEmpty(Field.Unit);
+    public bool IsFilePath => Field.IsFilePath;
+
+    public ObservableCollection<string> Items { get; } = new();
+
+    /// <summary>Text for string/path fields. Value updates on every keystroke;
+    /// the save is deferred to CommitPending.</summary>
+    public string TextValue
+    {
+        get => _textValue;
+        set
+        {
+            if (_textValue == value) return;
+            _pendingTextPrior ??= _textValue;
+            _textValue = value;
+            _textPending = true;
+            OnPropertyChanged();
+            ArmDebounce();
+        }
+    }
+
+    /// <summary>Text box backing the int field. Keeps whatever the user typed
+    /// (even if not yet a valid number) so the box can be cleared while typing;
+    /// only a valid parse stages a deferred commit. Normalized back to the
+    /// current int on CommitPending.</summary>
+    public string IntText
+    {
+        get => _intText;
+        set
+        {
+            if (_intText == value) return;
+            var priorValue = _intValue;
+            _intText = value;
+            OnPropertyChanged();
+            if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) && parsed != priorValue)
+            {
+                _pendingIntPrior ??= priorValue;
+                _intValue = parsed;
+                _intPending = true;
+                ArmDebounce();
+            }
+        }
+    }
+
+    public bool BoolValue
+    {
+        get => _boolValue;
+        set
+        {
+            if (_boolValue == value) return;
+            var prior = _boolValue;
+            _boolValue = value;
+            OnPropertyChanged();
+            Commit(JsonValue.Create(prior), JsonValue.Create(_boolValue));
+        }
+    }
+
+    public string NewItemText
+    {
+        get => _newItemText;
+        set => Set(ref _newItemText, value);
+    }
+
+    /// <summary>Inline warning shown under a path field after a save attempt.
+    /// Warn-but-save: the value is still persisted, the warning just flags that
+    /// the resolved path doesn't currently exist (or isn't absolute).</summary>
+    public string PathWarning
+    {
+        get => _pathWarning;
+        private set
+        {
+            if (_pathWarning == value) return;
+            _pathWarning = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasPathWarning));
+        }
+    }
+
+    public bool HasPathWarning => !string.IsNullOrEmpty(_pathWarning);
+
+    public bool IsSavedShown
+    {
+        get => _savedShown;
+        private set => Set(ref _savedShown, value);
+    }
+
+    public void Step(int delta)
+    {
+        if (delta == 0) return;
+        _debounce?.Stop();
+        var prior = _intValue;
+        _intValue += delta;
+        _intPending = false;
+        _pendingIntPrior = null;
+        _intText = _intValue.ToString(CultureInfo.InvariantCulture);
+        OnPropertyChanged(nameof(IntText));
+        Commit(JsonValue.Create(prior), JsonValue.Create(_intValue));
+    }
+
+    public void AddNewItem()
+    {
+        var v = _newItemText.Trim();
+        if (v.Length == 0 || Items.Contains(v))
+        {
+            _newItemText = "";
+            OnPropertyChanged(nameof(NewItemText));
+            return;
+        }
+        var prior = ToArrayNode(Items.ToList());
+        Items.Add(v);
+        _newItemText = "";
+        OnPropertyChanged(nameof(NewItemText));
+        Commit(prior, ToArrayNode(Items.ToList()));
+    }
+
+    public void RemoveItem(string value)
+    {
+        if (!Items.Contains(value)) return;
+        var prior = ToArrayNode(Items.ToList());
+        Items.Remove(value);
+        Commit(prior, ToArrayNode(Items.ToList()));
+    }
+
+    /// <summary>Sets a path chosen from the Browse dialog (commits immediately).</summary>
+    public void SetPath(string value)
+    {
+        if (_textValue == value) return;
+        _debounce?.Stop();
+        var prior = _textValue;
+        _textValue = value;
+        _textPending = false;
+        _pendingTextPrior = null;
+        OnPropertyChanged(nameof(TextValue));
+        Commit(JsonValue.Create(prior), JsonValue.Create(_textValue));
+    }
+
+    /// <summary>Commits any deferred text edit (called on focus loss, Enter,
+    /// window close, and before Undo). Also normalizes the int text box back
+    /// to its committed value.</summary>
+    public void CommitPending()
+    {
+        _debounce?.Stop();
+        if (_textPending)
+        {
+            _textPending = false;
+            var prior = _pendingTextPrior ?? _textValue;
+            _pendingTextPrior = null;
+            Commit(JsonValue.Create(prior), JsonValue.Create(_textValue));
+        }
+        else if (_intPending)
+        {
+            _intPending = false;
+            var prior = _pendingIntPrior ?? _intValue;
+            _pendingIntPrior = null;
+            Commit(JsonValue.Create(prior), JsonValue.Create(_intValue));
+        }
+        _intText = _intValue.ToString(CultureInfo.InvariantCulture);
+        OnPropertyChanged(nameof(IntText));
+    }
+
+    /// <summary>Reverts this field to a prior value without committing (Undo).</summary>
+    public void Restore(JsonNode? prior)
+    {
+        _debounce?.Stop();
+        var (text, intVal, boolVal, items) = FromNode(Field, prior);
+        _textValue = text;
+        _intValue = intVal;
+        _intText = intVal.ToString(CultureInfo.InvariantCulture);
+        _boolValue = boolVal;
+        _textPending = false;
+        _pendingTextPrior = null;
+        _intPending = false;
+        _pendingIntPrior = null;
+        Items.Clear();
+        foreach (var item in items)
+            Items.Add(item);
+        OnPropertyChanged(nameof(TextValue));
+        OnPropertyChanged(nameof(IntText));
+        OnPropertyChanged(nameof(BoolValue));
+        PathWarning = ValidatePath();
+    }
+
+    private void Commit(JsonNode? prior, JsonNode? next)
+    {
+        PathWarning = ValidatePath();
+        _commit(this, prior, next);
+        ShowSaved();
+    }
+
+    /// <summary>Warn-but-save check for path fields: env-expands the value and
+    /// flags non-absolute or non-existent targets. Empty for non-path fields.
+    /// Folder paths warn when the folder is absent (it may be created at run
+    /// time); file paths warn only when their parent folder is absent.</summary>
+    private string ValidatePath()
+    {
+        if (Field.Type != "path") return "";
+        var value = _textValue;
+        if (string.IsNullOrWhiteSpace(value)) return "Enter a path.";
+        var expanded = Environment.ExpandEnvironmentVariables(value.Trim());
+        if (!Path.IsPathRooted(expanded)) return "Path is not absolute (use e.g. C:\\Users\\...).";
+        if (Field.IsFilePath)
+        {
+            if (File.Exists(expanded)) return "";
+            var dir = Path.GetDirectoryName(expanded);
+            if (string.IsNullOrEmpty(dir) || Directory.Exists(dir)) return "";
+            return "Folder for this file does not exist yet — it may be created on the next run.";
+        }
+        return Directory.Exists(expanded) ? "" : "Folder does not exist yet — it may be created on the next run.";
+    }
+
+    private void ShowSaved()
+    {
+        IsSavedShown = true;
+        _savedTimer ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
+        _savedTimer.Stop();
+        _savedTimer.Tick -= OnSavedTimerTick;
+        _savedTimer.Tick += OnSavedTimerTick;
+        _savedTimer.Start();
+    }
+
+    private void OnSavedTimerTick(object? sender, EventArgs e)
+    {
+        _savedTimer?.Stop();
+        IsSavedShown = false;
+    }
+
+    /// <summary>Restarts the auto-save debounce. Any typed text edit is committed
+    /// shortly after the user stops typing, so a value is saved even if focus
+    /// never leaves the box (e.g. clicking blank space in a single-field window).</summary>
+    private void ArmDebounce()
+    {
+        _debounce ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
+        _debounce.Stop();
+        _debounce.Tick -= OnDebounceTick;
+        _debounce.Tick += OnDebounceTick;
+        _debounce.Start();
+    }
+
+    private void OnDebounceTick(object? sender, EventArgs e)
+    {
+        _debounce?.Stop();
+        CommitPending();
+    }
+
+    private static JsonArray ToArrayNode(List<string> items)
+    {
+        var arr = new JsonArray();
+        foreach (var item in items)
+            arr.Add(JsonValue.Create(item));
+        return arr;
+    }
+
+    private static (string Text, int Int, bool Bool, List<string> Items) FromNode(ScriptField field, JsonNode? node)
+    {
+        switch (field.Type)
+        {
+            case "int":
+            {
+                int v = 0;
+                if (node is JsonValue jv && jv.TryGetValue<int>(out var i)) v = i;
+                else if (field.HasDefault && field.Default.ValueKind == JsonValueKind.Number && field.Default.TryGetInt32(out var d)) v = d;
+                return ("", v, false, new List<string>());
+            }
+            case "bool":
+            {
+                bool v = false;
+                if (node is JsonValue jv && jv.TryGetValue<bool>(out var b)) v = b;
+                else if (field.HasDefault && field.Default.ValueKind is JsonValueKind.True or JsonValueKind.False) v = field.Default.GetBoolean();
+                return ("", 0, v, new List<string>());
+            }
+            case "stringList":
+            {
+                var items = new List<string>();
+                if (node is JsonArray arr)
+                {
+                    foreach (var element in arr)
+                        if (element is JsonValue jv && jv.TryGetValue<string>(out var s)) items.Add(s);
+                }
+                else if (field.HasDefault && field.Default.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var element in field.Default.EnumerateArray())
+                        if (element.ValueKind == JsonValueKind.String) items.Add(element.GetString()!);
+                }
+                return ("", 0, false, items);
+            }
+            default:
+            {
+                string v = "";
+                if (node is JsonValue jv && jv.TryGetValue<string>(out var s)) v = s;
+                else if (field.HasDefault && field.Default.ValueKind == JsonValueKind.String) v = field.Default.GetString() ?? "";
+                return (v, 0, false, new List<string>());
+            }
+        }
+    }
+}

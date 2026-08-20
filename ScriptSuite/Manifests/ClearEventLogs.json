@@ -1,0 +1,18 @@
+{
+  "id": "ClearEventLogs",
+  "displayName": "Clear Event Logs",
+  "description": "Backs up and clears all Windows event logs.",
+  "category": "System",
+  "requiresAdmin": true,
+  "supportsDryRun": true,
+  "scriptPath": "scripts/ClearEventLogs/ClearEventLogs.ps1",
+  "fields": [
+    {
+      "name": "BackupDir",
+      "label": "Backup folder",
+      "type": "path",
+      "default": "%USERPROFILE%\\Documents\\Script_Logs\\EventLogBackups",
+      "helpText": "Where .evtx backups are stored before each log is cleared."
+    }
+  ]
+}

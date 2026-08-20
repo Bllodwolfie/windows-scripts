@@ -1,0 +1,5 @@
+{
+  "TargetFolder": "%USERPROFILE%\\Downloads",
+  "LogDir": "%USERPROFILE%\\Documents\\Script_Logs",
+  "LogFile": "CleanupLog.txt"
+}

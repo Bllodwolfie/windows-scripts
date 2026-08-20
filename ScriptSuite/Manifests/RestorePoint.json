@@ -1,0 +1,18 @@
+{
+  "id": "RestorePoint",
+  "displayName": "Create Restore Point",
+  "description": "Creates a System Restore point and verifies it actually appeared.",
+  "category": "System",
+  "requiresAdmin": true,
+  "supportsDryRun": true,
+  "scriptPath": "scripts/RestorePoint/RestorePoint.ps1",
+  "fields": [
+    {
+      "name": "Description",
+      "label": "Restore point description",
+      "type": "string",
+      "default": "Monthly Cleanup",
+      "helpText": "The name given to the created restore point, shown in System Restore."
+    }
+  ]
+}
