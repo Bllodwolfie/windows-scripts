@@ -9,7 +9,7 @@ A Windows maintenance suite — a WPF dashboard (`ScriptSuite`) over nine self-c
 
 ![ScriptSuite dashboard](assets/dashboard.png)
 
-*ScriptSuite dashboard in Mocha dark (980×640) — nine tiles, one per script (Cleanup, System, Reports), each with preview, run, and settings. History and run output are accessible from the header. Shown in a clean/default state (no prior run history, no error states).*
+*ScriptSuite dashboard in Mocha dark (966×633) — the Cleanup section shown (5 of 9 script tiles); System and Reports sections continue below. Each tile has run, settings, and hide controls, plus "run all" selection. History and Run All are accessible from the header.*
 
 ## Download — for most users (no SDK needed)
 
