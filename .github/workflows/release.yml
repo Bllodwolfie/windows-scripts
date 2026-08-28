@@ -1,0 +1,50 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v1.0.0); leave empty to use date-based tag'
+        required: false
+        type: string
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish self-contained win-x64
+        run: dotnet publish ScriptSuite/ScriptSuite.csproj -c Release -r win-x64 --self-contained true -o publish /p:DebugType=None /p:DebugSymbols=false
+
+      - name: Zip publish output
+        run: Compress-Archive -Path publish\* -DestinationPath ScriptSuite-win-x64-self-contained.zip -Force
+
+      - name: Upload artifact (for workflow verification)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ScriptSuite-win-x64-self-contained
+          path: ScriptSuite-win-x64-self-contained.zip
+
+      - name: Create GitHub Release and attach zip
+        if: github.event_name == 'push' || inputs.tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: ScriptSuite ${{ inputs.tag || github.ref_name }}
+          body: |
+            Self-contained win-x64 build (no .NET runtime required).
+            Download `ScriptSuite-win-x64-self-contained.zip`, unzip, run `ScriptSuite.exe`.
+            Or clone and run `.\Install.ps1` (requires .NET 10 SDK).
+          files: ScriptSuite-win-x64-self-contained.zip
+          generate_release_notes: true
