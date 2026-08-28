@@ -3,66 +3,98 @@
 ![License](https://img.shields.io/github/license/Bllodwolfie/windows-scripts)
 [![Catppuccin](https://img.shields.io/badge/catppuccin-Mocha%20%26%20Latte-DDB6F2?style=flat)](https://github.com/catppuccin/catppuccin)
 
-A collection of self-contained PowerShell scripts for Windows system maintenance and diagnostics.
+A Windows maintenance suite — a WPF dashboard (`ScriptSuite`) over nine self-contained PowerShell scripts for cleanup, system tasks, and diagnostics. For most users it's a normal Windows app (download, unzip, run); for developers the same scripts run directly via PowerShell and the app builds from source.
 
 ## Preview
 
 ![System Health Report](assets/preview.png)
 
-*A sample report showing system information, summary cards, and themed tables.*
+*Sample `System Health Report` output (fictional data, Catppuccin Mocha/Latte). The dashboard itself shows nine tiles — one per script — with preview, run, history, and settings.*
 
-## Scripts
+## Download — for most users (no SDK needed)
 
-| Script | What it does |
-|--------|-------------|
-| [SystemHealthReport](scripts/SystemHealthReport/) | Generates an HTML system health report. |
-| [ClearEventLogs](scripts/ClearEventLogs/) | Clears Windows event logs. |
-| [DownloadsCleanup](scripts/DownloadsCleanup/) | Sorts Downloads by file type and removes old archives. |
-| [EmptyFolderCleanup](scripts/EmptyFolderCleanup/) | Removes empty folders within the Downloads directory. |
-| [EmptyRecycleBin](scripts/EmptyRecycleBin/) | Empties the Recycle Bin. |
-| [RestorePoint](scripts/RestorePoint/) | Creates a Windows system restore point. |
-| [ScreenshotsCleanup](scripts/ScreenshotsCleanup/) | Deletes screenshots older than 7 days. |
-| [SoftwareInventory](scripts/SoftwareInventory/) | Exports a list of installed software to a text file. |
-| [TempCleanup](scripts/TempCleanup/) | Deletes temporary files from the %TEMP% folder. |
+**Latest Release:** [`v1.0.1` — `ScriptSuite v1.0.1`](https://github.com/Bllodwolfie/windows-scripts/releases/tag/v1.0.1)
 
-## Usage
+1. Download [`ScriptSuite-win-x64-self-contained.zip`](https://github.com/Bllodwolfie/windows-scripts/releases/download/v1.0.1/ScriptSuite-win-x64-self-contained.zip) (80.3 MB zip, 188.8 MB unzipped, 766 files — self-contained `win-x64`, no .NET runtime to install).
+2. Right-click the zip → `Extract All` → open the folder.
+3. Double-click `ScriptSuite.exe`. Optionally run `Install.ps1` from the repo to create a Start Menu shortcut (Windows Search → `ScriptSuite`).
 
-### Get the files
+> **First-run SmartScreen:** the exe is unsigned, so Windows SmartScreen / Microsoft Defender SmartScreen may show *Windows protected your PC* → click `More info` → `Run anyway`. The zip comes from GitHub via `Mark of the Web`; extracting with Explorer handles it. No admin needed to run the app itself.
 
-Clone the repo (no Mark of the Web, so no unblocking needed):
+*Requires Windows 10 / 11 (x64). No PowerShell version check — the shipped `scripts\` are bundled with the publish output.*
+
+## Build from source — for developers
+
+**Prerequisite:** [.NET 10 SDK](https://dotnet.microsoft.com/download) (`10.0.x`, `dotnet --version` should print `10.0.400+`). The app builds `ScriptSuite/ScriptSuite.csproj:3` (`net10.0-windows`, `UseWPF`).
+
 ```powershell
 git clone https://github.com/Bllodwolfie/windows-scripts.git
 cd windows-scripts
+
+# Per-user install (no admin): publish self-contained to %LOCALAPPDATA%\Programs\ScriptSuite
+# and create %APPDATA%\Microsoft\Windows\Start Menu\Programs\ScriptSuite.lnk
+.\Install.ps1
+
+# Later
+.\Uninstall.ps1   # removes app + shortcut, keeps %LOCALAPPDATA%\ScriptSuite data (history.db, configs)
 ```
 
-Or download the ZIP and extract it. Windows then marks every `.ps1` as coming from the Internet, which blocks them — remove the mark once:
+`Install.ps1` runs `dotnet publish -c Release -r win-x64 --self-contained true -o publish` (`publish` is not committed, `**/bin/`, `**/obj/` are gitignored) and copies to the stable per-user path (`AppPaths.cs:26` data stays at `%LOCALAPPDATA%\ScriptSuite`). Use `-NoBuild` to install from an already-downloaded Release zip, or `-InstallDir` / `-ShortcutPath` to override.
+
+**Run scripts directly (no dashboard):**
+
 ```powershell
+# If your policy already allows local scripts (RemoteSigned)
+.\scripts\SystemHealthReport\SystemHealthReport.ps1
+
+# Fresh Windows (Restricted) — one-off bypass, no permanent change
+pwsh -ExecutionPolicy Bypass -File .\scripts\SystemHealthReport\SystemHealthReport.ps1
+
+# From a ZIP download, first unblock
 Get-ChildItem .\scripts -Recurse -Filter *.ps1 | Unblock-File
 ```
 
-### Run a script
+## The 9 scripts
 
-If your PowerShell policy already allows local scripts (`Get-ExecutionPolicy` returns `RemoteSigned`):
-```powershell
-.\scripts\SystemHealthReport\SystemHealthReport.ps1
-```
+Descriptions are verbatim from `ScriptSuite/Manifests/*.json:2` (source of truth for what ships; `v1.0.1` excludes `m12_elevated_test` test scaffolding).
 
-On a fresh Windows machine the policy is `Restricted`, which blocks **all** scripts. Either allow them for your user once:
-```powershell
-Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
-or skip the policy for a single run — works on every machine, no permanent change:
-```powershell
-pwsh -ExecutionPolicy Bypass -File .\scripts\SystemHealthReport\SystemHealthReport.ps1
-```
+| Script | What it does | Requires admin |
+|--------|--------------|----------------|
+| [SystemHealthReport](scripts/SystemHealthReport/) | Generates a self-contained HTML report of system health (CPU, memory, disks, network, errors). | No |
+| [ClearEventLogs](scripts/ClearEventLogs/) | Backs up and clears all Windows event logs. | **Yes** |
+| [DownloadsCleanup](scripts/DownloadsCleanup/) | Sorts and cleans the Downloads folder: deletes old installer/archive files and moves others into matching category folders. | No |
+| [EmptyFolderCleanup](scripts/EmptyFolderCleanup/) | Recursively removes empty folders under a chosen root folder. | No |
+| [EmptyRecycleBin](scripts/EmptyRecycleBin/) | Permanently empties the Recycle Bin. Deleted files cannot be recovered. | No |
+| [RestorePoint](scripts/RestorePoint/) | Creates a System Restore point and verifies it actually appeared. | **Yes** |
+| [ScreenshotsCleanup](scripts/ScreenshotsCleanup/) | Deletes old screenshots from the Pictures\Screenshots folder. | No |
+| [SoftwareInventory](scripts/SoftwareInventory/) | Generates a text report of all installed software. | No |
+| [TempCleanup](scripts/TempCleanup/) | Deletes files from the Windows temp folder that are older than the cutoff. | No |
 
-**Requires Administrator:** `ClearEventLogs`, `RestorePoint`
+Defaults live in `ScriptSuite/DefaultConfigs/*.json:1` and copy to `%LOCALAPPDATA%\ScriptSuite\Configs\` on first run (`AppPaths.cs:37` `EnsureConfigsSeeded`, never overwrites existing):
 
-## Requirements
+- `ClearEventLogs` → `BackupDir: %USERPROFILE%\Documents\Script_Logs\EventLogBackups`
+- `DownloadsCleanup` → `SourceDir: %USERPROFILE%\Downloads`, `CutoffDays: 7`, `LogDir: %USERPROFILE%\Documents\Script_Logs` (+ `DeleteExts` / `Categories`)
+- `EmptyFolderCleanup` → `TargetFolder: %USERPROFILE%\Downloads`
+- `ScreenshotsCleanup` → `TargetFolder: %USERPROFILE%\Pictures\Screenshots`, `CutoffDays: 7`
+- `SoftwareInventory` → `OutputFile: %USERPROFILE%\Documents\Script_Logs\Software_Inventory.txt`
+- `SystemHealthReport` → `OutputDir: %USERPROFILE%\Documents`, `OutputFile: System_Health_Report.html`
+- `TempCleanup` → `TargetFolder: %TEMP%`, `CutoffDays: 7`
 
-- Windows 10 / 11
-- PowerShell 5.1+ (PowerShell 7 recommended)
+Each script supports dry-run preview where `supportsDryRun: true` in its manifest (7 of 9; `SoftwareInventory` and `SystemHealthReport` are reports, not previews).
+
+## Prerequisites
+
+- **For the Release zip:** Windows 10 / 11 x64 only. No .NET runtime, no PowerShell version needed (self-contained).
+- **For `scripts\` directly:** Windows 10 / 11, PowerShell 5.1+ (PowerShell 7 recommended).
+- **For building:** Windows 10 / 11, .NET 10 SDK (`10.0.x`).
+
+## Known limitations & notices
+
+- **Unsigned exe:** SmartScreen warning on first launch (see above). No EV cert yet.
+- **Scheduled/unattended runs are not yet supported — all runs are manual, via the dashboard:** the dashboard has Run/History/Settings; automatic Task Scheduler wiring is planned and will reuse the stable per-user install path (`%LOCALAPPDATA%\Programs\ScriptSuite\ScriptSuite.exe`). The `Install.ps1` path is already the permanent one.
+- **SQLite WAL sidecars:** run history lives at `%LOCALAPPDATA%\ScriptSuite\history.db` (`RunHistoryStore.cs:84` `journal_mode=WAL`, `busy_timeout=5000`). Beside it you will see `history.db-wal` / `history.db-shm` — normal for WAL; don't copy the `.db` alone while the app is running (raw `File.Copy` would miss uncheckpointed wal). Use `wal_checkpoint` or the app’s backup API when it exists.
+- **v1.0.1 vs v1.0.0:** `v1.0.0` shipped `Manifests/m12_elevated_test.json` (`Test` category, `10s sleep` harness for Cat4d). `v1.0.1` excludes it via `ScriptSuite.csproj:21` `Exclude="Manifests\m12_elevated_test.json"` / `Exclude="..\scripts\m12_elevated_test\**\*"`. The source files remain in repo for `ElevationHarness` regression tests.
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE) (Copyright (c) 2026 Bllodwolfie).
