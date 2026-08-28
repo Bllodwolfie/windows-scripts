@@ -16,7 +16,11 @@ $Config = @{
 }
 
 if (Test-Path -LiteralPath $ConfigPath) {
-    $Config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+    try {
+        $Config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+    } catch {
+        Write-Warning "TempCleanup config is corrupt or unreadable at $ConfigPath — using defaults (TargetFolder=$env:TEMP, CutoffDays=7). Check or reset the config via Settings."
+    }
 }
 
 # JSON stores env-var paths as "%TEMP%"/"%USERPROFILE%\..."; expand them at load time.
