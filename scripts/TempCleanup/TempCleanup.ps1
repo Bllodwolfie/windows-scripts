@@ -129,6 +129,16 @@ function Remove-FileToRecycleBin([string]$Path) {
 # config is missing or empty (e.g. an older config file without the field).
 $target = if ($Config.TargetFolder) { Expand-ConfigPath $Config.TargetFolder } else { $env:TEMP }
 
+# Cat3c low-priority guard: Z:\ (nonexistent drive) and similar bad provider
+# paths make Get-ChildItem -File throw a parameter-binding error instead of a
+# graceful path-not-found. Test-Path first so the run surfaces as a plain
+# warning with 0 items, not a Failed error.
+if (-not (Test-Path -LiteralPath $target)) {
+    Write-Warning "Target folder '$target' does not exist or is not accessible — skipping."
+    if (-not $DryRun) { Write-Host "Temp cleanup: 0 deleted, 0 skipped (locked or in use)." }
+    return
+}
+
 $cutoff = (Get-Date).AddDays(-$Config.CutoffDays)
 
 # Recurse through the target folder and either preview (DryRun) or delete files
