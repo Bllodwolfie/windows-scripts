@@ -81,6 +81,21 @@ public sealed class RunHistoryStore
     {
         var conn = new SqliteConnection($"Data Source={_dbPath}");
         conn.Open();
+        // Cat2c gap: default DELETE journal + no busy timeout. Under Phase-2
+        // concurrency (scheduled + manual overlapping, longer transactions) a
+        // second writer would get SQLITE_BUSY immediately. WAL lets readers not
+        // block writers, and busy_timeout makes a writer wait (up to 5s) rather
+        // than failing.
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = "PRAGMA journal_mode=WAL;";
+            cmd.ExecuteNonQuery();
+        }
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = "PRAGMA busy_timeout=5000;";
+            cmd.ExecuteNonQuery();
+        }
         return conn;
     }
 
