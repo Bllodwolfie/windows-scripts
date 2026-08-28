@@ -18,11 +18,11 @@
        are deployed read-only alongside the exe; manifests describe them and
        default configs are copied to AppData on first run. -->
   <ItemGroup>
-    <None Include="..\scripts\**\*.ps1" CopyToOutputDirectory="PreserveNewest"
+    <None Include="..\scripts\**\*.ps1" Exclude="..\scripts\m12_elevated_test\**\*" CopyToOutputDirectory="PreserveNewest"
           Link="scripts\%(RecursiveDir)%(Filename)%(Extension)" />
     <None Include="..\assets\**\*" CopyToOutputDirectory="PreserveNewest"
           Link="assets\%(RecursiveDir)%(Filename)%(Extension)" />
-    <None Include="Manifests\*.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Manifests\*.json" Exclude="Manifests\m12_elevated_test.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="DefaultConfigs\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
