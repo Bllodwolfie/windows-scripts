@@ -2,11 +2,25 @@
 # Windows "Uninstall" registry keys (covers 64-bit, 32-bit-on-64-bit, and
 # per-user installs), then writes it to OutputFile.
 
+param(
+    [string]$ConfigPath = "$env:LOCALAPPDATA\ScriptSuite\Configs\SoftwareInventory.json"
+)
+
+# Fallback defaults, used only when the config file is missing (see TempCleanup).
 $Config = @{
     OutputFile = "$env:USERPROFILE\Documents\Script_Logs\Software_Inventory.txt"
 }
 
-$outputFile = $Config.OutputFile
+if (Test-Path -LiteralPath $ConfigPath) {
+    $Config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+}
+
+# JSON stores env-var paths as "%USERPROFILE%\..."; expand them at load time.
+function Expand-ConfigPath([string]$Path) {
+    [Environment]::ExpandEnvironmentVariables($Path)
+}
+
+$outputFile = Expand-ConfigPath $Config.OutputFile
 
 # Ensure the Script_Logs folder exists before writing (same guard the other
 # scripts in this suite use), in case this runs before any cleanup script

@@ -4,6 +4,11 @@
 # Windows dark/light mode setting. Output is a single .html file plus two
 # cat-mascot images copied alongside it.
 
+param(
+    [string]$ConfigPath = "$env:LOCALAPPDATA\ScriptSuite\Configs\SystemHealthReport.json"
+)
+
+# Fallback defaults, used only when the config file is missing (see TempCleanup).
 $Config = @{
     # Output
     OutputDir           = "$env:USERPROFILE\Documents"     # Where the report (and images) are written
@@ -70,6 +75,15 @@ $Config = @{
         pink     = '#ea76cb'
         toolbarBg = 'rgba(0,0,0,0.05)'
     }
+}
+
+if (Test-Path -LiteralPath $ConfigPath) {
+    $Config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+}
+
+# JSON stores env-var paths as "%USERPROFILE%\..."; expand them at load time.
+function Expand-ConfigPath([string]$Path) {
+    [Environment]::ExpandEnvironmentVariables($Path)
 }
 
 # Converts a palette hashtable (Mocha or Latte) into CSS custom-property
@@ -144,7 +158,7 @@ function Get-GpuVRAMLabel($gpuObj) {
     return "$gb GB"
 }
 
-$outputDir = $Config.OutputDir
+$outputDir = Expand-ConfigPath $Config.OutputDir
 $outputPath = "$outputDir\$($Config.OutputFile)"
 
 # Read the Windows setting for light vs dark apps theme to pick the palette
