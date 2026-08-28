@@ -1,9 +1,10 @@
 # Cat1d — stringList with hundreds of entries
-. "C:\Users\nekdo\AppData\Local\Temp\opencode\m12\m12-lib.ps1"
+. (Join-Path $PSScriptRoot "m12-lib.ps1")
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Write-HarnessLog "=== CAT1D START stringList hundreds ==="
 
 $cfgPath="$env:LOCALAPPDATA\ScriptSuite\Configs\DownloadsCleanup.json"
-$scriptPs="C:\Users\nekdo\Documents\windows-scripts\scripts\DownloadsCleanup\DownloadsCleanup.ps1"
+$scriptPs=Join-Path $RepoRoot "scripts\DownloadsCleanup\DownloadsCleanup.ps1"
 
 # Backup original config
 $orig=Get-Content $cfgPath -Raw
@@ -93,7 +94,7 @@ $orig | Set-Content -LiteralPath $cfgPath -Encoding utf8
 Write-HarnessLog "CONFIG-RESTORED original DeleteExts count=$((Get-Content $cfgPath -Raw | ConvertFrom-Json).DeleteExts.Count)"
 
 # History
-$bin="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows"
+$bin=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows"
 $env:PATH="$bin\runtimes\win-x64\native;"+$env:PATH
 try{Add-Type -Path "$bin\SQLitePCLRaw.core.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\SQLitePCLRaw.provider.e_sqlite3.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\SQLitePCLRaw.batteries_v2.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\Microsoft.Data.Sqlite.dll" -ErrorAction SilentlyContinue; [SQLitePCL.Batteries_V2]::Init()} catch{}
 $conn=[Microsoft.Data.Sqlite.SqliteConnection]::new("Data Source=$global:HistoryDb")
@@ -117,3 +118,4 @@ if($execRes.Outcome -eq "Success" -and $remain -eq 10 -and $delCount -eq 10){
     Write-HarnessLog "RESULT: Outcome=$($execRes.Outcome) remain=$remain"
 }
 Write-HarnessLog "=== CAT1D END ==="
+

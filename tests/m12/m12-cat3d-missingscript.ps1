@@ -1,8 +1,9 @@
 # Cat3d — corrupt/missing script file
-. "C:\Users\nekdo\AppData\Local\Temp\opencode\m12\m12-lib.ps1"
+. (Join-Path $PSScriptRoot "m12-lib.ps1")
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Write-HarnessLog "=== CAT3D START corrupt/missing script ==="
 
-$scriptPs="C:\Users\nekdo\Documents\windows-scripts\scripts\TempCleanup\TempCleanup.ps1"
+$scriptPs=Join-Path $RepoRoot "scripts\TempCleanup\TempCleanup.ps1"
 $bak="$env:TEMP\TempCleanup.ps1.bak"
 Copy-Item $scriptPs $bak -Force
 Write-HarnessLog "BACKUP $scriptPs -> $bak"
@@ -51,8 +52,9 @@ try{
 # Restore
 Copy-Item $bak $scriptPs -Force
 Remove-Item $bak -Force
-Copy-Item $scriptPs "C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows\scripts\TempCleanup\TempCleanup.ps1" -Force
+Copy-Item $scriptPs Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows\scripts\TempCleanup\TempCleanup.ps1" -Force
 Write-HarnessLog "RESTORED corrupt"
 
 Write-HarnessLog "RESULT: Cat3d missing/corrupt handled gracefully (Failed outcome, not crash)"
 Write-HarnessLog "=== CAT3D END ==="
+

@@ -1,8 +1,9 @@
 # Cat4c — kill mid-DB-insert
-. "C:\Users\nekdo\AppData\Local\Temp\opencode\m12\m12-lib.ps1"
+. (Join-Path $PSScriptRoot "m12-lib.ps1")
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Write-HarnessLog "=== CAT4C START kill mid-DB-insert ==="
 
-$bin="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows"
+$bin=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows"
 $env:PATH="$bin\runtimes\win-x64\native;"+$env:PATH
 try{Add-Type -Path "$bin\SQLitePCLRaw.core.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\SQLitePCLRaw.provider.e_sqlite3.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\SQLitePCLRaw.batteries_v2.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\Microsoft.Data.Sqlite.dll" -ErrorAction SilentlyContinue; [SQLitePCL.Batteries_V2]::Init()} catch{}
 
@@ -13,7 +14,7 @@ Write-HarnessLog "HISTORY-BEFORE $before"
 
 # Start rapid inserts in a job, kill mid-way
 $job=Start-Job -ScriptBlock {
-    $bin="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows"
+    $bin=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows"
     $env:PATH="$bin\runtimes\win-x64\native;"+$env:PATH
     Add-Type -Path "$bin\SQLitePCLRaw.core.dll"
     Add-Type -Path "$bin\SQLitePCLRaw.provider.e_sqlite3.dll"
@@ -70,3 +71,4 @@ if($integrityOk){
     exit 1
 }
 Write-HarnessLog "=== CAT4C END ==="
+

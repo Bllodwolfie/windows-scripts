@@ -1,10 +1,11 @@
 # Cat2a double-click guard — proven harness
-. "C:\Users\nekdo\AppData\Local\Temp\opencode\m12\m12-lib.ps1"
+. (Join-Path $PSScriptRoot "m12-lib.ps1")
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 Write-HarnessLog "=== CAT2A-DOUBLE START proven harness ==="
 
-$exe="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows\ScriptSuite.exe"
+$exe=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows\ScriptSuite.exe"
 Get-Process ScriptSuite -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 $proc=Start-Process -FilePath $exe -PassThru
@@ -67,7 +68,7 @@ if(-not $runBtn){ $proc | Stop-Process -Force; exit 1 }
 Write-HarnessLog "UI-FOUND Run button"
 
 # Record history count before
-$bin="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows"
+$bin=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows"
 $env:PATH="$bin\runtimes\win-x64\native;"+$env:PATH
 try{Add-Type -Path "$bin\SQLitePCLRaw.core.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\SQLitePCLRaw.provider.e_sqlite3.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\SQLitePCLRaw.batteries_v2.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\Microsoft.Data.Sqlite.dll" -ErrorAction SilentlyContinue; [SQLitePCL.Batteries_V2]::Init()} catch{}
 $c=[Microsoft.Data.Sqlite.SqliteConnection]::new("Data Source=$global:HistoryDb"); $c.Open(); $q=$c.CreateCommand(); $q.CommandText="SELECT COUNT(*) FROM RunHistory"; $before=$q.ExecuteScalar(); $c.Close()
@@ -116,3 +117,4 @@ if($runWins.Count -eq 1 -and $after -eq $before){
     exit 1
 }
 Write-HarnessLog "=== CAT2A-DOUBLE END ==="
+

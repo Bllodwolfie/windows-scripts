@@ -1,5 +1,6 @@
 # Cat4f — repeated kill/relaunch cycles (5x) — scratch isolation, no real-impact scripts
-. "C:\Users\nekdo\AppData\Local\Temp\opencode\m12\m12-lib.ps1"
+. (Join-Path $PSScriptRoot "m12-lib.ps1")
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Write-HarnessLog "=== CAT4F START repeated kill/relaunch 5 cycles ==="
 
 $scratch="$env:LOCALAPPDATA\ScriptSuite\m12scratch-cat4f"
@@ -7,7 +8,7 @@ $scratchLogs="$env:LOCALAPPDATA\ScriptSuite\m12scratch-cat4f-logs"
 $cfgPath="$env:LOCALAPPDATA\ScriptSuite\Configs\TempCleanup.json"
 $journalPath="$env:LOCALAPPDATA\ScriptSuite\journal.json"
 $historyDb="$env:LOCALAPPDATA\ScriptSuite\history.db"
-$exe="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows\ScriptSuite.exe"
+$exe=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows\ScriptSuite.exe"
 
 Remove-ScratchLogged $scratch "CAT4F clean"
 Remove-ScratchLogged $scratchLogs "CAT4F clean log"
@@ -21,7 +22,7 @@ Write-HarnessLog "SEED 200 files target=$scratch"
 $initialCount=(Get-ChildItem $scratch -File | Measure-Object).Count
 Write-HarnessLog "INITIAL count=$initialCount expected 200"
 
-$bin="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows"
+$bin=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows"
 $env:PATH="$bin\runtimes\win-x64\native;"+$env:PATH
 try{ Add-Type -Path "$bin\SQLitePCLRaw.core.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\SQLitePCLRaw.provider.e_sqlite3.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\SQLitePCLRaw.batteries_v2.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\Microsoft.Data.Sqlite.dll" -ErrorAction SilentlyContinue; [SQLitePCL.Batteries_V2]::Init()} catch{}
 $c=[Microsoft.Data.Sqlite.SqliteConnection]::new("Data Source=$historyDb")
@@ -123,3 +124,4 @@ if($ok -and $r3 -eq "ok" -and $finalRemain -eq 200 -and $finalHist -eq $before){
     Write-HarnessLog "RESULT: FAIL — ok=$ok integrity=$r3 remain=$finalRemain histDelta=$($finalHist-$before)"
 }
 Write-HarnessLog "=== CAT4F END ==="
+

@@ -1,8 +1,9 @@
 # Cat4d v2 — kill elevated child with 10s sleep window, aggressive polling
-. "C:\Users\nekdo\AppData\Local\Temp\opencode\m12\m12-lib.ps1"
+. (Join-Path $PSScriptRoot "m12-lib.ps1")
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Write-HarnessLog "=== CAT4D-V2 START kill elevated child (10s window) ==="
 
-$bin="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows"
+$bin=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows"
 $manifestId="m12_elevated_test"
 $cfgPath=[System.IO.Path]::Combine([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData), "ScriptSuite", "Configs", "m12_elevated_test.json")
 if(-not (Test-Path $cfgPath)){ "{}" | Set-Content -LiteralPath $cfgPath -Encoding utf8 }
@@ -61,3 +62,4 @@ try{
     Write-HarnessLog "Failed to run via DLL: $_"
 }
 Write-HarnessLog "=== CAT4D-V2 END ==="
+

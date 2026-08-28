@@ -1,5 +1,6 @@
 # Cat1b re-run via ScriptExecutor-equivalent (app-equivalent evidence)
-. "C:\Users\nekdo\AppData\Local\Temp\opencode\m12\m12-lib.ps1"
+. (Join-Path $PSScriptRoot "m12-lib.ps1")
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Write-HarnessLog "=== CAT1B-SCRIPTPATH START via ScriptExecutor (app-equivalent) ==="
 
 $scratch="$env:LOCALAPPDATA\ScriptSuite\m12scratch-ef"
@@ -7,7 +8,7 @@ $scratchLogs="$env:LOCALAPPDATA\ScriptSuite\m12scratch-ef-logs"
 $cfgPath=[System.IO.Path]::Combine([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData), "ScriptSuite", "Configs", "EmptyFolderCleanup.json")
 # Verify config wiring mirrors production: AppPaths.ConfigPathFor("EmptyFolderCleanup")
 Write-HarnessLog "CONFIG-WIRING AppPaths.ConfigPathFor(EmptyFolderCleanup) => $cfgPath (same as ScriptRunWindow.xaml.cs:81,183)"
-$scriptPs="C:\Users\nekdo\Documents\windows-scripts\scripts\EmptyFolderCleanup\EmptyFolderCleanup.ps1"
+$scriptPs=Join-Path $RepoRoot "scripts\EmptyFolderCleanup\EmptyFolderCleanup.ps1"
 $manifestRequiresAdmin=$false
 Write-HarnessLog "ELEVATION-CHECK manifest.requiresAdmin=$manifestRequiresAdmin => ExecuteInProcess (ScriptRunWindow.xaml.cs:215), not RunElevated — moot for this script"
 
@@ -76,7 +77,7 @@ $expectedOutcome= if($remainTotal -eq 0){ "Success" } else { "Warning" }
 Write-HarnessLog "EXPECTED-OUTCOME $expectedOutcome (remaining $remainTotal)"
 
 # History insert via real app path (RunHistoryStore equivalent) using actual Outcome from ScriptExecutor
-$bin="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows"
+$bin=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows"
 $env:PATH="$bin\runtimes\win-x64\native;"+$env:PATH
 try{Add-Type -Path "$bin\SQLitePCLRaw.core.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\SQLitePCLRaw.provider.e_sqlite3.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\SQLitePCLRaw.batteries_v2.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\Microsoft.Data.Sqlite.dll" -ErrorAction SilentlyContinue; [SQLitePCL.Batteries_V2]::Init()} catch{}
 $conn=[Microsoft.Data.Sqlite.SqliteConnection]::new("Data Source=$global:HistoryDb")
@@ -104,3 +105,4 @@ if($execRes.Outcome -eq "Success" -and $remainTotal -eq 0 -and $delCount -eq 510
     Write-HarnessLog "RESULT: Unexpected — Outcome=$($execRes.Outcome) remaining=$remainTotal deleted=$delCount"
 }
 Write-HarnessLog "=== CAT1B-SCRIPTPATH END ==="
+

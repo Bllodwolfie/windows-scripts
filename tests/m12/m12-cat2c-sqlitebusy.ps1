@@ -1,8 +1,9 @@
 # Cat2c — two ScriptSuite.exe instances writing history simultaneously (SQLITE_BUSY)
-. "C:\Users\nekdo\AppData\Local\Temp\opencode\m12\m12-lib.ps1"
+. (Join-Path $PSScriptRoot "m12-lib.ps1")
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Write-HarnessLog "=== CAT2C START two instances history SQLITE_BUSY ==="
 
-$bin="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows"
+$bin=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows"
 $env:PATH="$bin\runtimes\win-x64\native;"+$env:PATH
 
 # Get current history count
@@ -13,7 +14,7 @@ Write-HarnessLog "HISTORY-BEFORE $before"
 
 # Launch two jobs that both insert at same time
 $job1=Start-Job -ScriptBlock {
-    $bin="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows"
+    $bin=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows"
     $env:PATH="$bin\runtimes\win-x64\native;"+$env:PATH
     Add-Type -Path "$bin\SQLitePCLRaw.core.dll"
     Add-Type -Path "$bin\SQLitePCLRaw.provider.e_sqlite3.dll"
@@ -29,7 +30,7 @@ $job1=Start-Job -ScriptBlock {
     $c.Close()
 }
 $job2=Start-Job -ScriptBlock {
-    $bin="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows"
+    $bin=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows"
     $env:PATH="$bin\runtimes\win-x64\native;"+$env:PATH
     Add-Type -Path "$bin\SQLitePCLRaw.core.dll"
     Add-Type -Path "$bin\SQLitePCLRaw.provider.e_sqlite3.dll"
@@ -75,3 +76,4 @@ $c3=[Microsoft.Data.Sqlite.SqliteConnection]::new("Data Source=$global:HistoryDb
 $c3.Open(); $q3=$c3.CreateCommand(); $q3.CommandText="SELECT Id, Summary FROM RunHistory ORDER BY Id DESC LIMIT 5"; $r=$q3.ExecuteReader(); while($r.Read()){ Write-HarnessLog "HISTORY Id=$($r.GetInt64(0)) $($r.GetString(1))"}; $r.Close(); $c3.Close()
 
 Write-HarnessLog "=== CAT2C END ==="
+

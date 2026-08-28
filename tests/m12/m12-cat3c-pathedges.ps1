@@ -1,9 +1,10 @@
 # Cat3c — path edge cases (unicode, trailing slash, UNC, non-existent drive)
-. "C:\Users\nekdo\AppData\Local\Temp\opencode\m12\m12-lib.ps1"
+. (Join-Path $PSScriptRoot "m12-lib.ps1")
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Write-HarnessLog "=== CAT3C START path edge cases ==="
 
 $cfgPath="$env:LOCALAPPDATA\ScriptSuite\Configs\TempCleanup.json"
-$scriptPs="C:\Users\nekdo\Documents\windows-scripts\scripts\TempCleanup\TempCleanup.ps1"
+$scriptPs=Join-Path $RepoRoot "scripts\TempCleanup\TempCleanup.ps1"
 $orig=Get-Content $cfgPath -Raw
 
 $cases=@(
@@ -56,3 +57,4 @@ try{ $reloaded=Get-Content $cfgPath -Raw | ConvertFrom-Json; Write-HarnessLog "R
 
 Write-HarnessLog "RESULT: Cat3c path edge cases all handled gracefully (no crash) — check individual cases above"
 Write-HarnessLog "=== CAT3C END ==="
+

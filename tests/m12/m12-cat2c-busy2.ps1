@@ -1,12 +1,13 @@
 # Cat2c aggressive — hold transaction
-. "C:\Users\nekdo\AppData\Local\Temp\opencode\m12\m12-lib.ps1"
+. (Join-Path $PSScriptRoot "m12-lib.ps1")
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Write-HarnessLog "=== CAT2C-AGGRESSIVE START ==="
 
-$bin="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows"
+$bin=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows"
 $env:PATH="$bin\runtimes\win-x64\native;"+$env:PATH
 
 $jobHolder=Start-Job -ScriptBlock {
-    $bin="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows"
+    $bin=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows"
     $env:PATH="$bin\runtimes\win-x64\native;"+$env:PATH
     Add-Type -Path "$bin\SQLitePCLRaw.core.dll"
     Add-Type -Path "$bin\SQLitePCLRaw.provider.e_sqlite3.dll"
@@ -31,7 +32,7 @@ $jobHolder=Start-Job -ScriptBlock {
 Start-Sleep -Seconds 1  # let holder acquire lock
 
 $jobContender=Start-Job -ScriptBlock {
-    $bin="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows"
+    $bin=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows"
     $env:PATH="$bin\runtimes\win-x64\native;"+$env:PATH
     Add-Type -Path "$bin\SQLitePCLRaw.core.dll"
     Add-Type -Path "$bin\SQLitePCLRaw.provider.e_sqlite3.dll"
@@ -71,7 +72,7 @@ if($r2 -like "*BUSY*" -or $r2 -like "*busy*" -or $r2 -like "*locked*"){
 }
 
 # Cleanup holder row
-$bin2="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows"
+$bin2=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows"
 $env:PATH="$bin2\runtimes\win-x64\native;"+$env:PATH
 try{Add-Type -Path "$bin2\SQLitePCLRaw.core.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin2\SQLitePCLRaw.provider.e_sqlite3.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin2\SQLitePCLRaw.batteries_v2.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin2\Microsoft.Data.Sqlite.dll" -ErrorAction SilentlyContinue; [SQLitePCL.Batteries_V2]::Init()} catch{}
 $c2=[Microsoft.Data.Sqlite.SqliteConnection]::new("Data Source=$global:HistoryDb")
@@ -79,3 +80,4 @@ $c2.Open(); $q=$c2.CreateCommand(); $q.CommandText="DELETE FROM RunHistory WHERE
 Write-HarnessLog "CLEANUP Cat2c holder/contender rows removed"
 
 Write-HarnessLog "=== CAT2C-AGGRESSIVE END ==="
+

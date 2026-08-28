@@ -4,8 +4,8 @@ using System.Management.Automation;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-const string RepoRoot = @"C:\Users\nekdo\Documents\windows-scripts";
-const string ManifestDir = RepoRoot + @"\ScriptSuite\Manifests";
+string RepoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, @"..\..\..\.."));
+string ManifestDir = Path.Combine(RepoRoot, "ScriptSuite", "Manifests");
 
 // In top-level programs, `args` is the synthesized Main parameter already.
 // Elevated child mode: re-launched copy of this exe, running one script's real

@@ -1,12 +1,13 @@
 # Next 5000-scale DownloadsCleanup via ScriptExecutor — closes Cat1a gap, after BIN-EMPTY
-. "C:\Users\nekdo\AppData\Local\Temp\opencode\m12\m12-lib.ps1"
+. (Join-Path $PSScriptRoot "m12-lib.ps1")
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Write-HarnessLog "=== CAT1A-5000-SCRIPTPATH START via ScriptExecutor (bin-empty done) ==="
 
 $scratch="$env:LOCALAPPDATA\ScriptSuite\m12scratch-dl"
 $scratchLogs="$env:LOCALAPPDATA\ScriptSuite\m12scratch-dl-logs"
 $cfgPath=[System.IO.Path]::Combine([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData), "ScriptSuite", "Configs", "DownloadsCleanup.json")
 Write-HarnessLog "CONFIG-WIRING AppPaths.ConfigPathFor(DownloadsCleanup) => $cfgPath (same as ScriptRunWindow.xaml.cs:81,183)"
-$scriptPs="C:\Users\nekdo\Documents\windows-scripts\scripts\DownloadsCleanup\DownloadsCleanup.ps1"
+$scriptPs=Join-Path $RepoRoot "scripts\DownloadsCleanup\DownloadsCleanup.ps1"
 Write-HarnessLog "ELEVATION-CHECK requiresAdmin=false => ExecuteInProcess (ScriptRunWindow.xaml.cs:215)"
 
 # Clean for fresh 5000/5000
@@ -66,7 +67,7 @@ Write-HarnessLog "LOG lines=$($logLines.Count) DELETED=$del SKIPPED=$skip Creati
 
 $expectedOutcome= if($topAfter -eq 5000 -and $zipAfter -eq 0){ "Success" } else { "Warning" }
 
-$bin="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows"
+$bin=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows"
 $env:PATH="$bin\runtimes\win-x64\native;"+$env:PATH
 try{Add-Type -Path "$bin\SQLitePCLRaw.core.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\SQLitePCLRaw.provider.e_sqlite3.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\SQLitePCLRaw.batteries_v2.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\Microsoft.Data.Sqlite.dll" -ErrorAction SilentlyContinue; [SQLitePCL.Batteries_V2]::Init()} catch{}
 $conn=[Microsoft.Data.Sqlite.SqliteConnection]::new("Data Source=$global:HistoryDb")
@@ -91,3 +92,4 @@ if($execRes.Outcome -eq "Success" -and $topAfter -eq 5000 -and $del -eq 5000){
     Write-HarnessLog "RESULT: Outcome=$($execRes.Outcome) topAfter=$topAfter del=$del — check"
 }
 Write-HarnessLog "=== CAT1A-5000-SCRIPTPATH END ==="
+

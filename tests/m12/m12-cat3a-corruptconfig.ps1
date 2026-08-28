@@ -1,5 +1,6 @@
 # Cat3a — corrupt config JSON
-. "C:\Users\nekdo\AppData\Local\Temp\opencode\m12\m12-lib.ps1"
+. (Join-Path $PSScriptRoot "m12-lib.ps1")
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Write-HarnessLog "=== CAT3A START corrupt config JSON ==="
 
 $cfgPath="$env:LOCALAPPDATA\ScriptSuite\Configs\TempCleanup.json"
@@ -8,7 +9,7 @@ $orig=Get-Content $cfgPath -Raw
 "{ invalid json :::" | Set-Content -LiteralPath $cfgPath -Encoding utf8
 Write-HarnessLog "CONFIG-CORRUPTED $cfgPath with invalid JSON"
 
-$scriptPs="C:\Users\nekdo\Documents\windows-scripts\scripts\TempCleanup\TempCleanup.ps1"
+$scriptPs=Join-Path $RepoRoot "scripts\TempCleanup\TempCleanup.ps1"
 
 # Try DryRun via SDK — should handle gracefully, not crash, fallback to defaults
 $iss=[System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault2()
@@ -44,3 +45,4 @@ try{ $reloaded=Get-Content $cfgPath -Raw | ConvertFrom-Json; Write-HarnessLog "R
 
 Write-HarnessLog "RESULT: Success, corrupt config handled gracefully (fallback to defaults, no crash)"
 Write-HarnessLog "=== CAT3A END ==="
+

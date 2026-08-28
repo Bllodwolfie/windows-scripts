@@ -1,5 +1,6 @@
 # Cat4b — kill mid-config-save
-. "C:\Users\nekdo\AppData\Local\Temp\opencode\m12\m12-lib.ps1"
+. (Join-Path $PSScriptRoot "m12-lib.ps1")
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Write-HarnessLog "=== CAT4B START kill mid-config-save ==="
 
 $cfgPath="$env:LOCALAPPDATA\ScriptSuite\Configs\TempCleanup.json"
@@ -36,7 +37,7 @@ try{
 }
 
 # Try to run DryRun via SDK to see if app can still read it
-$scriptPs="C:\Users\nekdo\Documents\windows-scripts\scripts\TempCleanup\TempCleanup.ps1"
+$scriptPs=Join-Path $RepoRoot "scripts\TempCleanup\TempCleanup.ps1"
 $iss=[System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault2()
 $iss.ExecutionPolicy=[Microsoft.PowerShell.ExecutionPolicy]::Bypass
 $ps=[PowerShell]::Create($iss)
@@ -56,3 +57,4 @@ if(-not $valid){
 
 Write-HarnessLog "RESULT: $(if($valid){'Success, no corruption, last-writer-wins'} else {'Failed, corruption'})"
 Write-HarnessLog "=== CAT4B END ==="
+

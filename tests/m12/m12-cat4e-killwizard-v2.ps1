@@ -1,17 +1,18 @@
 # Cat4e V2 — kill during first-run wizard (wizard embedded in main; detect via inner buttons)
-. "C:\Users\nekdo\AppData\Local\Temp\opencode\m12\m12-lib.ps1"
+. (Join-Path $PSScriptRoot "m12-lib.ps1")
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Write-HarnessLog "=== CAT4E-V2 START kill during wizard (embedded) ==="
 
 $wizardPath="$env:LOCALAPPDATA\ScriptSuite\wizard.json"
 $journalPath="$env:LOCALAPPDATA\ScriptSuite\journal.json"
 $historyDb="$env:LOCALAPPDATA\ScriptSuite\history.db"
-$exe="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows\ScriptSuite.exe"
+$exe=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows\ScriptSuite.exe"
 
 $wizardBackup=if(Test-Path $wizardPath){ Get-Content $wizardPath -Raw } else { $null }
 $wizardExisted=Test-Path $wizardPath
 Write-HarnessLog "BACKUP wizard existed=$wizardExisted len=$(if($wizardBackup){$wizardBackup.Length}else{0})"
 
-$bin="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows"
+$bin=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows"
 $env:PATH="$bin\runtimes\win-x64\native;"+$env:PATH
 try{ Add-Type -Path "$bin\SQLitePCLRaw.core.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\SQLitePCLRaw.provider.e_sqlite3.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\SQLitePCLRaw.batteries_v2.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\Microsoft.Data.Sqlite.dll" -ErrorAction SilentlyContinue; [SQLitePCL.Batteries_V2]::Init()} catch{}
 $c=[Microsoft.Data.Sqlite.SqliteConnection]::new("Data Source=$historyDb")
@@ -123,3 +124,4 @@ if(-not $wizardExistsAfter -and -not $journalExists -and $res -eq "ok" -and $use
     Write-HarnessLog "RESULT: FAIL — wizardAfter=$wizardExistsAfter journal=$journalExists integrity=$res wizard2=$($null -ne $useRec2) finalIntegrity=$r3"
 }
 Write-HarnessLog "=== CAT4E-V2 END ==="
+

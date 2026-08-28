@@ -1,10 +1,11 @@
 # Cat2e — Hide/Show during Run All preview
-. "C:\Users\nekdo\AppData\Local\Temp\opencode\m12\m12-lib.ps1"
+. (Join-Path $PSScriptRoot "m12-lib.ps1")
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 Write-HarnessLog "=== CAT2E START Hide/Show during Run All preview ==="
 
-$exe="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows\ScriptSuite.exe"
+$exe=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows\ScriptSuite.exe"
 Get-Process ScriptSuite -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 $proc=Start-Process -FilePath $exe -PassThru
@@ -102,3 +103,4 @@ if($hideBtn -and $hideBtn.Current.IsEnabled -eq $false){
     Write-HarnessLog "RESULT: Inconclusive, no Hide button"
 }
 Write-HarnessLog "=== CAT2E END ==="
+

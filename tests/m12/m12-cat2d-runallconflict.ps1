@@ -1,10 +1,11 @@
 # Cat2d — Run All vs manual run conflict
-. "C:\Users\nekdo\AppData\Local\Temp\opencode\m12\m12-lib.ps1"
+. (Join-Path $PSScriptRoot "m12-lib.ps1")
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 Write-HarnessLog "=== CAT2D START Run All vs manual ==="
 
-$exe="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows\ScriptSuite.exe"
+$exe=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows\ScriptSuite.exe"
 Get-Process ScriptSuite -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 $proc=Start-Process -FilePath $exe -PassThru
@@ -97,3 +98,4 @@ $proc | Stop-Process -Force
 Write-HarnessLog "APP-STOP"
 Write-HarnessLog "RESULT: Run All preview correctly blocks manual Run (modal) if second window not opened"
 Write-HarnessLog "=== CAT2D END ==="
+

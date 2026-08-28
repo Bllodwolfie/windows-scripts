@@ -1,5 +1,6 @@
 # Cat4a-2000 ROOT — kill during preview at 2000 with direct RootElement.FindFirst
-. "C:\Users\nekdo\AppData\Local\Temp\opencode\m12\m12-lib.ps1"
+. (Join-Path $PSScriptRoot "m12-lib.ps1")
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Write-HarnessLog "=== CAT4A-2000-ROOT START kill during preview at 2000 (RootElement) ==="
 
 $scratch="$env:LOCALAPPDATA\ScriptSuite\m12scratch-cat4a"
@@ -14,7 +15,7 @@ $cfg.TargetFolder=$scratch; $cfg.CutoffDays=7; $cfg | ConvertTo-Json -Depth 5 | 
 for($i=1;$i -le 2000;$i++){ $p=Join-Path $scratch ("f{0:D4}.dat" -f $i); Set-Content -LiteralPath $p -Value "x"; (Get-Item $p).LastWriteTime=(Get-Date).AddDays(-10) }
 Write-HarnessLog "SEED 2000 files count=$((Get-ChildItem $scratch -File | Measure-Object).Count)"
 
-$exe="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows\ScriptSuite.exe"
+$exe=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows\ScriptSuite.exe"
 Get-Process ScriptSuite -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 $proc=Start-Process -FilePath $exe -PassThru
@@ -104,3 +105,4 @@ if($remain -eq 2000 -and -not $exists){
     Write-HarnessLog "RESULT: FAIL remain=$remain journal=$exists"
 }
 Write-HarnessLog "=== CAT4A-2000-ROOT END ==="
+

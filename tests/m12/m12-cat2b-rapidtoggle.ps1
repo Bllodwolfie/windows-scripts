@@ -1,5 +1,6 @@
 # Cat2b — rapid Settings toggling (CutoffDays int)
-. "C:\Users\nekdo\AppData\Local\Temp\opencode\m12\m12-lib.ps1"
+. (Join-Path $PSScriptRoot "m12-lib.ps1")
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Write-HarnessLog "=== CAT2B START rapid Settings toggling ==="
 
 $cfgPath="$env:LOCALAPPDATA\ScriptSuite\Configs\TempCleanup.json"
@@ -72,7 +73,7 @@ $origJson | Set-Content -LiteralPath $cfgPath -Encoding utf8
 Write-HarnessLog "CONFIG-RESTORED CutoffDays=$origCutoff"
 
 # History: no RunHistory row expected for settings-only, but verify no corruption caused failed run
-$bin="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows"
+$bin=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows"
 $env:PATH="$bin\runtimes\win-x64\native;"+$env:PATH
 try{Add-Type -Path "$bin\SQLitePCLRaw.core.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\SQLitePCLRaw.provider.e_sqlite3.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\SQLitePCLRaw.batteries_v2.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\Microsoft.Data.Sqlite.dll" -ErrorAction SilentlyContinue; [SQLitePCL.Batteries_V2]::Init()} catch{}
 $c=[Microsoft.Data.Sqlite.SqliteConnection]::new("Data Source=$global:HistoryDb")
@@ -86,3 +87,4 @@ if($valid -and $valid2){
     exit 1
 }
 Write-HarnessLog "=== CAT2B END ==="
+

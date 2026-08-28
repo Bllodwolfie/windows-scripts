@@ -1,12 +1,13 @@
 # Cat1c — multi-GB file/size formatting via TempCleanup
-. "C:\Users\nekdo\AppData\Local\Temp\opencode\m12\m12-lib.ps1"
+. (Join-Path $PSScriptRoot "m12-lib.ps1")
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Write-HarnessLog "=== CAT1C START multi-GB size formatting ==="
 
 $scratch="$env:LOCALAPPDATA\ScriptSuite\m12scratch-tc-1c"
 $scratchLogs="$env:LOCALAPPDATA\ScriptSuite\m12scratch-tc-1c-logs"
 $cfgPath=[System.IO.Path]::Combine([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData), "ScriptSuite", "Configs", "TempCleanup.json")
 Write-HarnessLog "CONFIG-WIRING AppPaths.ConfigPathFor(TempCleanup) => $cfgPath"
-$scriptPs="C:\Users\nekdo\Documents\windows-scripts\scripts\TempCleanup\TempCleanup.ps1"
+$scriptPs=Join-Path $RepoRoot "scripts\TempCleanup\TempCleanup.ps1"
 
 Remove-ScratchLogged $scratch "CAT1C: clean for large files"
 Remove-ScratchLogged $scratchLogs "CAT1C: clean log"
@@ -92,7 +93,7 @@ $del=0; if($logLines){ $del=([regex]::Matches(($logLines -join "`n"),"DELETED"))
 Write-HarnessLog "LOG lines=$($logLines.Count) DELETED=$del Creation=$((Get-Item $logPath -ErrorAction SilentlyContinue).CreationTime) LastWrite=$((Get-Item $logPath -ErrorAction SilentlyContinue).LastWriteTime)"
 
 # History via real app path
-$bin="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows"
+$bin=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows"
 $env:PATH="$bin\runtimes\win-x64\native;"+$env:PATH
 try{Add-Type -Path "$bin\SQLitePCLRaw.core.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\SQLitePCLRaw.provider.e_sqlite3.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\SQLitePCLRaw.batteries_v2.dll" -ErrorAction SilentlyContinue; Add-Type -Path "$bin\Microsoft.Data.Sqlite.dll" -ErrorAction SilentlyContinue; [SQLitePCL.Batteries_V2]::Init()} catch{}
 $conn=[Microsoft.Data.Sqlite.SqliteConnection]::new("Data Source=$global:HistoryDb")
@@ -119,3 +120,4 @@ if($execRes.Outcome -eq "Success" -and $remain -eq 0 -and $del -eq 4){
     Write-HarnessLog "RESULT: Outcome=$($execRes.Outcome) remain=$remain del=$del"
 }
 Write-HarnessLog "=== CAT1C END ==="
+

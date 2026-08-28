@@ -1,7 +1,8 @@
 # m12-lib.ps1 — shared helpers for M12 adversarial pass
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 # FIX: scratch recreation is now explicitly logged; seeder writes flat at SourceDir root
 
-$global:M12Root = "C:\Users\nekdo\AppData\Local\Temp\opencode\m12"
+$global:M12Root = Join-Path $env:TEMP "opencode\m12"
 $global:M12HarnessLog = Join-Path $global:M12Root "m12-harness.log"
 $global:AppDataRoot = "$env:LOCALAPPDATA\ScriptSuite"
 $global:HistoryDb = "$env:LOCALAPPDATA\ScriptSuite\history.db"
@@ -32,7 +33,7 @@ function New-ScratchLogged([string]$path, [string]$reason) {
 
 function Reset-HistoryLogged([string]$reason) {
     # Log and truncate RunHistory; keep DB file but clear rows
-    $bin="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows"
+    $bin=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows"
     $env:PATH="$bin\runtimes\win-x64\native;"+$env:PATH
     try {
         Add-Type -Path "$bin\SQLitePCLRaw.core.dll" -ErrorAction SilentlyContinue
@@ -70,7 +71,7 @@ function Seed-BatchFlat([string]$scratch, [int]$count, [string]$prefix, [string]
 }
 
 function Get-HistoryRows {
-    $bin="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows"
+    $bin=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows"
     $env:PATH="$bin\runtimes\win-x64\native;"+$env:PATH
     try {
         Add-Type -Path "$bin\SQLitePCLRaw.core.dll" -ErrorAction SilentlyContinue
@@ -95,3 +96,4 @@ function Get-HistoryRows {
     $conn.Close()
     return $rows
 }
+

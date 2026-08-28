@@ -1,8 +1,9 @@
 # Cat3b — corrupt manifest JSON
-. "C:\Users\nekdo\AppData\Local\Temp\opencode\m12\m12-lib.ps1"
+. (Join-Path $PSScriptRoot "m12-lib.ps1")
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Write-HarnessLog "=== CAT3B START corrupt manifest JSON ==="
 
-$manifestPath="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\Manifests\TempCleanup.json"
+$manifestPath=Join-Path $RepoRoot "ScriptSuite\Manifests\TempCleanup.json"
 $orig=Get-Content $manifestPath -Raw
 # Backup
 $bak="$env:TEMP\TempCleanup.json.bak"
@@ -12,7 +13,7 @@ Copy-Item $manifestPath $bak -Force
 Write-HarnessLog "MANIFEST-CORRUPTED $manifestPath"
 
 # Try to launch app and see if it handles gracefully (should not crash, should show error or fallback)
-$exe="C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows\ScriptSuite.exe"
+$exe=Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows\ScriptSuite.exe"
 Get-Process ScriptSuite -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 $proc=Start-Process -FilePath $exe -PassThru
@@ -41,7 +42,7 @@ Remove-Item $bak -Force
 Write-HarnessLog "MANIFEST-RESTORED"
 
 # Also copy to bin
-Copy-Item $manifestPath "C:\Users\nekdo\Documents\windows-scripts\ScriptSuite\bin\Debug\net10.0-windows\Manifests\TempCleanup.json" -Force
+Copy-Item $manifestPath Join-Path $RepoRoot "ScriptSuite\bin\Debug\net10.0-windows\Manifests\TempCleanup.json" -Force
 Write-HarnessLog "MANIFEST-RESTORED bin"
 
 if($outcome -like "Success*"){
@@ -51,3 +52,4 @@ if($outcome -like "Success*"){
     exit 1
 }
 Write-HarnessLog "=== CAT3B END ==="
+
