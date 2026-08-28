@@ -18,3 +18,7 @@ Thumbs.db
 .vscode/
 *.suo
 *.user
+
+# Build output
+**/bin/
+**/obj/
