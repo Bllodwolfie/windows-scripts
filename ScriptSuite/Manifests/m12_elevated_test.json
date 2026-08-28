@@ -1,0 +1,10 @@
+{
+  "id": "m12_elevated_test",
+  "displayName": "M12 Elevated Test",
+  "description": "Scratch test for elevated child kill — harmless, does not touch OS state",
+  "category": "Test",
+  "requiresAdmin": true,
+  "supportsDryRun": true,
+  "scriptPath": "scripts/m12_elevated_test/test.ps1",
+  "fields": []
+}
