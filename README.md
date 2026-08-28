@@ -7,9 +7,9 @@ A Windows maintenance suite — a WPF dashboard (`ScriptSuite`) over nine self-c
 
 ## Preview
 
-![System Health Report](assets/preview.png)
+![ScriptSuite dashboard](assets/dashboard.png)
 
-*Sample `System Health Report` output (fictional data, Catppuccin Mocha/Latte). The dashboard itself shows nine tiles — one per script — with preview, run, history, and settings.*
+*ScriptSuite dashboard in Mocha dark (980×640) — nine tiles, one per script (Cleanup, System, Reports), each with preview, run, and settings. History and run output are accessible from the header. Shown in a clean/default state (no prior run history, no error states).*
 
 ## Download — for most users (no SDK needed)
 
@@ -81,6 +81,10 @@ Defaults live in `ScriptSuite/DefaultConfigs/*.json:1` and copy to `%LOCALAPPDAT
 - `TempCleanup` → `TargetFolder: %TEMP%`, `CutoffDays: 7`
 
 Each script supports dry-run preview where `supportsDryRun: true` in its manifest (7 of 9; `SoftwareInventory` and `SystemHealthReport` are reports, not previews).
+
+*Sample `System Health Report` output (fictional data, Catppuccin Mocha/Latte, 1360×1600) — see `assets/preview.png`:*
+
+![Sample System Health Report](assets/preview.png)
 
 ## Prerequisites
 
