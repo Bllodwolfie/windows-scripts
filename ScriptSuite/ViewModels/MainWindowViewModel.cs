@@ -12,6 +12,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     private readonly ManifestCatalog _catalog;
     private readonly DashboardStateStore _stateStore;
     private bool _showHidden;
+    private bool _isRunning;
 
     public MainWindowViewModel(ManifestCatalog catalog, DashboardStateStore stateStore)
     {
@@ -28,6 +29,16 @@ public sealed class MainWindowViewModel : ViewModelBase
         {
             if (Set(ref _showHidden, value))
                 Refresh();
+        }
+    }
+
+    public bool IsRunning
+    {
+        get => _isRunning;
+        set
+        {
+            if (Set(ref _isRunning, value))
+                OnPropertyChanged(nameof(RunAllEnabled));
         }
     }
 
@@ -48,10 +59,13 @@ public sealed class MainWindowViewModel : ViewModelBase
                 Categories.Add(cat);
         }
         OnPropertyChanged(nameof(AnyEnabled));
+        OnPropertyChanged(nameof(RunAllEnabled));
     }
 
     /// <summary>True when at least one script is enabled (checked and not
     /// hidden) — the Run All button requires at least one to do anything.</summary>
     public bool AnyEnabled =>
         _catalog.All.Any(m => _stateStore.IsRunAllEnabled(m.Id) && !_stateStore.IsHidden(m.Id));
+
+    public bool RunAllEnabled => AnyEnabled && !IsRunning;
 }

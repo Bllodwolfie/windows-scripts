@@ -95,10 +95,12 @@
 
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
                         <Button Content="Run" Click="RunButton_Click" Padding="12,4" Margin="0,0,8,0"
+                                IsEnabled="{Binding DataContext.IsRunning, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBool}}"
                                 AutomationProperties.Name="{Binding DisplayName, StringFormat=Run {0}}" />
                         <Button Content="Settings" Click="SettingsButton_Click" Padding="10,4" Margin="0,0,8,0"
                                 AutomationProperties.Name="{Binding DisplayName, StringFormat=Settings for {0}}" />
                         <Button Content="Hide" Click="HideButton_Click" Padding="10,4"
+                                IsEnabled="{Binding DataContext.IsRunning, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBool}}"
                                 Visibility="{Binding IsHidden, Converter={StaticResource InverseBoolToVis}}"
                                 AutomationProperties.Name="{Binding DisplayName, StringFormat=Hide {0}}" />
                         <Button Content="Show" Click="ShowButton_Click" Padding="10,4"
@@ -143,6 +145,7 @@
                 <Button Content="History" Click="HistoryButton_Click" Padding="16,8" Margin="0,0,8,0"
                         AutomationProperties.Name="Open run history" />
                 <Button x:Name="RunAllButton" Content="Run All" Click="RunAllButton_Click"
+                        IsEnabled="{Binding RunAllEnabled}"
                         FontWeight="SemiBold" Padding="20,8" />
             </StackPanel>
         </Grid>

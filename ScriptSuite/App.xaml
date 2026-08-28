@@ -5,6 +5,7 @@
              xmlns:conv="clr-namespace:ScriptSuite.Converters"
              ShutdownMode="OnMainWindowClose">
     <Application.Resources>
+        <conv:InverseBooleanConverter x:Key="InverseBool" />
         <conv:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVis" />
         <conv:BoolToMarginConverter x:Key="MarginConverter" />
     </Application.Resources>

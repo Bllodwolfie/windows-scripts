@@ -31,11 +31,12 @@ public partial class MainWindow : Window
     private void RefreshView()
     {
         _vm.Refresh();
-        RunAllButton.IsEnabled = _vm.AnyEnabled;
     }
 
     private void HideButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_vm.IsRunning)
+            return;
         if ((sender as FrameworkElement)?.DataContext is ScriptRowViewModel row)
         {
             row.IsHidden = true;
@@ -54,13 +55,23 @@ public partial class MainWindow : Window
 
     private void RunAllButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_vm.IsRunning)
+            return;
         var order = _catalog.BatchOrder(id => _stateStore.IsRunAllEnabled(id) && !_stateStore.IsHidden(id));
         if (order.Count == 0)
             return;
 
-        var preview = new RunAllPreviewWindow(_executor, order, _historyStore);
-        preview.Owner = this;
-        preview.ShowDialog();
+        _vm.IsRunning = true;
+        try
+        {
+            var preview = new RunAllPreviewWindow(_executor, order, _historyStore);
+            preview.Owner = this;
+            preview.ShowDialog();
+        }
+        finally
+        {
+            _vm.IsRunning = false;
+        }
     }
 
     private void HistoryButton_Click(object sender, RoutedEventArgs e)
@@ -71,10 +82,20 @@ public partial class MainWindow : Window
 
     private void RunButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_vm.IsRunning)
+            return;
         if ((sender as FrameworkElement)?.DataContext is ScriptRowViewModel row)
         {
-            var window = new ScriptRunWindow(row.Manifest, _executor, _historyStore) { Owner = this };
-            window.ShowDialog();
+            _vm.IsRunning = true;
+            try
+            {
+                var window = new ScriptRunWindow(row.Manifest, _executor, _historyStore) { Owner = this };
+                window.ShowDialog();
+            }
+            finally
+            {
+                _vm.IsRunning = false;
+            }
         }
     }
 
