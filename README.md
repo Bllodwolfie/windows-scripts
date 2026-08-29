@@ -13,9 +13,9 @@ A Windows maintenance suite — a WPF dashboard (`ScriptSuite`) over nine self-c
 
 ## Download — for most users (no SDK needed)
 
-**Latest Release:** [`v1.0.1` — `ScriptSuite v1.0.1`](https://github.com/Bllodwolfie/windows-scripts/releases/tag/v1.0.1)
+**Latest Release:** [`v1.1.0` — `ScriptSuite v1.1.0`](https://github.com/Bllodwolfie/windows-scripts/releases/tag/v1.1.0)
 
-1. Download [`ScriptSuite-win-x64-self-contained.zip`](https://github.com/Bllodwolfie/windows-scripts/releases/download/v1.0.1/ScriptSuite-win-x64-self-contained.zip) (80.3 MB zip, 188.8 MB unzipped, 766 files — self-contained `win-x64`, no .NET runtime to install).
+1. Download [`ScriptSuite-win-x64-self-contained.zip`](https://github.com/Bllodwolfie/windows-scripts/releases/download/v1.1.0/ScriptSuite-win-x64-self-contained.zip) (80.3 MB zip, 188.8 MB unzipped, 766 files — self-contained `win-x64`, no .NET runtime to install).
 2. Right-click the zip → `Extract All` → open the folder.
 3. Double-click `ScriptSuite.exe`. Optionally run `Install.ps1` from the repo to create a Start Menu shortcut (Windows Search → `ScriptSuite`).
 
@@ -92,12 +92,21 @@ Each script supports dry-run preview where `supportsDryRun: true` in its manifes
 - **For `scripts\` directly:** Windows 10 / 11, PowerShell 5.1+ (PowerShell 7 recommended).
 - **For building:** Windows 10 / 11, .NET 10 SDK (`10.0.x`).
 
+## Scheduling — unattended runs via Task Scheduler
+
+Every script (all 9, including the 2 admin ones) can be scheduled from its tile **Schedule** button. The dialog is `Every [N] [Days|Hours|Weeks] at [HH:mm]` — no cron. Example: `Every 1 Days at 09:00` creates `\ScriptSuite\<scriptId>` daily at 09:00.
+
+* **Two tiers under the hood, one UI:** 7 non-admin scripts register `InteractiveToken Limited` tasks; 2 admin scripts (`ClearEventLogs`, `RestorePoint`) register `S4U HighestAvailable` tasks. The UI presents scheduling uniformly, but the Task Scheduler entries differ (`schtasks /query \ScriptSuite\<id> /xml` shows `<LogonType>InteractiveToken</LogonType>` vs `<LogonType>S4U</LogonType><RunLevel>HighestAvailable</RunLevel>`).
+* **Per-script risk opt-in:** first time you schedule an admin script, check `I understand the risks` (stored in `%LOCALAPPDATA%\ScriptSuite\risk-consents.json` per-script, persists after unscheduling). This is separate from the **one-time UAC at Save** needed to register a `HighestAvailable` task — after that, runs are silent forever (no UAC at run time).
+* **Scheduled History is separate:** header `Scheduled` button opens `Scheduled History` (`Services/RunHistoryStore.cs` `ScheduledRuns` table, `INSERT` via headless `ScriptSuite.exe --scheduled-run <id>`). Manual `History` and scheduled history are distinct tabs. `Skipped — app was busy` is a distinct outcome (not silently dropped, not queued) when a trigger fires while the dashboard is open (single-instance `Global\ScriptSuite_SingleInstance_<SID>` mutex + file-lock fallback).
+* **App remains closed between runs:** Task Scheduler launches `ScriptSuite.exe --scheduled-run <id>` headlessly, it runs via `Services/ScriptExecutor.cs` `CreateDefault` (self-contained fix for `PSHOME`/`CimCmdlets` headless), inserts into `ScheduledRuns`, and exits — no tray/background process. Results only visible in `Scheduled` tab (no notifications).
+* **Storage:** schedules in `%LOCALAPPDATA%\ScriptSuite\schedules.json` (`Models/ScheduleEntry.cs`), `risk-consents.json`, and `history.db` `ScheduledRuns` (`Services/RunHistoryStore.cs:25`). `Remove Schedule` in the same dialog unregisters the task (`Unregister-ScheduledTask`) and clears the entry (dashboard `◷` indicator `HasSchedule`/`ScheduleSummary` disappears).
+
 ## Known limitations & notices
 
 - **Unsigned exe:** SmartScreen warning on first launch (see above). No EV cert yet.
-- **Scheduled/unattended runs are not yet supported — all runs are manual, via the dashboard:** the dashboard has Run/History/Settings; automatic Task Scheduler wiring is planned and will reuse the stable per-user install path (`%LOCALAPPDATA%\Programs\ScriptSuite\ScriptSuite.exe`). The `Install.ps1` path is already the permanent one.
 - **SQLite WAL sidecars:** run history lives at `%LOCALAPPDATA%\ScriptSuite\history.db` (`RunHistoryStore.cs:84` `journal_mode=WAL`, `busy_timeout=5000`). Beside it you will see `history.db-wal` / `history.db-shm` — normal for WAL; don't copy the `.db` alone while the app is running (raw `File.Copy` would miss uncheckpointed wal). Use `wal_checkpoint` or the app’s backup API when it exists.
-- **v1.0.1 vs v1.0.0:** `v1.0.0` shipped `Manifests/m12_elevated_test.json` (`Test` category, `10s sleep` harness for Cat4d). `v1.0.1` excludes it via `ScriptSuite.csproj:21` `Exclude="Manifests\m12_elevated_test.json"` / `Exclude="..\scripts\m12_elevated_test\**\*"`. The source files remain in repo for `ElevationHarness` regression tests.
+- **v1.1.0 vs v1.0.1:** `v1.0.1` shipped 9 scripts (excluded `m12_elevated_test` via `ScriptSuite.csproj:21`). `v1.1.0` adds scheduling (engine, `S4U` split, `ScheduledRuns` separate table, mutex `SkippedBusy`, UI `Schedule`/`Scheduled History`). No behavior change for manual runs.
 
 ## License
 
