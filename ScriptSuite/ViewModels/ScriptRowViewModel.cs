@@ -12,13 +12,19 @@ public sealed class ScriptRowViewModel : ViewModelBase
     private bool _runAll;
     private bool _hidden;
 
-    public ScriptRowViewModel(ScriptManifest manifest, DashboardStateStore stateStore)
+    private readonly ScheduleStore _scheduleStore;
+
+    public ScriptRowViewModel(ScriptManifest manifest, DashboardStateStore stateStore, ScheduleStore scheduleStore)
     {
         Manifest = manifest;
         _stateStore = stateStore;
+        _scheduleStore = scheduleStore;
         _runAll = stateStore.IsRunAllEnabled(manifest.Id);
         _hidden = stateStore.IsHidden(manifest.Id);
     }
+
+    public bool HasSchedule => _scheduleStore.Has(Id);
+    public string ScheduleSummary => _scheduleStore.Get(Id) is { } e ? $"{e.Interval} {e.Unit} @ {e.TimeOfDay}" : "";
 
     public ScriptManifest Manifest { get; }
 

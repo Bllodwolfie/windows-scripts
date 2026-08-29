@@ -9,21 +9,25 @@ public partial class MainWindow : Window
 {
     private readonly ManifestCatalog _catalog;
     private readonly DashboardStateStore _stateStore;
+    private readonly ScheduleStore _scheduleStore;
+    private readonly RiskConsentStore _riskStore;
     private readonly ScriptExecutor _executor;
     private readonly ScriptConfigService _configService;
     private readonly RunHistoryStore _historyStore;
     private readonly MainWindowViewModel _vm;
 
-    public MainWindow(ManifestCatalog catalog, DashboardStateStore stateStore, ScriptExecutor executor, ScriptConfigService configService, RunHistoryStore historyStore)
+    public MainWindow(ManifestCatalog catalog, DashboardStateStore stateStore, ScheduleStore scheduleStore, RiskConsentStore riskStore, ScriptExecutor executor, ScriptConfigService configService, RunHistoryStore historyStore)
     {
         InitializeComponent();
         _catalog = catalog;
         _stateStore = stateStore;
+        _scheduleStore = scheduleStore;
+        _riskStore = riskStore;
         _executor = executor;
         _configService = configService;
         _historyStore = historyStore;
 
-        _vm = new MainWindowViewModel(catalog, stateStore);
+        _vm = new MainWindowViewModel(catalog, stateStore, scheduleStore);
         DataContext = _vm;
         RefreshView();
     }
@@ -78,6 +82,21 @@ public partial class MainWindow : Window
     {
         var window = new HistoryWindow(_historyStore, _catalog) { Owner = this };
         window.ShowDialog();
+    }
+
+    private void ScheduledHistoryButton_Click(object sender, RoutedEventArgs e)
+    {
+        var window = new ScheduledHistoryWindow(_historyStore, _catalog) { Owner = this };
+        window.ShowDialog();
+    }
+
+    private void ScheduleButton_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is ScriptRowViewModel row)
+        {
+            var dlg = new ScheduleWindow(row.Manifest, _scheduleStore, _riskStore, _catalog) { Owner = this };
+            if (dlg.ShowDialog() == true) RefreshView();
+        }
     }
 
     private void RunButton_Click(object sender, RoutedEventArgs e)

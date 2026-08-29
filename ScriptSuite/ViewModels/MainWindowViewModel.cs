@@ -11,14 +11,18 @@ public sealed class MainWindowViewModel : ViewModelBase
 {
     private readonly ManifestCatalog _catalog;
     private readonly DashboardStateStore _stateStore;
+    private readonly ScheduleStore _scheduleStore;
     private bool _showHidden;
     private bool _isRunning;
 
-    public MainWindowViewModel(ManifestCatalog catalog, DashboardStateStore stateStore)
+    public MainWindowViewModel(ManifestCatalog catalog, DashboardStateStore stateStore, ScheduleStore scheduleStore)
     {
         _catalog = catalog;
         _stateStore = stateStore;
+        _scheduleStore = scheduleStore;
     }
+
+    public ScheduleStore ScheduleStore => _scheduleStore;
 
     public ObservableCollection<ScriptCategoryViewModel> Categories { get; } = new();
 
@@ -50,7 +54,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             var cat = new ScriptCategoryViewModel(category);
             foreach (var manifest in scripts)
             {
-                var row = new ScriptRowViewModel(manifest, _stateStore);
+                var row = new ScriptRowViewModel(manifest, _stateStore, _scheduleStore);
                 if (row.IsHidden && !ShowHidden)
                     continue;
                 cat.Rows.Add(row);
