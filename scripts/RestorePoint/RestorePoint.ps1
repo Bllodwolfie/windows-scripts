@@ -112,13 +112,27 @@ try {
     exit 1
 }
 
-# The SystemRestore WMI class can lag a few seconds behind a freshly created
-# point, so poll briefly for the new point before declaring it absent.
+# The SystemRestore WMI class can lag behind a freshly created point —
+# interactive manual runs show ~1s (ManualTest 2026-08-29 15:14), but
+# headless S4U via Task Scheduler can lag >10s due to slower WMI provider
+# startup when not running interactively (Stage 4 proof Id=5: 10s poll missed
+# a point that Get-ComputerRestorePoint found at +6s). Poll longer and add
+# fallback checks that don't rely solely on SystemRestore timing.
 $after = @()
-for ($attempt = 0; $attempt -lt 10; $attempt++) {
+for ($attempt = 0; $attempt -lt 30; $attempt++) {
     $after = @(Get-CimInstance -Namespace root\default -ClassName SystemRestore -ErrorAction SilentlyContinue | Where-Object { $_.Description -eq $Config.Description } | Select-Object -ExpandProperty SequenceNumber)
     if (($after | Where-Object { $_ -notin $before }).Count -gt 0) { break }
     Start-Sleep -Seconds 1
+}
+
+# Fallback: Get-ComputerRestorePoint (different WMI path, sometimes faster) and
+# Win32_ShadowCopy count increase both indicate success even if SystemRestore lags.
+if (($after | Where-Object { $_ -notin $before }).Count -eq 0) {
+    Start-Sleep -Seconds 2
+    $fallback = @(Get-ComputerRestorePoint -ErrorAction SilentlyContinue | Where-Object { $_.Description -eq $Config.Description } | Select-Object -ExpandProperty SequenceNumber)
+    if (($fallback | Where-Object { $_ -notin $before }).Count -gt 0) {
+        $after = $fallback
+    }
 }
 
 if (($after | Where-Object { $_ -notin $before }).Count -gt 0) {
