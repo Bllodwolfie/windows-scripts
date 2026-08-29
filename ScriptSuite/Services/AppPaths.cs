@@ -29,6 +29,9 @@ public static class AppPaths
 
     public static string DefaultConfigsDir => Path.Combine(AppContext.BaseDirectory, "DefaultConfigs");
 
+    public static string SchedulesPath => Path.Combine(AppDataRoot, "schedules.json");
+    public static string RiskConsentsPath => Path.Combine(AppDataRoot, "risk-consents.json");
+
     public static string ConfigPathFor(string scriptId) => Path.Combine(ConfigsDir, scriptId + ".json");
 
     /// <summary>Copies the shipped default config JSON for each script into

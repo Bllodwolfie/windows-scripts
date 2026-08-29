@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.IO;
+using System.Text.Json;
 using System.Windows;
 using ScriptSuite.Models;
 using ScriptSuite.Services;
@@ -7,9 +8,7 @@ namespace ScriptSuite;
 
 /// <summary>
 /// Interaction logic for App.xaml. Handles the hidden elevated-helper mode
-/// (Milestone 4): when launched with --elevated-run the app runs exactly one
-/// script's execute phase headlessly, writes the JSON result, and exits without
-/// ever creating a window.
+/// (Milestone 4) and Stage 2 scheduled headless (mutex + SkippedBusy).
 /// </summary>
 public partial class App : Application
 {
@@ -19,6 +18,10 @@ public partial class App : Application
     private const string LiveLogFlag = "--live-log";
     private const string IncludeOnlyFlag = "--include-only";
     private const string DumpHistoryFlag = "--dump-history";
+    private const string ScheduledRunFlag = "--scheduled-run";
+    private const string RegisterTaskFlag = "--register-scheduled-task";
+    private static System.Threading.Mutex? _singleInstanceMutex;
+    private static string MutexName => $"Global\\ScriptSuite_SingleInstance_{System.Security.Principal.WindowsIdentity.GetCurrent().User?.Value ?? "default"}";
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -45,16 +48,45 @@ public partial class App : Application
             return;
         }
 
-        // Normal interactive startup: seed configs, show the dashboard.
+        // Stage 2 elevation helper for registering HighestAvailable tasks (UAC once at schedule time, not at run time)
+        string? registerId = GetArg(args, RegisterTaskFlag);
+        if (registerId is not null)
+        {
+            int code = RunRegisterTaskHeadless(args);
+            Shutdown(code);
+            return;
+        }
+
+        // Scheduled headless (Stage 2). App remains closed between runs; Task Scheduler launches headlessly.
+        string? scheduledScriptId = GetArg(args, ScheduledRunFlag);
+        if (scheduledScriptId is not null)
+        {
+            RunScheduledHeadless(scheduledScriptId);
+            Shutdown();
+            return;
+        }
+
+        // Normal interactive startup: hold single-instance mutex for Stage 2 busy detection (header check).
+        // Scheduled headless instances TryOpenExisting this mutex; if held, they log SkippedBusy and exit.
+        try
+        {
+            bool createdNew;
+            _singleInstanceMutex = new System.Threading.Mutex(true, MutexName, out createdNew);
+            // keep held for lifetime; OS releases on process exit even if abandoned
+        }
+        catch { }
+
         AppPaths.EnsureConfigsSeeded();
 
         var catalog = new ManifestCatalog(AppPaths.ManifestsDir);
         var stateStore = new DashboardStateStore(AppPaths.DashboardStatePath);
+        var scheduleStore = new ScheduleStore(AppPaths.SchedulesPath);
+        var riskStore = new RiskConsentStore(AppPaths.RiskConsentsPath);
         var executor = new ScriptExecutor(catalog);
         var configService = new ScriptConfigService();
         var historyStore = new RunHistoryStore(AppPaths.HistoryDbPath);
 
-        var window = new MainWindow(catalog, stateStore, executor, configService, historyStore);
+        var window = new MainWindow(catalog, stateStore, scheduleStore, riskStore, executor, configService, historyStore);
         MainWindow = window;
         window.Show();
 
@@ -115,6 +147,98 @@ public partial class App : Application
         var catalog = new ManifestCatalog(AppPaths.ManifestsDir);
         var executor = new ScriptExecutor(catalog);
         executor.RunElevatedChild(scriptId, configPath, resultPath, liveLogPath, includeOnlyPath);
+    }
+
+    /// <summary>Headless scheduled runner (Stage 2). No window, exits after.
+    /// Checks single-instance mutex; if held, logs SkippedBusy and exits.
+    /// Otherwise runs the script via ScriptExecutor (already elevated via
+    /// Task Scheduler if RequiresAdmin) and inserts into ScheduledRuns.</summary>
+    private void RunScheduledHeadless(string scriptId)
+    {
+        var startedAt = DateTime.Now;
+        try
+        {
+            // Busy detection: if interactive app holds mutex, skip entirely per spec
+            bool isBusy = false;
+            try
+            {
+                if (System.Threading.Mutex.TryOpenExisting(MutexName, out var existing))
+                {
+                    bool acquired = false;
+                    try { acquired = existing.WaitOne(0); if (acquired) existing.ReleaseMutex(); } catch { acquired = false; }
+                    existing.Dispose();
+                    isBusy = !acquired;
+                    if (!isBusy)
+                    {
+                        string lockPath = Path.Combine(AppPaths.AppDataRoot, ".scheduled-lock");
+                        try { using var fs = new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); } catch { isBusy = true; }
+                    }
+                }
+            }
+            catch { }
+
+            if (isBusy)
+            {
+                try
+                {
+                    var sStore = new RunHistoryStore(AppPaths.HistoryDbPath);
+                    var sched = new ScheduleStore(AppPaths.SchedulesPath);
+                    string trig = sched.Get(scriptId)?.Unit + " " + sched.Get(scriptId)?.Interval + " @ " + sched.Get(scriptId)?.TimeOfDay ?? "scheduled";
+                    sStore.InsertScheduled(scriptId, startedAt, startedAt, startedAt, "SkippedBusy", "Skipped — app was busy", trig);
+                }
+                catch { }
+                return;
+            }
+
+            AppPaths.EnsureConfigsSeeded();
+            var catalog = new ManifestCatalog(AppPaths.ManifestsDir);
+            var manifest = catalog.Find(scriptId);
+            if (manifest == null) return;
+            string configPath = AppPaths.ConfigPathFor(scriptId);
+            var executor = new ScriptExecutor(catalog);
+            var execStarted = DateTime.Now;
+            var result = executor.ExecuteInProcess(scriptId, configPath, dryRun: false);
+            var execFinished = DateTime.Now;
+            try
+            {
+                var store = new RunHistoryStore(AppPaths.HistoryDbPath);
+                var schedStore = new ScheduleStore(AppPaths.SchedulesPath);
+                var entry = schedStore.Get(scriptId);
+                string trigger = entry != null ? $"{entry.Interval} {entry.Unit} @ {entry.TimeOfDay}" : "scheduled";
+                string outcomeStr = result.Outcome switch { RunOutcome.Success => "Success", RunOutcome.Warning => "Warning", RunOutcome.Failed => "Failed", RunOutcome.Cancelled => "Cancelled", _ => "Failed" };
+                string summary = RunHistoryStore.BuildSummary(result.Logs) ?? outcomeStr;
+                store.InsertScheduled(scriptId, execStarted, execStarted, execFinished, outcomeStr, summary, trigger);
+            }
+            catch { }
+        }
+        catch
+        {
+            try { var s = new RunHistoryStore(AppPaths.HistoryDbPath); s.InsertScheduled(scriptId, startedAt, startedAt, DateTime.Now, "Failed", "Scheduled run failed", "scheduled"); } catch { }
+        }
+    }
+
+    private int RunRegisterTaskHeadless(string[] args)
+    {
+        try
+        {
+            string? id = GetArg(args, RegisterTaskFlag);
+            string? unit = GetArg(args, "--unit");
+            string? intervalStr = GetArg(args, "--interval");
+            string? time = GetArg(args, "--time");
+            if (id == null || unit == null || intervalStr == null || time == null) return 1;
+            if (!int.TryParse(intervalStr, out int interval)) return 1;
+            var entry = new ScheduleEntry { ScriptId = id, Unit = unit, Interval = interval, TimeOfDay = time, Enabled = true, CreatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") };
+            var store = new ScheduleStore(AppPaths.SchedulesPath);
+            var catalog = new ManifestCatalog(AppPaths.ManifestsDir);
+            var manifest = catalog.Find(id);
+            bool requiresAdmin = manifest?.RequiresAdmin ?? false;
+            var (ok, err, needsElev) = ScheduledTaskService.Register(entry, requiresAdmin);
+            if (!ok && needsElev) return 2;
+            if (ok) { store.Set(entry); return 0; }
+            Console.Error.WriteLine(err);
+            return 1;
+        }
+        catch (Exception ex) { Console.Error.WriteLine(ex.Message); return 1; }
     }
 
     /// <summary>Headless diagnostic used by the verification harness: prints the

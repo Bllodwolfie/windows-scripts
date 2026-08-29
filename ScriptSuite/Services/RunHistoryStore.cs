@@ -31,6 +31,16 @@ public sealed class RunHistoryStore
                 Outcome TEXT NOT NULL,
                 Summary TEXT
             );
+            CREATE TABLE IF NOT EXISTS ScheduledRuns (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ScriptId TEXT NOT NULL,
+                ScheduledFor TEXT NOT NULL,
+                StartedAt TEXT NOT NULL,
+                FinishedAt TEXT,
+                Outcome TEXT NOT NULL CHECK(Outcome IN ('Success','Warning','Failed','SkippedBusy','Cancelled')),
+                Summary TEXT,
+                Trigger TEXT NOT NULL
+            );
             """;
         cmd.ExecuteNonQuery();
     }
@@ -116,6 +126,51 @@ public sealed class RunHistoryStore
         return last.Length <= 120 ? last : last[..117] + "...";
     }
 
+    // Scheduled history (Stage 2): separate tab/section from manual RunHistory.
+    public long InsertScheduled(string scriptId, DateTime scheduledFor, DateTime startedAt, DateTime finishedAt, string outcome, string? summary, string trigger)
+    {
+        using var conn = Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO ScheduledRuns (ScriptId, ScheduledFor, StartedAt, FinishedAt, Outcome, Summary, Trigger)
+            VALUES ($scriptId, $scheduledFor, $startedAt, $finishedAt, $outcome, $summary, $trigger);
+            SELECT last_insert_rowid();
+            """;
+        cmd.Parameters.AddWithValue("$scriptId", scriptId);
+        cmd.Parameters.AddWithValue("$scheduledFor", scheduledFor.ToString("yyyy-MM-dd HH:mm:ss"));
+        cmd.Parameters.AddWithValue("$startedAt", startedAt.ToString("yyyy-MM-dd HH:mm:ss"));
+        cmd.Parameters.AddWithValue("$finishedAt", finishedAt.ToString("yyyy-MM-dd HH:mm:ss"));
+        cmd.Parameters.AddWithValue("$outcome", outcome);
+        cmd.Parameters.AddWithValue("$summary", (object?)summary ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$trigger", trigger);
+        return (long)cmd.ExecuteScalar()!;
+    }
+
+    public List<ScheduledRunEntry> GetRecentScheduled(int limit = 200)
+    {
+        var rows = new List<ScheduledRunEntry>();
+        using var conn = Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT Id, ScriptId, ScheduledFor, StartedAt, FinishedAt, Outcome, Summary, Trigger FROM ScheduledRuns ORDER BY Id DESC LIMIT $limit;";
+        cmd.Parameters.AddWithValue("$limit", limit);
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            rows.Add(new ScheduledRunEntry
+            {
+                Id = reader.GetInt64(0),
+                ScriptId = reader.GetString(1),
+                ScheduledFor = reader.GetString(2),
+                StartedAt = reader.GetString(3),
+                FinishedAt = reader.IsDBNull(4) ? null : reader.GetString(4),
+                Outcome = reader.GetString(5),
+                Summary = reader.IsDBNull(6) ? null : reader.GetString(6),
+                Trigger = reader.GetString(7),
+            });
+        }
+        return rows;
+    }
+
     private static string OutcomeToText(RunOutcome o) => o switch
     {
         RunOutcome.Success => "Success",
@@ -135,4 +190,16 @@ public sealed class RunHistoryEntry
     public string? FinishedAt { get; set; }
     public string Outcome { get; set; } = "";
     public string? Summary { get; set; }
+}
+
+public sealed class ScheduledRunEntry
+{
+    public long Id { get; set; }
+    public string ScriptId { get; set; } = "";
+    public string ScheduledFor { get; set; } = "";
+    public string StartedAt { get; set; } = "";
+    public string? FinishedAt { get; set; }
+    public string Outcome { get; set; } = "";
+    public string? Summary { get; set; }
+    public string Trigger { get; set; } = "";
 }
