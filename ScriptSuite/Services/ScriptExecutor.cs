@@ -70,14 +70,55 @@ public sealed class ScriptExecutor
             onLogLine?.Invoke(line);
         }
 
-        // The app process's default execution policy is Restricted, which would
-        // block invoking script FILES (AddCommand). We control every shipped
-        // script, so run each in a runspace that permits it. Invoking the file
-        // (not its text) is deliberate: it makes PowerShell set $PSScriptRoot,
-        // which scripts need to locate sibling resources (SystemHealthReport's
-        // mascot images live two levels up from the script).
-        var iss = InitialSessionState.CreateDefault2();
+        // Root cause (S4U proof 2026-08-28 23:40 + 15:27): Task Scheduler launch
+        // has minimal env — CWD System32, PSModulePath literal %ProgramFiles%,
+        // PSHOME has no Modules. Self-contained puts built-ins under
+        // runtimes/win/lib/net10.0/Modules (Management, Utility, CimCmdlets, etc.)
+        // not PSHOME\Modules. CreateDefault2 relies on PSModulePath auto-loading
+        // and fails headless with "Cannot find built-in module ...". Trial 1
+        // fixing only PSModulePath caused hang. Trial 2 CreateDefault fixes
+        // Management/Utility but not CimCmdlets (Get-CimInstance), which is
+        // required by RestorePoint.ps1 and still fails headless with 34 errors.
+        // Fix: normalize CWD, expand PSModulePath, ensure runtimes Modules folder
+        // is in PSModulePath, and explicitly import CimCmdlets (and Management/
+        // Utility) so headless finds them regardless of parent env.
+        try { Directory.SetCurrentDirectory(AppContext.BaseDirectory); } catch { }
+        string runtimesModules = Path.Combine(AppContext.BaseDirectory, "runtimes", "win", "lib", "net10.0", "Modules");
+        try
+        {
+            string cur = Environment.GetEnvironmentVariable("PSModulePath") ?? "";
+            string expanded = Environment.ExpandEnvironmentVariables(cur);
+            if (Directory.Exists(runtimesModules) && !expanded.Split(';').Any(p => string.Equals(p.Trim().TrimEnd('\\'), runtimesModules, StringComparison.OrdinalIgnoreCase)))
+            {
+                expanded = string.IsNullOrEmpty(expanded) ? runtimesModules : runtimesModules + ";" + expanded;
+                Environment.SetEnvironmentVariable("PSModulePath", expanded);
+            }
+            else if (!string.Equals(cur, expanded, StringComparison.Ordinal))
+            {
+                Environment.SetEnvironmentVariable("PSModulePath", expanded);
+            }
+        }
+        catch { }
+
+        var iss = InitialSessionState.CreateDefault();
         iss.ExecutionPolicy = Microsoft.PowerShell.ExecutionPolicy.Bypass;
+        // Explicitly import headless-required modules that CreateDefault doesn't
+        // auto-import but RestorePoint and other scripts need. Use full psd1 path
+        // from runtimes so it works even when PSModulePath is minimal.
+        try
+        {
+            if (Directory.Exists(runtimesModules))
+            {
+                string cimPsd1 = Path.Combine(runtimesModules, "CimCmdlets", "CimCmdlets.psd1");
+                if (File.Exists(cimPsd1)) iss.ImportPSModule(new[] { cimPsd1 });
+                // Management/Utility are already imported by CreateDefault, but ensure
+                string mgmtPsd1 = Path.Combine(runtimesModules, "Microsoft.PowerShell.Management", "Microsoft.PowerShell.Management.psd1");
+                if (File.Exists(mgmtPsd1)) iss.ImportPSModule(new[] { mgmtPsd1 });
+                string utilPsd1 = Path.Combine(runtimesModules, "Microsoft.PowerShell.Utility", "Microsoft.PowerShell.Utility.psd1");
+                if (File.Exists(utilPsd1)) iss.ImportPSModule(new[] { utilPsd1 });
+            }
+        }
+        catch { }
         using var ps = PowerShell.Create(iss);
         ps.AddCommand(scriptPath);
         if (!string.IsNullOrEmpty(configPath))
