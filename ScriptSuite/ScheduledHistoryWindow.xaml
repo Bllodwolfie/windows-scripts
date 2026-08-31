@@ -1,9 +1,89 @@
 <Window x:Class="ScriptSuite.ScheduledHistoryWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:ScriptSuite.ViewModels"
         Title="Scheduled History" Height="560" Width="860"
+        MinHeight="360" MinWidth="560"
         WindowStartupLocation="CenterOwner"
         Background="#FF1E1E2E" Foreground="#FFCDD6F4">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+        <Style x:Key="HistoryTitleText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#FFCDD6F4" />
+        </Style>
+
+        <Style x:Key="HistorySubtext" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#FFBAC2DE" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+        </Style>
+
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="14,6" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Background" Value="#FF313244" />
+            <Setter Property="Foreground" Value="#FFCDD6F4" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#FF45475A" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.4" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Root cause: this DataTemplate was missing entirely. Without an
+             explicit template an ItemsControl falls back to calling
+             ToString() on each item, which for HistoryRowViewModel yields
+             the literal type name ScriptSuite.ViewModels.HistoryRowViewModel.
+             This is the same template HistoryWindow already uses, so
+             scheduled rows now render identically: timestamp, display name
+             with trigger, summary, and outcome badge with distinct colors
+             (Success green, Warning yellow, Failed red, SkippedBusy blue)
+             as produced by ScheduledHistoryWindow.xaml.cs. -->
+        <DataTemplate DataType="{x:Type vm:HistoryRowViewModel}">
+            <Border Background="#FF313244" CornerRadius="8" Margin="0,0,0,8" Padding="14,10">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="158" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="92" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Text="{Binding When}" Foreground="#FF6C7086"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+
+                    <StackPanel Grid.Column="1" Margin="12,0,12,0" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding DisplayName}" Style="{StaticResource HistoryTitleText}" />
+                        <TextBlock Text="{Binding Summary}" Style="{StaticResource HistorySubtext}"
+                                   Visibility="{Binding HasSummary, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+
+                    <Border Grid.Column="2" Background="{Binding OutcomeBrush}" CornerRadius="4"
+                            Padding="8,2" VerticalAlignment="Center" HorizontalAlignment="Right">
+                        <TextBlock Text="{Binding Outcome}" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="#FF1E1E2E" HorizontalAlignment="Center" />
+                    </Border>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </Window.Resources>
+
     <Grid Margin="24,18,24,20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>

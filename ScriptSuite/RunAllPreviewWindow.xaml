@@ -73,10 +73,29 @@
                                    Foreground="#FF89B4FA" VerticalAlignment="Center" />
                     </Grid>
 
-                    <!-- Preview items -->
+                    <!-- Preview items — collapsible per script section. Sections with
+                         PreviewCollapseThreshold (20) items start collapsed; the
+                         collapsed summary "Script — N items (x delete, y skip)" mirrors
+                         the pattern of the existing Logs Expander below. -->
+                    <Grid Margin="24,6,0,0" Visibility="{Binding HasPreviewItems, Converter={StaticResource BoolToVis}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <!-- Collapsed: count summary -->
+                        <TextBlock Text="{Binding PreviewCollapsedSummary}" Style="{StaticResource PreviewLine}"
+                                   Foreground="#FFBAC2DE" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap"
+                                   Visibility="{Binding IsPreviewExpanded, Converter={StaticResource InverseBoolToVis}}" />
+                        <!-- Expanded: hint -->
+                        <TextBlock Text="Preview items:" Foreground="#FF6C7086" FontSize="12" VerticalAlignment="Center"
+                                   Visibility="{Binding IsPreviewExpanded, Converter={StaticResource BoolToVis}}" />
+                        <Button Grid.Column="1" Content="{Binding ToggleButtonText}" Click="TogglePreview_Click"
+                                Tag="{Binding}" Padding="10,2" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"
+                                Visibility="{Binding HasPreviewItems, Converter={StaticResource BoolToVis}}" />
+                    </Grid>
                     <ItemsControl ItemsSource="{Binding PreviewItems}"
-                                  Visibility="{Binding HasPreviewItems, Converter={StaticResource BoolToVis}}"
-                                  Margin="24,6,0,0">
+                                   Visibility="{Binding IsPreviewExpanded, Converter={StaticResource BoolToVis}}"
+                                   Margin="24,6,0,0">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <TextBlock Style="{StaticResource PreviewLine}">
@@ -92,8 +111,8 @@
 
                     <!-- No-preview note (read-only scripts, or preview error) -->
                     <TextBlock Text="{Binding PreviewMessage}" Style="{StaticResource PreviewLine}"
-                               Visibility="{Binding HasPreviewItems, Converter={StaticResource InverseBoolToVis}}"
-                               Margin="24,6,0,0" Foreground="#FFA6E3A1" />
+                                Visibility="{Binding HasPreviewItems, Converter={StaticResource InverseBoolToVis}}"
+                                Margin="24,6,0,0" Foreground="#FFA6E3A1" />
 
                     <!-- Logs once run -->
                     <Expander Header="Logs" Margin="24,8,0,0" Foreground="#FFBAC2DE"

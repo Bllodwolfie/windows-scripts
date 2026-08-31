@@ -68,10 +68,13 @@ public partial class RunAllPreviewWindow : Window
                     {
                         SetUi(section, s => s.PreviewMessage = "Nothing to do right now.");
                     }
+                    // Collapse/expand per section: >20 items starts collapsed with summary.
+                    SetUi(section, s => s.FinalizePreview());
                 }
                 catch (Exception ex)
                 {
                     SetUi(section, s => s.PreviewMessage = "Preview failed: " + ex.Message);
+                    SetUi(section, s => s.FinalizePreview());
                 }
             }
         });
@@ -150,6 +153,14 @@ public partial class RunAllPreviewWindow : Window
                 t.Visibility = Visibility.Visible;
             });
         });
+    }
+
+    private void TogglePreview_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.Button btn && btn.Tag is RunScriptPreviewItem item)
+            item.TogglePreview();
+        else if (sender is System.Windows.Controls.Button btn2 && btn2.DataContext is RunScriptPreviewItem item2)
+            item2.TogglePreview();
     }
 
     private void SetUi(RunScriptPreviewItem section, Action<RunScriptPreviewItem> action) =>
