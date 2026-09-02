@@ -4,6 +4,7 @@
   "LogDir": "%USERPROFILE%\\Documents\\Script_Logs",
   "LogFile": "CleanupLog.txt",
   "DeleteExts": [".zip", ".rar", ".7z", ".ttf", ".otf", ".exe", ".msi"],
+  "AdvancedRules": {},
   "Categories": {
     "%USERPROFILE%\\Music\\Misc": [".aac", ".aiff", ".alac", ".ape", ".dsf", ".flac", ".m4a", ".m4b", ".mid", ".midi", ".mp3", ".oga", ".ogg", ".opus", ".wav", ".wma"],
     "%USERPROFILE%\\Videos\\Misc": [".3gp", ".asf", ".avi", ".flv", ".m2ts", ".m4v", ".mkv", ".mov", ".mp4", ".mpeg", ".mpg", ".ogv", ".ts", ".vob", ".webm", ".wmv"],

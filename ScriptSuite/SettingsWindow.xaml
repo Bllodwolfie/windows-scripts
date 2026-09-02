@@ -14,6 +14,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <TextBlock x:Name="ScriptNameText" Grid.Row="0" FontSize="22" FontWeight="Bold" Foreground="#FFCDD6F4" />
@@ -26,5 +27,10 @@
                    Visibility="Collapsed" />
 
         <controls:SettingsForm x:Name="SettingsFormControl" Grid.Row="2" Margin="0,12,0,0" />
+
+        <!-- Advanced per-extension rules — DownloadsCleanup only (additive, collapsed by default).
+             Visible only for DownloadsCleanup; other scripts keep original SettingsForm only. -->
+        <controls:DownloadsAdvancedRulesControl x:Name="AdvancedRulesControl" Grid.Row="3" Margin="0,8,0,0"
+                                               Visibility="Collapsed" />
     </Grid>
 </Window>

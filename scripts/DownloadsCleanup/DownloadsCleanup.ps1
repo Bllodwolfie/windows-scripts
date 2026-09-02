@@ -20,6 +20,8 @@ $Config = @{
 
     DeleteExts = @('.zip', '.rar', '.7z', '.ttf', '.otf', '.exe', '.msi')
 
+    AdvancedRules = @{}
+
     Categories = @{
         "$env:USERPROFILE\Music\Misc"              = @('.aac', '.aiff', '.alac', '.ape', '.dsf', '.flac', '.m4a', '.m4b', '.mid', '.midi', '.mp3', '.oga', '.ogg', '.opus', '.wav', '.wma')
         "$env:USERPROFILE\Videos\Misc"             = @('.3gp', '.asf', '.avi', '.flv', '.m2ts', '.m4v', '.mkv', '.mov', '.mp4', '.mpeg', '.mpg', '.ogv', '.ts', '.vob', '.webm', '.wmv')
@@ -162,7 +164,28 @@ $extMap = @{}
 foreach ($prop in $categoriesRaw.PSObject.Properties) {
     $dest = Expand-ConfigPath $prop.Name
     foreach ($ext in @($prop.Value)) {
-        $extMap[$ext] = $dest
+        $extMap[$ext.ToLower()] = $dest
+    }
+}
+
+# Advanced per-extension rules (additive, opt-in). Missing key = {} so existing
+# configs behave exactly as before (backward compat). Normalized to lower case.
+# Overlap decision (item 1 approved): AdvancedRules always wins when present.
+# If .zip is in DeleteExts and also has AdvancedRules { Action: MoveTo }, the
+# MoveTo wins. Same for a Categories-mapped .jpg with an AdvancedRules Delete.
+# The simple-mode "Extensions to delete" tag list is not auto-synced; the
+# Settings UI shows a one-line warning when the same ext appears in both
+# places so the user is not surprised. This comment is the spec anchor.
+$advancedMap = @{}
+if ($null -ne $Config.AdvancedRules) {
+    foreach ($prop in $Config.AdvancedRules.PSObject.Properties) {
+        $extKey = $prop.Name.ToLower()
+        if (-not $extKey.StartsWith(".")) { $extKey = "." + $extKey }
+        $rule = $prop.Value
+        $action = if ($rule.PSObject.Properties["Action"]) { [string]$rule.Action } else { "" }
+        $destRaw = if ($rule.PSObject.Properties["Destination"]) { [string]$rule.Destination } else { "" }
+        $destExpanded = if ($destRaw) { Expand-ConfigPath $destRaw } else { "" }
+        $advancedMap[$extKey] = @{ Action = $action; Destination = $destExpanded; RawDestination = $destRaw }
     }
 }
 
@@ -177,21 +200,85 @@ $script:skippedCount  = 0
 Get-ChildItem -LiteralPath $source -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -lt $cutoff } | ForEach-Object {
     $ext = $_.Extension.ToLower()
     $name = $_.Name
+    # Capture file props before any switch (switch overwrites $_)
+    $fileFullName = $_.FullName
+    $fileLength = $_.Length
+    $fileTime = $_.LastWriteTime
 
     # Milestone 8: only touch the targets the user kept checked in the preview.
-    if ($IncludeOnly.Count -gt 0 -and $IncludeOnly -notcontains $_.FullName) { return }
+    if ($IncludeOnly.Count -gt 0 -and $IncludeOnly -notcontains $fileFullName) { return }
+
+    # Advanced per-extension override — checked first, before DeleteExts/Categories (see overlap decision above).
+    # This ensures an explicit per-ext rule always wins: e.g. .zip in DeleteExts + AdvancedRules MoveTo → MoveTo wins.
+    if ($advancedMap.ContainsKey($ext)) {
+        $rule = $advancedMap[$ext]
+        $advAction = [string]$rule.Action
+        switch ($advAction) {
+            "Ignore" {
+                if ($DryRun) {
+                    [PSCustomObject]@{ Action = 'Skip'; Target = $fileFullName; Detail = 'ignored per advanced rule: ' + $ext }
+                } else {
+                    Write-Log "SKIPPED : $name (ignored per advanced rule: $ext)"
+                }
+                return
+            }
+            "Delete" {
+                if ($DryRun) {
+                    [PSCustomObject]@{
+                        Action = 'Delete'
+                        Target = $fileFullName
+                        Detail = [string]::Format([System.Globalization.CultureInfo]::InvariantCulture, '{0:N1} MB, last modified {1:yyyy-MM-dd}', $fileLength / 1MB, $fileTime) + ' [advanced rule]'
+                    }
+                } else {
+                    try {
+                        Remove-FileToRecycleBin $fileFullName
+                        Write-Log "DELETED : $name [advanced rule]"
+                        $script:deletedCount++
+                    } catch {
+                        Write-Log "ERROR   : Failed to delete $name : $_"
+                        Write-Warning "Skipped locked file: $($_.Exception.Message)"
+                        $script:skippedCount++
+                    }
+                }
+                return
+            }
+            "MoveTo" {
+                $destDir = $rule.Destination
+                if ([string]::IsNullOrWhiteSpace($destDir)) {
+                    if ($DryRun) {
+                        [PSCustomObject]@{ Action = 'Skip'; Target = $fileFullName; Detail = 'advanced MoveTo missing destination: ' + $ext + ' [advanced rule]' }
+                    } else {
+                        Write-Log "SKIPPED : $name (advanced MoveTo missing destination: $ext)"
+                    }
+                    return
+                }
+                if ($DryRun) {
+                    [PSCustomObject]@{ Action = 'Move'; Target = $fileFullName; Detail = 'to ' + $destDir + ' [advanced rule]' }
+                } else {
+                    try {
+                        $null = New-Item -ItemType Directory -Path $destDir -Force -ErrorAction Stop
+                        Move-Item -LiteralPath $fileFullName -Destination $destDir -Force -ErrorAction Stop
+                        Write-Log "MOVED   : $name -> $destDir [advanced rule]"
+                    } catch {
+                        Write-Log "ERROR   : Failed to move $name to $destDir [advanced rule] : $_"
+                    }
+                }
+                return
+            }
+        }
+    }
 
     # Case 1: extension is on the delete list -> remove the file (to Recycle Bin)
     if ($deleteExts -contains $ext) {
         if ($DryRun) {
             [PSCustomObject]@{
                 Action = 'Delete'
-                Target = $_.FullName
-                Detail = [string]::Format([System.Globalization.CultureInfo]::InvariantCulture, '{0:N1} MB, last modified {1:yyyy-MM-dd}', $_.Length / 1MB, $_.LastWriteTime)
+                Target = $fileFullName
+                Detail = [string]::Format([System.Globalization.CultureInfo]::InvariantCulture, '{0:N1} MB, last modified {1:yyyy-MM-dd}', $fileLength / 1MB, $fileTime)
             }
         } else {
             try {
-                Remove-FileToRecycleBin $_.FullName
+                Remove-FileToRecycleBin $fileFullName
                 Write-Log "DELETED : $name"
                 $script:deletedCount++
             } catch {
@@ -209,13 +296,13 @@ Get-ChildItem -LiteralPath $source -File -ErrorAction SilentlyContinue | Where-O
         if ($DryRun) {
             [PSCustomObject]@{
                 Action = 'Move'
-                Target = $_.FullName
+                Target = $fileFullName
                 Detail = 'to {0}' -f $destDir
             }
         } else {
             try {
                 $null = New-Item -ItemType Directory -Path $destDir -Force -ErrorAction Stop
-                Move-Item -LiteralPath $_.FullName -Destination $destDir -Force -ErrorAction Stop
+                Move-Item -LiteralPath $fileFullName -Destination $destDir -Force -ErrorAction Stop
                 Write-Log "MOVED   : $name -> $destDir"
             } catch {
                 Write-Log "ERROR   : Failed to move $name to $destDir : $_"
@@ -227,7 +314,7 @@ Get-ChildItem -LiteralPath $source -File -ErrorAction SilentlyContinue | Where-O
         if ($DryRun) {
             [PSCustomObject]@{
                 Action = 'Skip'
-                Target = $_.FullName
+                Target = $fileFullName
                 Detail = 'no action (unrecognized extension: {0})' -f $ext
             }
         } else {

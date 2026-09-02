@@ -13,6 +13,7 @@ namespace ScriptSuite;
 public partial class SettingsWindow : Window
 {
     private readonly SettingsFormViewModel _form;
+    private readonly DownloadsAdvancedRulesViewModel? _advancedRules;
 
     public SettingsWindow(ScriptManifest manifest, ScriptConfigService config)
     {
@@ -28,6 +29,14 @@ public partial class SettingsWindow : Window
         {
             SettingsFormControl.Visibility = Visibility.Collapsed;
             NoFieldsText.Visibility = Visibility.Visible;
+        }
+
+        // Advanced per-extension rules — DownloadsCleanup only, additive to simple mode.
+        if (string.Equals(manifest.Id, "DownloadsCleanup", StringComparison.OrdinalIgnoreCase))
+        {
+            _advancedRules = new DownloadsAdvancedRulesViewModel(config);
+            AdvancedRulesControl.DataContext = _advancedRules;
+            AdvancedRulesControl.Visibility = Visibility.Visible;
         }
     }
 
