@@ -12,7 +12,8 @@
       "label": "Restore point description",
       "type": "string",
       "default": "Monthly Cleanup",
-      "helpText": "The name given to the created restore point, shown in System Restore."
+      "helpText": "The name given to the created restore point, shown in System Restore.",
+      "helpDetail": "Pick a name you will recognize later, like Before Driver Update. This is what you will see in System Restore when you need to go back."
     }
   ]
 }

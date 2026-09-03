@@ -12,7 +12,8 @@
       "label": "Folder to clean",
       "type": "path",
       "default": "%USERPROFILE%\\Pictures\\Screenshots",
-      "helpText": "The Screenshots folder this script cleans."
+      "helpText": "The Screenshots folder this script cleans.",
+      "helpDetail": "Only files directly in this folder are checked — subfolders are ignored. If the folder does not exist yet, the script does nothing."
     },
     {
       "name": "CutoffDays",
@@ -20,7 +21,8 @@
       "type": "int",
       "unit": "days",
       "default": 7,
-      "helpText": "Screenshots older than this many days will be deleted."
+      "helpText": "Screenshots older than this many days will be deleted.",
+      "helpDetail": "Files go to the Recycle Bin, so you can restore them. Based on last write time — younger screenshots are left alone."
     }
   ]
 }

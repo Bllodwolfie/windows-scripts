@@ -57,6 +57,8 @@ public partial class ScriptRunWindow : Window
             AdminNote.Visibility = Visibility.Visible;
         }
 
+        RunHelpText.Text = "Preview shows what would happen — Delete means to the Recycle Bin (you can restore), Skip means left alone, MoveTo means moved to another folder. Uncheck any item to skip it for this run. Confirm is the point of no return — it runs for real. Live output appears in Output below and a summary is saved to Run History.";
+
         SelectionList.ItemsSource = _selections;
         LogList.ItemsSource = _logs;
         _logs.CollectionChanged += (_, _) => ScrollLogToEnd();

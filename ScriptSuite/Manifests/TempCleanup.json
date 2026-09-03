@@ -12,7 +12,8 @@
       "label": "Folder to clean",
       "type": "path",
       "default": "%TEMP%",
-      "helpText": "The temp folder this script cleans. Files older than the cutoff will be deleted from here."
+      "helpText": "The temp folder this script cleans. Files older than the cutoff will be deleted from here.",
+      "helpDetail": "This is usually %TEMP% — Windows' temporary files. Files go to the Recycle Bin, so you can restore them. You can point this at another folder, but keep it to a temp-like location."
     },
     {
       "name": "CutoffDays",
@@ -20,7 +21,8 @@
       "type": "int",
       "unit": "days",
       "default": 7,
-      "helpText": "Files in the temp folder older than this many days will be deleted."
+      "helpText": "Files in the temp folder older than this many days will be deleted.",
+      "helpDetail": "Based on last write time. Younger files are left alone. 7 days keeps recent temp files for apps that are still running."
     }
   ]
 }
