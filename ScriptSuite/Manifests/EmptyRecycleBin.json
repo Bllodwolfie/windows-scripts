@@ -13,7 +13,8 @@
       "type": "int",
       "unit": "days",
       "default": 0,
-      "helpText": "Items newer than this are left in the Recycle Bin. 0 = delete everything."
+      "helpText": "Items newer than this are left in the Recycle Bin. 0 = delete everything.",
+      "helpDetail": "Age is counted from when the item was moved to the Recycle Bin, not when the file was created. Emptying is permanent — files bypass the Recycle Bin and cannot be recovered. Use 0 to delete everything, or set 7 or 30 to keep recently deleted items for a while."
     }
   ]
 }

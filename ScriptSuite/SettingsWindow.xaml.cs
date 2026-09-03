@@ -51,6 +51,7 @@ public partial class SettingsWindow : Window
     private static string GetScriptOverviewHelp(string id) => id switch
     {
         "ClearEventLogs" => "This clears every Windows event log after saving a backup. Event logs are Windows' own diagnostic history, not this app's logs. Each log with events is exported as a .evtx file in the backup folder, then cleared. If a backup fails, that log is left untouched. You can re-import a .evtx file in Event Viewer, but the app will not restore it for you.",
+        "EmptyRecycleBin" => "This permanently empties the Recycle Bin on all drives. Files are not moved to another folder — they are deleted and cannot be recovered. The preview shows what would be deleted. Use the age filter to keep recently deleted items, or 0 to empty everything.",
         _ => ""
     };
 
