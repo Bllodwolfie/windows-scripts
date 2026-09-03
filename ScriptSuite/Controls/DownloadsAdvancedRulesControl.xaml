@@ -9,17 +9,17 @@
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
     </UserControl.Resources>
     <Expander Header="Advanced per-extension rules (overrides simple mode)" IsExpanded="False"
-              Foreground="#FFBAC2DE" FontSize="12" Margin="0,10,0,0">
-        <Border Background="#FF313244" CornerRadius="8" Padding="14,12" Margin="0,8,0,0">
+              Foreground="{DynamicResource Brush.Foreground.Secondary}" FontSize="12" Margin="0,10,0,0">
+        <Border Background="{DynamicResource Brush.Background.Card}" CornerRadius="8" Padding="14,12" Margin="0,8,0,0">
             <StackPanel>
                 <TextBlock Text="Explicit rule for an extension overrides the simple &quot;Extensions to delete&quot; list and category moves. Extensions with no rule keep behaving as they do today. Ignore = never touch (even if old), Delete = to Recycle Bin, MoveTo = custom folder."
-                           Foreground="#FF7F849C" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,10" />
+                           Foreground="{DynamicResource Brush.Foreground.Help}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,10" />
 
                 <!-- Existing rules -->
                 <ItemsControl ItemsSource="{Binding Rules}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Background="#FF45475A" CornerRadius="4" Padding="8,6" Margin="0,0,0,6">
+                            <Border Background="{DynamicResource Brush.Background.Card.Hover}" CornerRadius="4" Padding="8,6" Margin="0,0,0,6">
                                 <StackPanel>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -55,13 +55,13 @@
                                         </Grid>
                                         <!-- Remove -->
                                         <Button Grid.Column="3" Content="×" Click="RemoveRule_Click" Tag="{Binding}"
-                                                Padding="8,3" Margin="6,0,0,0" Foreground="#FFF38BA8" FontSize="14" VerticalAlignment="Center"
+                                                Padding="8,3" Margin="6,0,0,0" Foreground="{DynamicResource Brush.Status.Error}" FontSize="14" VerticalAlignment="Center"
                                                 AutomationProperties.Name="Remove rule" />
                                     </Grid>
-                                    <TextBlock Text="{Binding OverlapWarning}" Foreground="#FFF9C74F" FontSize="11" TextWrapping="Wrap"
+                                    <TextBlock Text="{Binding OverlapWarning}" Foreground="{DynamicResource Brush.Status.Warning.Text}" FontSize="11" TextWrapping="Wrap"
                                                Margin="0,4,0,0"
                                                Visibility="{Binding HasOverlapWarning, Converter={StaticResource BoolToVis}}" />
-                                    <TextBlock Text="{Binding ValidationMessage}" Foreground="#FFF38BA8" FontSize="11" TextWrapping="Wrap"
+                                    <TextBlock Text="{Binding ValidationMessage}" Foreground="{DynamicResource Brush.Status.Error}" FontSize="11" TextWrapping="Wrap"
                                                Margin="0,4,0,0"
                                                Visibility="{Binding HasValidationError, Converter={StaticResource BoolToVis}}" />
                                 </StackPanel>
@@ -71,9 +71,9 @@
                 </ItemsControl>
 
                 <!-- Add new rule -->
-                <Border Background="#FF1E1E2E" CornerRadius="6" Padding="8" Margin="0,8,0,0">
+                <Border Background="{DynamicResource Brush.Background.Primary}" CornerRadius="6" Padding="8" Margin="0,8,0,0">
                     <StackPanel>
-                        <TextBlock Text="Add new rule" Foreground="#FFCDD6F4" FontWeight="SemiBold" FontSize="12" />
+                        <TextBlock Text="Add new rule" Foreground="{DynamicResource Brush.Foreground.Primary}" FontWeight="SemiBold" FontSize="12" />
                         <Grid Margin="0,6,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="120" />
@@ -104,10 +104,10 @@
                             <Button Grid.Column="3" Content="Add" Click="AddRule_Click" Padding="14,4" Margin="6,0,0,0" VerticalAlignment="Center"
                                     IsEnabled="{Binding CanAdd}" />
                         </Grid>
-                        <TextBlock Text="{Binding NewOverlapHint}" Foreground="#FFF9C74F" FontSize="11" TextWrapping="Wrap"
+                        <TextBlock Text="{Binding NewOverlapHint}" Foreground="{DynamicResource Brush.Status.Warning.Text}" FontSize="11" TextWrapping="Wrap"
                                    Margin="0,4,0,0"
                                    Visibility="{Binding HasNewOverlapHint, Converter={StaticResource BoolToVis}}" />
-                        <TextBlock Text="{Binding NewValidationMessage}" Foreground="#FFF38BA8" FontSize="11" TextWrapping="Wrap"
+                        <TextBlock Text="{Binding NewValidationMessage}" Foreground="{DynamicResource Brush.Status.Error}" FontSize="11" TextWrapping="Wrap"
                                    Margin="0,4,0,0"
                                    Visibility="{Binding HasNewValidationError, Converter={StaticResource BoolToVis}}" />
                     </StackPanel>
@@ -116,3 +116,5 @@
         </Border>
     </Expander>
 </UserControl>
+
+

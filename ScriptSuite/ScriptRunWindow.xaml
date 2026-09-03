@@ -5,68 +5,42 @@
         Title="Run Script" Height="620" Width="840"
         MinHeight="420" MinWidth="600"
         WindowStartupLocation="CenterOwner"
-        Background="#FF1E1E2E" Foreground="#FFCDD6F4">
+        Background="{DynamicResource Brush.Background.Primary}" Foreground="{DynamicResource Brush.Foreground.Primary}">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
 
         <Style x:Key="RunHeaderText" TargetType="TextBlock">
             <Setter Property="FontSize" Value="20" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="#FFCDD6F4" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Foreground.Primary}" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
 
         <Style x:Key="RunSubText" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#FFBAC2DE" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Foreground.Secondary}" />
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="Margin" Value="0,2,0,0" />
         </Style>
 
-        <Style TargetType="Button">
-            <Setter Property="Padding" Value="14,6" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Background" Value="#FF313244" />
-            <Setter Property="Foreground" Value="#FFCDD6F4" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bd" Background="{TemplateBinding Background}"
-                                CornerRadius="6" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="#FF45475A" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="bd" Property="Opacity" Value="0.4" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
         <!-- One selectable preview item -->
         <DataTemplate DataType="{x:Type vm:RunSelectionItem}">
-            <Border Background="#FF313244" CornerRadius="6" Margin="0,0,0,4" Padding="8,6">
+            <Border Background="{DynamicResource Brush.Background.Card}" CornerRadius="6" Margin="0,0,0,4" Padding="8,6">
                     <StackPanel>
                         <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}"
                                   AutomationProperties.Name="{Binding Target}"
                                   VerticalAlignment="Center"
                                   Checked="SelectionItem_Toggled" Unchecked="SelectionItem_Toggled">
                             <StackPanel Orientation="Horizontal" Margin="6,0,0,0">
-                                <Border Background="#FF45475A" CornerRadius="4" Padding="6,1" Margin="0,0,8,0"
+                                <Border Background="{DynamicResource Brush.Background.Card.Hover}" CornerRadius="4" Padding="6,1" Margin="0,0,8,0"
                                         VerticalAlignment="Center">
                                     <TextBlock Text="{Binding ActionDisplay}" FontSize="11" FontWeight="SemiBold"
-                                               Foreground="#FFA6ADC8" />
+                                               Foreground="{DynamicResource Brush.Foreground.Detail}" />
                                 </Border>
-                                <TextBlock Text="{Binding Target}" Foreground="#FFCDD6F4" VerticalAlignment="Center"
+                                <TextBlock Text="{Binding Target}" Foreground="{DynamicResource Brush.Foreground.Primary}" VerticalAlignment="Center"
                                            TextWrapping="Wrap" />
                             </StackPanel>
                         </CheckBox>
-                        <TextBlock Text="{Binding Detail}" Foreground="#FF7F849C" FontSize="12"
+                        <TextBlock Text="{Binding Detail}" Foreground="{DynamicResource Brush.Foreground.Help}" FontSize="12"
                                    Margin="24,2,0,0" TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
@@ -85,37 +59,37 @@
         <StackPanel Grid.Row="0">
             <StackPanel Orientation="Horizontal">
                 <TextBlock x:Name="NameText" Style="{StaticResource RunHeaderText}" />
-                <TextBlock Text="&#x26E8;" FontSize="14" Foreground="#FFF9C74F" VerticalAlignment="Center"
+                <TextBlock Text="&#x26E8;" FontSize="14" Foreground="{DynamicResource Brush.Status.Warning.Text}" VerticalAlignment="Center"
                            Margin="8,0,0,0" AutomationProperties.Name="Runs elevated"
                            x:Name="AdminIcon" Visibility="Collapsed" />
             </StackPanel>
             <TextBlock x:Name="DescriptionText" Style="{StaticResource RunSubText}" />
             <TextBlock Text="Runs elevated (UAC prompt appears when you confirm)."
-                       Foreground="#FFF9C74F" Margin="0,4,0,0" x:Name="AdminNote" Visibility="Collapsed" />
+                       Foreground="{DynamicResource Brush.Status.Warning.Text}" Margin="0,4,0,0" x:Name="AdminNote" Visibility="Collapsed" />
         </StackPanel>
 
         <!-- Preview / selection -->
         <StackPanel Grid.Row="1" x:Name="PreviewPanel" Margin="0,14,0,6">
             <TextBlock x:Name="ResumeBanner"
                        Text="Resuming an interrupted run — only the items still left to process are shown."
-                       Foreground="#FFF9C74F" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap"
+                       Foreground="{DynamicResource Brush.Status.Warning.Text}" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap"
                        Margin="0,0,0,8" Visibility="Collapsed" />
             <TextBlock x:Name="PreviewMessage" Style="{StaticResource RunSubText}" />
             <ListBox x:Name="SelectionList" Height="200" BorderThickness="0"
                      Background="Transparent" ScrollViewer.VerticalScrollBarVisibility="Auto"
                      Margin="0,8,0,0" />
-            <TextBlock x:Name="SelectionCountText" Foreground="#FFA6ADC8" FontSize="13" Margin="0,6,0,0" />
+            <TextBlock x:Name="SelectionCountText" Foreground="{DynamicResource Brush.Foreground.Detail}" FontSize="13" Margin="0,6,0,0" />
         </StackPanel>
 
         <!-- Status -->
         <TextBlock Grid.Row="1" x:Name="StatusText" FontSize="16" FontWeight="SemiBold"
-                   Foreground="#FFCDD6F4" Margin="0,14,0,0" Visibility="Collapsed" />
+                   Foreground="{DynamicResource Brush.Foreground.Primary}" Margin="0,14,0,0" Visibility="Collapsed" />
 
         <!-- Live log -->
         <StackPanel Grid.Row="2" Margin="0,10,0,0">
-            <TextBlock Text="Output" FontSize="13" FontWeight="SemiBold" Foreground="#FF89B4FA" />
+            <TextBlock Text="Output" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Accent.Primary}" />
             <ListBox x:Name="LogList" Margin="0,6,0,0" BorderThickness="0" Background="Transparent"
-                     Foreground="#FFBAC2DE" FontFamily="Cascadia Mono, Consolas" FontSize="12"
+                     Foreground="{DynamicResource Brush.Foreground.Secondary}" FontFamily="Cascadia Mono, Consolas" FontSize="12"
                      ScrollViewer.VerticalScrollBarVisibility="Auto"
                      ScrollViewer.HorizontalScrollBarVisibility="Auto" />
         </StackPanel>
@@ -128,3 +102,4 @@
         </StackPanel>
     </Grid>
 </Window>
+

@@ -12,7 +12,9 @@ public sealed class HistoryRowViewModel : ViewModelBase
     public string When { get; init; } = "";
     public string DisplayName { get; init; } = "";
     public string Outcome { get; init; } = "";
-    public string OutcomeBrush { get; init; } = "#FFCDD6F4";
+    // Phase 1: OutcomeBrush is now resolved in XAML via OutcomeToBrushConverter against Brush.Status.* tokens.
+    // Kept for compat (no longer set with hex literals).
+    public string OutcomeBrush { get; init; } = "";
     public string? Summary { get; init; }
     public bool HasSummary => !string.IsNullOrEmpty(Summary);
 

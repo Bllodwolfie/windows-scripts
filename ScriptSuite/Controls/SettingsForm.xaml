@@ -54,7 +54,7 @@
         <DataTemplate x:Key="BoolTemplate">
             <CheckBox IsChecked="{Binding BoolValue}" VerticalAlignment="Center"
                       AutomationProperties.Name="{Binding Label}">
-                <TextBlock Text="Enabled" Foreground="#FFBAC2DE" />
+                <TextBlock Text="Enabled" Foreground="{DynamicResource Brush.Foreground.Secondary}" />
             </CheckBox>
         </DataTemplate>
 
@@ -68,11 +68,11 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Background="#FF45475A" CornerRadius="4" Padding="6,2" Margin="0,0,4,4">
+                            <Border Background="{DynamicResource Brush.Background.Card.Hover}" CornerRadius="4" Padding="6,2" Margin="0,0,4,4">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{Binding}" Foreground="#FFCDD6F4" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding}" Foreground="{DynamicResource Brush.Foreground.Primary}" VerticalAlignment="Center" />
                                     <Button Content="&#x2715;" Click="ChipRemove_Click" FontSize="10" Padding="3,0"
-                                            Margin="5,0,0,0" Foreground="#FFF38BA8"
+                                            Margin="5,0,0,0" Foreground="{DynamicResource Brush.Status.Error}"
                                             Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                             AutomationProperties.Name="Remove" />
                                 </StackPanel>
@@ -98,7 +98,7 @@
 
         <!-- One field row: label/unit, control slot, help text, Saved note. -->
         <DataTemplate x:Key="FieldRowTemplate" DataType="{x:Type vm:SettingsFieldViewModel}">
-            <Border Background="#FF313244" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+            <Border Background="{DynamicResource Brush.Background.Card}" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
                 <StackPanel>
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -106,8 +106,8 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="{Binding Label}" FontWeight="SemiBold" FontSize="14"
-                                   Foreground="#FFCDD6F4" VerticalAlignment="Center" />
-                        <TextBlock Grid.Column="1" Text="{Binding Unit}" Foreground="#FF6C7086" FontSize="12"
+                                   Foreground="{DynamicResource Brush.Foreground.Primary}" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{Binding Unit}" Foreground="{DynamicResource Brush.Foreground.Tertiary}" FontSize="12"
                                    Margin="8,0,0,0" VerticalAlignment="Center"
                                    Visibility="{Binding ShowUnit, Converter={StaticResource BoolToVis}}" />
                     </Grid>
@@ -115,18 +115,18 @@
                     <ContentControl Margin="0,8,0,0" Content="{Binding}"
                                     ContentTemplateSelector="{StaticResource FieldTemplateSelector}" />
 
-                    <TextBlock Text="{Binding HelpText}" Foreground="#FF7F849C" FontSize="12" TextWrapping="Wrap"
+                    <TextBlock Text="{Binding HelpText}" Foreground="{DynamicResource Brush.Foreground.Help}" FontSize="12" TextWrapping="Wrap"
                                Margin="0,8,0,0" />
 
-                    <TextBlock Text="{Binding PathWarning}" Foreground="#FFF9C74F" FontSize="12" TextWrapping="Wrap"
+                    <TextBlock Text="{Binding PathWarning}" Foreground="{DynamicResource Brush.Status.Warning.Text}" FontSize="12" TextWrapping="Wrap"
                                Margin="0,6,0,0"
                                Visibility="{Binding HasPathWarning, Converter={StaticResource BoolToVis}}" />
 
-                    <TextBlock Text="{Binding ValidationMessage}" Foreground="#FFF38BA8" FontSize="12" TextWrapping="Wrap"
+                    <TextBlock Text="{Binding ValidationMessage}" Foreground="{DynamicResource Brush.Status.Error}" FontSize="12" TextWrapping="Wrap"
                                Margin="0,6,0,0"
                                Visibility="{Binding HasValidationError, Converter={StaticResource BoolToVis}}" />
 
-                    <TextBlock Text="Saved" Foreground="#FFA6E3A1" FontSize="11" Margin="0,6,0,0"
+                    <TextBlock Text="Saved" Foreground="{DynamicResource Brush.Status.Success}" FontSize="11" Margin="0,6,0,0"
                                Visibility="{Binding IsSavedShown, Converter={StaticResource BoolToVis}}" />
                 </StackPanel>
             </Border>
@@ -145,7 +145,7 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <TextBlock Grid.Column="0" Text="Changes are saved automatically as you edit."
-                       Foreground="#FF6C7086" VerticalAlignment="Center" />
+                       Foreground="{DynamicResource Brush.Foreground.Tertiary}" VerticalAlignment="Center" />
             <Button Grid.Column="1" Content="Undo" Click="Undo_Click" Padding="14,6"
                     IsEnabled="{Binding CanUndo}"
                     AutomationProperties.Name="Undo last change" />
@@ -157,3 +157,4 @@
         </ScrollViewer>
     </Grid>
 </UserControl>
+

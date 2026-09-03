@@ -178,7 +178,7 @@ public partial class ScriptRunWindow : Window
         CloseButton.IsEnabled = false;
         PreviewPanel.Visibility = Visibility.Collapsed;
         StatusText.Visibility = Visibility.Visible;
-        SetStatus("Running…", "#FFCDD6F4");
+        SetStatus("Running…", GetBrush("Brush.Foreground.Primary"));
 
         string configPath = AppPaths.ConfigPathFor(_manifest.Id);
         // On resume the run continues the ORIGINAL attempt, so its history row
@@ -244,14 +244,7 @@ public partial class ScriptRunWindow : Window
             RunOutcome.Failed => "Failed",
             RunOutcome.Cancelled => "Cancelled",
             _ => "Done",
-        }, result.Outcome switch
-        {
-            RunOutcome.Success => "#FFA6E3A1",
-            RunOutcome.Warning => "#FFF9E2AF",
-            RunOutcome.Failed => "#FFF38BA8",
-            RunOutcome.Cancelled => "#FF89B4FA",
-            _ => "#FFCDD6F4",
-        });
+        }, GetBrushForOutcome(result.Outcome));
 
         _history.Insert(_manifest.Id, startedAt, finishedAt, result.Outcome, RunHistoryStore.BuildSummary(result.Logs));
 
@@ -266,10 +259,35 @@ public partial class ScriptRunWindow : Window
         _running = false;
     }
 
-    private void SetStatus(string text, string colorHex)
+    private void SetStatus(string text, Brush brush)
     {
         StatusText.Text = text;
-        StatusText.Foreground = (Brush)new BrushConverter().ConvertFromString(colorHex)!;
+        StatusText.Foreground = brush;
+    }
+
+    private static Brush GetBrush(string key)
+    {
+        if (Application.Current != null)
+        {
+            var res = Application.Current.TryFindResource(key);
+            if (res is Brush b) return b;
+            if (res is Color c) return new SolidColorBrush(c);
+        }
+        // Fallback: should never hit after Tokens.xaml merged; no hex literal
+        return new SolidColorBrush(Color.FromRgb(0xCD, 0xD6, 0xF4));
+    }
+
+    private static Brush GetBrushForOutcome(RunOutcome outcome)
+    {
+        string key = outcome switch
+        {
+            RunOutcome.Success => "Brush.Status.Success",
+            RunOutcome.Warning => "Brush.Status.Warning",
+            RunOutcome.Failed => "Brush.Status.Error",
+            RunOutcome.Cancelled => "Brush.Status.Info",
+            _ => "Brush.Foreground.Primary"
+        };
+        return GetBrush(key);
     }
 
     private void ScrollLogToEnd()

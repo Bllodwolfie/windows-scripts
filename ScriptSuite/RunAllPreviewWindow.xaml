@@ -9,7 +9,7 @@
         Title="Run All — Preview" Height="640" Width="900"
         MinHeight="480" MinWidth="640"
         WindowStartupLocation="CenterOwner"
-        Background="#FF1E1E2E" Foreground="#FFCDD6F4">
+        Background="{DynamicResource Brush.Background.Primary}" Foreground="{DynamicResource Brush.Foreground.Primary}">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
         <conv:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVis" />
@@ -17,11 +17,11 @@
         <Style TargetType="TextBlock" x:Key="SectionTitle">
             <Setter Property="FontSize" Value="16" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="#FFCDD6F4" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Foreground.Primary}" />
         </Style>
 
         <Style TargetType="TextBlock" x:Key="PreviewLine">
-            <Setter Property="Foreground" Value="#FFBAC2DE" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Foreground.Secondary}" />
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="Margin" Value="0,2,0,0" />
         </Style>
@@ -30,8 +30,8 @@
             <Setter Property="Padding" Value="14,6" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Background" Value="#FF313244" />
-            <Setter Property="Foreground" Value="#FFCDD6F4" />
+            <Setter Property="Background" Value="{DynamicResource Brush.Background.Card}" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Foreground.Primary}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -41,7 +41,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="#FF45475A" />
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource Brush.Background.Card.Hover}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="bd" Property="Opacity" Value="0.4" />
@@ -54,7 +54,7 @@
 
         <!-- One script's section: preview items before confirm, status/logs after -->
         <DataTemplate DataType="{x:Type vm:RunScriptPreviewItem}">
-            <Border Background="#FF313244" CornerRadius="8" Padding="14,10" Margin="0,0,0,10">
+            <Border Background="{DynamicResource Brush.Background.Card}" CornerRadius="8" Padding="14,10" Margin="0,0,0,10">
                 <StackPanel>
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -62,7 +62,7 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" Orientation="Horizontal">
-                            <TextBlock Text="&#x26E8;" FontSize="13" Foreground="#FFF9C74F"
+                            <TextBlock Text="&#x26E8;" FontSize="13" Foreground="{DynamicResource Brush.Status.Warning.Text}"
                                        VerticalAlignment="Center"
                                        Visibility="{Binding ShowAdminShield, Converter={StaticResource BoolToVis}}"
                                        AutomationProperties.Name="Requires administrator" />
@@ -70,7 +70,7 @@
                                        Margin="{Binding ShowAdminShield, Converter={StaticResource MarginConverter}, ConverterParameter=8}" />
                         </StackPanel>
                         <TextBlock Grid.Column="1" Text="{Binding StatusText}" FontWeight="SemiBold"
-                                   Foreground="#FF89B4FA" VerticalAlignment="Center" />
+                                   Foreground="{DynamicResource Brush.Accent.Primary}" VerticalAlignment="Center" />
                     </Grid>
 
                     <!-- Preview items — collapsible per script section. Sections with
@@ -84,10 +84,10 @@
                         </Grid.ColumnDefinitions>
                         <!-- Collapsed: count summary -->
                         <TextBlock Text="{Binding PreviewCollapsedSummary}" Style="{StaticResource PreviewLine}"
-                                   Foreground="#FFBAC2DE" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource Brush.Foreground.Secondary}" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap"
                                    Visibility="{Binding IsPreviewExpanded, Converter={StaticResource InverseBoolToVis}}" />
                         <!-- Expanded: hint -->
-                        <TextBlock Text="Preview items:" Foreground="#FF6C7086" FontSize="12" VerticalAlignment="Center"
+                        <TextBlock Text="Preview items:" Foreground="{DynamicResource Brush.Foreground.Tertiary}" FontSize="12" VerticalAlignment="Center"
                                    Visibility="{Binding IsPreviewExpanded, Converter={StaticResource BoolToVis}}" />
                         <Button Grid.Column="1" Content="{Binding ToggleButtonText}" Click="TogglePreview_Click"
                                 Tag="{Binding}" Padding="10,2" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"
@@ -102,7 +102,7 @@
                                     <Run Text="{Binding Action}" FontWeight="Bold" />
                                     <Run Text="  " />
                                     <Run Text="{Binding Target}" />
-                                    <Run Text="  —  " Foreground="#FF6C7086" />
+                                    <Run Text="  —  " Foreground="{DynamicResource Brush.Foreground.Tertiary}" />
                                     <Run Text="{Binding Detail}" />
                                 </TextBlock>
                             </DataTemplate>
@@ -112,10 +112,10 @@
                     <!-- No-preview note (read-only scripts, or preview error) -->
                     <TextBlock Text="{Binding PreviewMessage}" Style="{StaticResource PreviewLine}"
                                 Visibility="{Binding HasPreviewItems, Converter={StaticResource InverseBoolToVis}}"
-                                Margin="24,6,0,0" Foreground="#FFA6E3A1" />
+                                Margin="24,6,0,0" Foreground="{DynamicResource Brush.Status.Success}" />
 
                     <!-- Logs once run -->
-                    <Expander Header="Logs" Margin="24,8,0,0" Foreground="#FFBAC2DE"
+                    <Expander Header="Logs" Margin="24,8,0,0" Foreground="{DynamicResource Brush.Foreground.Secondary}"
                               Visibility="{Binding HasLogs, Converter={StaticResource BoolToVis}}">
                         <ItemsControl ItemsSource="{Binding Logs}" Margin="4,6,0,4">
                             <ItemsControl.ItemTemplate>
@@ -139,9 +139,9 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0">
-            <TextBlock Text="Run All — Preview" FontSize="24" FontWeight="Bold" Foreground="#FFCDD6F4" />
+            <TextBlock Text="Run All — Preview" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource Brush.Foreground.Primary}" />
             <TextBlock Text="This is what each enabled script would do. EmptyRecycleBin always runs first in the batch."
-                       Foreground="#FFBAC2DE" Margin="0,4,0,0" TextWrapping="Wrap" />
+                       Foreground="{DynamicResource Brush.Foreground.Secondary}" Margin="0,4,0,0" TextWrapping="Wrap" />
         </StackPanel>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,12,0,12">
@@ -149,10 +149,11 @@
         </ScrollViewer>
 
         <StackPanel Grid.Row="2">
-            <TextBlock x:Name="ProgressText" Foreground="#FFA6E3A1" Margin="0,0,0,8"
+            <TextBlock x:Name="ProgressText" Foreground="{DynamicResource Brush.Status.Success}" Margin="0,0,0,8"
                        TextWrapping="Wrap" Visibility="Collapsed" />
             <Button x:Name="ConfirmButton" Content="Confirm and run all" Click="ConfirmButton_Click"
                     FontWeight="SemiBold" Padding="22,10" HorizontalAlignment="Right" />
         </StackPanel>
     </Grid>
 </Window>
+

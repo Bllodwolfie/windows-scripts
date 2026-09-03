@@ -27,21 +27,11 @@ public partial class ScheduledHistoryWindow : Window
         {
             var manifest = _catalog.Find(entry.ScriptId);
             string outcome = entry.Outcome;
-            string brush = outcome switch
-            {
-                "Success" => "#FFA6E3A1",
-                "Warning" => "#FFF9E2AF",
-                "Failed" => "#FFF38BA8",
-                "SkippedBusy" => "#FF89B4FA",
-                "Cancelled" => "#FF89B4FA",
-                _ => "#FFCDD6F4",
-            };
             _rows.Add(new HistoryRowViewModel
             {
                 When = entry.StartedAt,
                 DisplayName = (manifest?.DisplayName ?? entry.ScriptId) + $" ({entry.Trigger})",
                 Outcome = outcome,
-                OutcomeBrush = brush,
                 Summary = entry.Summary ?? $"Scheduled for {entry.ScheduledFor}",
             });
         }

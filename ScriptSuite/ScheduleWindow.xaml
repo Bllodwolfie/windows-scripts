@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Schedule" Height="420" Width="520"
         WindowStartupLocation="CenterOwner"
-        Background="#FF1E1E2E" Foreground="#FFCDD6F4"
+        Background="{DynamicResource Brush.Background.Primary}" Foreground="{DynamicResource Brush.Foreground.Primary}"
         ResizeMode="NoResize">
     <Grid Margin="24,18,24,18">
         <Grid.RowDefinitions>
@@ -15,8 +15,8 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <TextBlock x:Name="TitleText" FontSize="20" FontWeight="SemiBold" Foreground="#FFCDD6F4" />
-        <TextBlock x:Name="DescText" Grid.Row="1" Margin="0,6,0,14" Foreground="#FFBAC2DE" TextWrapping="Wrap" />
+        <TextBlock x:Name="TitleText" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Foreground.Primary}" />
+        <TextBlock x:Name="DescText" Grid.Row="1" Margin="0,6,0,14" Foreground="{DynamicResource Brush.Foreground.Secondary}" TextWrapping="Wrap" />
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
             <TextBlock Text="Every" VerticalAlignment="Center" Margin="0,0,8,0"/>
@@ -31,19 +31,21 @@
         </StackPanel>
 
         <CheckBox x:Name="RiskCheck" Grid.Row="3" Margin="0,0,0,10" Visibility="Collapsed">
-            <TextBlock TextWrapping="Wrap" Width="460" Foreground="#FFF9C74F">
+            <TextBlock TextWrapping="Wrap" Width="460" Foreground="{DynamicResource Brush.Status.Warning.Text}">
                 I understand the risks — this script will run unattended with the privileges shown above.
             </TextBlock>
         </CheckBox>
-        <TextBlock x:Name="AdminNote" Grid.Row="4" Foreground="#FFF38BA8" TextWrapping="Wrap" Visibility="Collapsed"
+        <TextBlock x:Name="AdminNote" Grid.Row="4" Foreground="{DynamicResource Brush.Status.Error}" TextWrapping="Wrap" Visibility="Collapsed"
                    Text="This script requires administrator. Scheduling it will trigger a one-time UAC prompt to register the privileged task. After that runs silently forever after." Margin="0,0,0,10"/>
 
-        <TextBlock x:Name="ErrorText" Grid.Row="5" Foreground="#FFF38BA8" TextWrapping="Wrap" />
+        <TextBlock x:Name="ErrorText" Grid.Row="5" Foreground="{DynamicResource Brush.Status.Error}" TextWrapping="Wrap" />
 
         <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="Remove Schedule" Click="Remove_Click" Padding="12,6" Margin="0,0,8,0" x:Name="RemoveBtn"/>
             <Button Content="Cancel" Click="Cancel_Click" Padding="12,6" Margin="0,0,8,0"/>
-            <Button Content="Save" Click="Save_Click" Padding="16,6" Background="#FF89B4FA" Foreground="#FF1E1E2E"/>
+            <Button Content="Save" Click="Save_Click" Padding="16,6" Background="{DynamicResource Brush.Accent.Primary}" Foreground="{DynamicResource Brush.Accent.Primary.Foreground}"/>
         </StackPanel>
     </Grid>
 </Window>
+
+

@@ -1,12 +1,19 @@
-﻿<Application x:Class="ScriptSuite.App"
+<Application x:Class="ScriptSuite.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:ScriptSuite"
              xmlns:conv="clr-namespace:ScriptSuite.Converters"
              ShutdownMode="OnMainWindowClose">
     <Application.Resources>
-        <conv:InverseBooleanConverter x:Key="InverseBool" />
-        <conv:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVis" />
-        <conv:BoolToMarginConverter x:Key="MarginConverter" />
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/Tokens.xaml" />
+                <ResourceDictionary Source="Themes/Buttons.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <conv:InverseBooleanConverter x:Key="InverseBool" />
+            <conv:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVis" />
+            <conv:BoolToMarginConverter x:Key="MarginConverter" />
+            <conv:OutcomeToBrushConverter x:Key="OutcomeToBrush" />
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

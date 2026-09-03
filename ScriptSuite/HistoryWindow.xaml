@@ -6,55 +6,30 @@
         Title="Run History" Height="560" Width="860"
         MinHeight="360" MinWidth="560"
         WindowStartupLocation="CenterScreen"
-        Background="#FF1E1E2E" Foreground="#FFCDD6F4">
+        Background="{DynamicResource Brush.Background.Primary}" Foreground="{DynamicResource Brush.Foreground.Primary}">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
         <conv:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVis" />
+        <conv:OutcomeToBrushConverter x:Key="OutcomeToBrush" />
 
         <Style x:Key="HistoryTitleText" TargetType="TextBlock">
             <Setter Property="FontSize" Value="20" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="#FFCDD6F4" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Foreground.Primary}" />
         </Style>
 
         <Style x:Key="HistorySubtext" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#FFBAC2DE" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Foreground.Secondary}" />
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="Margin" Value="0,2,0,0" />
         </Style>
 
         <Style x:Key="HistoryDetailText" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#FFBAC2DE" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Foreground.Secondary}" />
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="FontFamily" Value="Consolas" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="Margin" Value="0,6,0,0" />
-        </Style>
-
-        <Style TargetType="Button">
-            <Setter Property="Padding" Value="14,6" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Background" Value="#FF313244" />
-            <Setter Property="Foreground" Value="#FFCDD6F4" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bd" Background="{TemplateBinding Background}"
-                                CornerRadius="6" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="#FF45475A" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="bd" Property="Opacity" Value="0.4" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
         </Style>
 
         <!-- One run history row: when it ran, which script, its outcome, and
@@ -65,7 +40,7 @@
              SystemHealthReport → html, ClearEventLogs → EventLogBackups dir),
              otherwise Warning/Error stream fallback with explicit 'no file' message. -->
         <DataTemplate DataType="{x:Type vm:HistoryRowViewModel}">
-            <Border Background="#FF313244" CornerRadius="8" Margin="0,0,0,8" Padding="14,10">
+            <Border Background="{DynamicResource Brush.Background.Card}" CornerRadius="8" Margin="0,0,0,8" Padding="14,10">
                 <StackPanel>
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -74,7 +49,7 @@
                             <ColumnDefinition Width="92" />
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock Text="{Binding When}" Foreground="#FF6C7086"
+                        <TextBlock Text="{Binding When}" Foreground="{DynamicResource Brush.Foreground.Tertiary}"
                                    VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
 
                         <StackPanel Grid.Column="1" Margin="12,0,12,0" VerticalAlignment="Center">
@@ -83,10 +58,10 @@
                                        Visibility="{Binding HasSummary, Converter={StaticResource BoolToVis}}" />
                         </StackPanel>
 
-                        <Border Grid.Column="2" Background="{Binding OutcomeBrush}" CornerRadius="4"
+                        <Border Grid.Column="2" Background="{Binding Outcome, Converter={StaticResource OutcomeToBrush}}" CornerRadius="4"
                                 Padding="8,2" VerticalAlignment="Center" HorizontalAlignment="Right">
                             <TextBlock Text="{Binding Outcome}" FontSize="12" FontWeight="SemiBold"
-                                       Foreground="#FF1E1E2E" HorizontalAlignment="Center" />
+                                       Foreground="{DynamicResource Brush.Status.Success.Foreground}" HorizontalAlignment="Center" />
                         </Border>
                     </Grid>
 
@@ -94,15 +69,15 @@
                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                         <Button Content="{Binding ExpandButtonText}" Click="ToggleDetail_Click"
                                 Tag="{Binding}" Padding="10,3" FontSize="12" />
-                        <TextBlock Text="{Binding LogFileHint}" Foreground="#FF6C7086" FontSize="11"
+                        <TextBlock Text="{Binding LogFileHint}" Foreground="{DynamicResource Brush.Foreground.Tertiary}" FontSize="11"
                                    VerticalAlignment="Center" Margin="10,0,0,0" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxWidth="520" />
                     </StackPanel>
 
                     <!-- Expanded detail: log file tail or no-file message, with open actions -->
-                    <Border Background="#FF1E1E2E" CornerRadius="6" Margin="0,8,0,0" Padding="10"
+                    <Border Background="{DynamicResource Brush.Background.Primary}" CornerRadius="6" Margin="0,8,0,0" Padding="10"
                             Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
-                            <TextBlock Text="Detail" FontWeight="SemiBold" Foreground="#FF89B4FA" FontSize="12" />
+                            <TextBlock Text="Detail" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Accent.Primary}" FontSize="12" />
                             <ScrollViewer MaxHeight="180" VerticalScrollBarVisibility="Auto" Margin="0,4,0,0">
                                 <TextBlock Text="{Binding ExpandedDetail}" Style="{StaticResource HistoryDetailText}" />
                             </ScrollViewer>
@@ -132,7 +107,7 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel Grid.Column="0">
-                <TextBlock Text="Run History" FontSize="24" FontWeight="Bold" Foreground="#FFCDD6F4" />
+                <TextBlock Text="Run History" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource Brush.Foreground.Primary}" />
                 <TextBlock x:Name="CountText" Text="" Style="{StaticResource HistorySubtext}" />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -143,7 +118,7 @@
 
         <!-- Empty state -->
         <TextBlock x:Name="EmptyMessage" Grid.Row="1" Text="No runs recorded yet — run a script to see its history here."
-                   Foreground="#FF6C7086" Margin="0,18,0,6" />
+                   Foreground="{DynamicResource Brush.Foreground.Tertiary}" Margin="0,18,0,6" />
 
         <!-- Basic list: most recent first (Milestone 10). No search/filter yet -
              Phase 4 adds that on top of this same data. -->
@@ -152,3 +127,4 @@
         </ScrollViewer>
     </Grid>
 </Window>
+

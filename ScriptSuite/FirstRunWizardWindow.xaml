@@ -8,7 +8,7 @@
         Title="Script Suite — First-run setup" Height="720" Width="840"
         MinHeight="560" MinWidth="700"
         WindowStartupLocation="CenterOwner"
-        Background="#FF1E1E2E" Foreground="#FFCDD6F4">
+        Background="{DynamicResource Brush.Background.Primary}" Foreground="{DynamicResource Brush.Foreground.Primary}">
     <Grid Margin="28,22,28,20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -18,14 +18,14 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0">
-            <TextBlock Text="Script Suite" FontSize="26" FontWeight="Bold" Foreground="#FFCDD6F4" />
+            <TextBlock Text="Script Suite" FontSize="26" FontWeight="Bold" Foreground="{DynamicResource Brush.Foreground.Primary}" />
             <TextBlock Text="First-run setup — configure each script below. Every change saves automatically."
-                       FontSize="13" Foreground="#FFBAC2DE" Margin="0,4,0,0" TextWrapping="Wrap" />
+                       FontSize="13" Foreground="{DynamicResource Brush.Foreground.Secondary}" Margin="0,4,0,0" TextWrapping="Wrap" />
         </StackPanel>
 
         <StackPanel Grid.Row="1" Margin="0,18,0,0">
-            <TextBlock x:Name="StepHeaderText" FontSize="16" FontWeight="SemiBold" Foreground="#FFCDD6F4" />
-            <TextBlock x:Name="StepDescriptionText" FontSize="13" Foreground="#FFBAC2DE" TextWrapping="Wrap"
+            <TextBlock x:Name="StepHeaderText" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Foreground.Primary}" />
+            <TextBlock x:Name="StepDescriptionText" FontSize="13" Foreground="{DynamicResource Brush.Foreground.Secondary}" TextWrapping="Wrap"
                        Margin="0,4,0,0" />
         </StackPanel>
 
@@ -52,3 +52,4 @@
         </Grid>
     </Grid>
 </Window>
+

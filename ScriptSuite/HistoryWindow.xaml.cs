@@ -43,14 +43,6 @@ public partial class HistoryWindow : Window
                 When = entry.StartedAt ?? "",
                 DisplayName = manifest?.DisplayName ?? entry.ScriptId,
                 Outcome = entry.Outcome,
-                OutcomeBrush = entry.Outcome switch
-                {
-                    "Success" => "#FFA6E3A1",
-                    "Warning" => "#FFF9E2AF",
-                    "Failed" => "#FFF38BA8",
-                    "Cancelled" => "#FF89B4FA",
-                    _ => "#FFCDD6F4",
-                },
                 Summary = entry.Summary,
                 LogFilePath = logPath,
                 LogFileDirectory = logDir,
