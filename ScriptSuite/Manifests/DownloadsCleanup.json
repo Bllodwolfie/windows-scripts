@@ -12,7 +12,8 @@
       "label": "Folder to clean",
       "type": "path",
       "default": "%USERPROFILE%\\Downloads",
-      "helpText": "The Downloads folder this script sorts and cleans."
+      "helpText": "The Downloads folder this script sorts and cleans.",
+      "helpDetail": "Only files directly in this folder are checked — subfolders are ignored. You can point this at a different folder, but it should be a dedicated downloads-style folder."
     },
     {
       "name": "CutoffDays",
@@ -20,14 +21,16 @@
       "type": "int",
       "unit": "days",
       "default": 7,
-      "helpText": "Files younger than this are left untouched."
+      "helpText": "Files younger than this are left untouched.",
+      "helpDetail": "Age is based on the file's last write time. 0 means every file counts as old. Younger files are left alone even if they match the delete list, a category, or an Advanced Rule."
     },
     {
       "name": "DeleteExts",
       "label": "Extensions to delete",
       "type": "stringList",
       "default": [".zip", ".rar", ".7z", ".ttf", ".otf", ".exe", ".msi"],
-      "helpText": "Files with these extensions are deleted instead of moved. One extension per tag, starting with a dot."
+      "helpText": "Files with these extensions are deleted instead of moved. One extension per tag, starting with a dot.",
+      "helpDetail": "These files go to the Recycle Bin, not permanent delete. Other old files are moved into category folders (Music, Videos, Pictures, Modeling, Spreadsheets, Presentations, Text, Configuration). If an Advanced Rule exists for the same extension, that rule wins — even if the extension is listed here."
     }
   ]
 }

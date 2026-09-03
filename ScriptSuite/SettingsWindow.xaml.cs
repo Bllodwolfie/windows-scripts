@@ -52,6 +52,7 @@ public partial class SettingsWindow : Window
     {
         "ClearEventLogs" => "This clears every Windows event log after saving a backup. Event logs are Windows' own diagnostic history, not this app's logs. Each log with events is exported as a .evtx file in the backup folder, then cleared. If a backup fails, that log is left untouched. You can re-import a .evtx file in Event Viewer, but the app will not restore it for you.",
         "EmptyRecycleBin" => "This permanently empties the Recycle Bin on all drives. Files are not moved to another folder — they are deleted and cannot be recovered. The preview shows what would be deleted. Use the age filter to keep recently deleted items, or 0 to empty everything.",
+        "DownloadsCleanup" => "This sorts old files in your Downloads folder. Files older than the cutoff and matching the delete list go to the Recycle Bin; other old files are moved into category folders (Music, Videos, Pictures, etc.). Advanced Rules below always win over the simple lists for the same extension. Ignore means never touch, even if old. Delete goes to the Recycle Bin. MoveTo needs a valid folder — if empty or missing, that rule is skipped and logged.",
         _ => ""
     };
 
