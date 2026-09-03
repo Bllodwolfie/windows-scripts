@@ -13,9 +13,9 @@ A Windows maintenance suite — a WPF dashboard (`ScriptSuite`) over nine self-c
 
 ## Download — for most users (no SDK needed)
 
-**Latest Release:** [`v1.1.0` — `ScriptSuite v1.1.0`](https://github.com/Bllodwolfie/windows-scripts/releases/tag/v1.1.0)
+**Latest Release:** [`v2.0.0` — `ScriptSuite v2.0.0`](https://github.com/Bllodwolfie/windows-scripts/releases/tag/v2.0.0)
 
-1. Download [`ScriptSuite-win-x64-self-contained.zip`](https://github.com/Bllodwolfie/windows-scripts/releases/download/v1.1.0/ScriptSuite-win-x64-self-contained.zip) (80.3 MB zip, 188.8 MB unzipped, 766 files — self-contained `win-x64`, no .NET runtime to install).
+1. Download [`ScriptSuite-win-x64-self-contained.zip`](https://github.com/Bllodwolfie/windows-scripts/releases/download/v2.0.0/ScriptSuite-win-x64-self-contained.zip) (self-contained `win-x64`, no .NET runtime to install).
 2. Right-click the zip → `Extract All` → open the folder.
 3. Double-click `ScriptSuite.exe`. Optionally run `Install.ps1` from the repo to create a Start Menu shortcut (Windows Search → `ScriptSuite`).
 
@@ -62,9 +62,9 @@ Descriptions are verbatim from `ScriptSuite/Manifests/*.json:2` (source of truth
 |--------|--------------|----------------|
 | [SystemHealthReport](scripts/SystemHealthReport/) | Generates a self-contained HTML report of system health (CPU, memory, disks, network, errors). | No |
 | [ClearEventLogs](scripts/ClearEventLogs/) | Backs up and clears all Windows event logs. | **Yes** |
-| [DownloadsCleanup](scripts/DownloadsCleanup/) | Sorts and cleans the Downloads folder: deletes old installer/archive files and moves others into matching category folders. | No |
+| [DownloadsCleanup](scripts/DownloadsCleanup/) | Sorts and cleans the Downloads folder: deletes old installer/archive files and moves others into matching category folders. Supports Advanced per-extension rules (Ignore/Delete/MoveTo) that override the simple `Extensions to delete` list. | No |
 | [EmptyFolderCleanup](scripts/EmptyFolderCleanup/) | Recursively removes empty folders under a chosen root folder. | No |
-| [EmptyRecycleBin](scripts/EmptyRecycleBin/) | Permanently empties the Recycle Bin. Deleted files cannot be recovered. | No |
+| [EmptyRecycleBin](scripts/EmptyRecycleBin/) | Permanently empties the Recycle Bin. Deleted files cannot be recovered. Supports “Only delete items older than N days” (0 = everything). | No |
 | [RestorePoint](scripts/RestorePoint/) | Creates a System Restore point and verifies it actually appeared. | **Yes** |
 | [ScreenshotsCleanup](scripts/ScreenshotsCleanup/) | Deletes old screenshots from the Pictures\Screenshots folder. | No |
 | [SoftwareInventory](scripts/SoftwareInventory/) | Generates a text report of all installed software. | No |
@@ -102,10 +102,19 @@ Every script (all 9, including the 2 admin ones) can be scheduled from its tile 
 * **App remains closed between runs:** Task Scheduler launches `ScriptSuite.exe --scheduled-run <id>` headlessly, it runs via `Services/ScriptExecutor.cs` `CreateDefault` (self-contained fix for `PSHOME`/`CimCmdlets` headless), inserts into `ScheduledRuns`, and exits — no tray/background process. Results only visible in `Scheduled` tab (no notifications).
 * **Storage:** schedules in `%LOCALAPPDATA%\ScriptSuite\schedules.json` (`Models/ScheduleEntry.cs`), `risk-consents.json`, and `history.db` `ScheduledRuns` (`Services/RunHistoryStore.cs:25`). `Remove Schedule` in the same dialog unregisters the task (`Unregister-ScheduledTask`) and clears the entry (dashboard `◷` indicator `HasSchedule`/`ScheduleSummary` disappears).
 
+## Themes
+
+Dashboard header `Theme: Dark / Latte` toggles Catppuccin Mocha (dark, `#1E1E2E`) and Latte (light, `#EFF1F5`). The switch is runtime — no restart required — and persists to `%LOCALAPPDATA%\ScriptSuite\theme.json` (default Dark, so existing installs are unaffected). All windows — dashboard, Settings, Run, History, Schedule, wizard — follow the selected palette via `DynamicResource` (`Themes/Tokens.xaml` / `Themes/Tokens.Latte.xaml`).
+
+## Help
+
+Contextual `?` buttons appear in the dashboard header (`Script Suite / Dashboard`), each script's Settings window (next to the script name for overview + per-field `?` next to Label/Unit for field-level detail), the Run window (next to the script name), and the Schedule dialog (next to the title). Click to expand a themed panel — not a separate manual. Help is per-field `helpDetail` (manifest) and per-window overview (P0/P1: ClearEventLogs, EmptyRecycleBin, DownloadsCleanup Advanced Rules, Scheduling, Temp/Screenshots/EmptyFolder, RestorePoint, Run window). P2/P3 (History, Dashboard legend, SystemHealthReport, SoftwareInventory, Theme toggle) intentionally have no extra help this pass. First-run wizard reuses `SettingsForm`, so `?` appears there too with no layout break.
+
 ## Known limitations & notices
 
 - **Unsigned exe:** SmartScreen warning on first launch (see above). No EV cert yet.
 - **SQLite WAL sidecars:** run history lives at `%LOCALAPPDATA%\ScriptSuite\history.db` (`RunHistoryStore.cs:84` `journal_mode=WAL`, `busy_timeout=5000`). Beside it you will see `history.db-wal` / `history.db-shm` — normal for WAL; don't copy the `.db` alone while the app is running (raw `File.Copy` would miss uncheckpointed wal). Use `wal_checkpoint` or the app’s backup API when it exists.
+- **v2.0.0 vs v1.1.0:** Dark palette unchanged (Phase 1). `v2.0.0` adds 3 UI fixes (Scheduled History rendering, collapsible Run All preview, log-routed history detail), Downloads Cleanup `Advanced Rules` (Ignore/Delete/MoveTo) + its `MoveTo`-empty-destination validation, EmptyRecycleBin `MinAgeDays` (0 = everything, filtered via `DateDeleted`), Light Mode Dark/Latte runtime switch (persisted), and Help/Guide P0+P1 contextual `?`.
 - **v1.1.0 vs v1.0.1:** `v1.0.1` shipped 9 scripts (excluded `m12_elevated_test` via `ScriptSuite.csproj:21`). `v1.1.0` adds scheduling (engine, `S4U` split, `ScheduledRuns` separate table, mutex `SkippedBusy`, UI `Schedule`/`Scheduled History`). No behavior change for manual runs.
 
 ## License
