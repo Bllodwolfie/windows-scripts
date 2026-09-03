@@ -20,6 +20,7 @@ public partial class ScheduleWindow : Window
         _catalog = catalog;
         TitleText.Text = $"Schedule — {manifest.DisplayName}";
         DescText.Text = manifest.Description;
+        ScheduleHelpText.Text = "Every N Days/Hours/Weeks at HH:mm — for example, every 2 Weeks at 09:00. Admin scripts need a one-time UAC prompt to register, then run silently with no more prompts. If the app is open when the trigger fires, that run is skipped and appears as SkippedBusy in Scheduled History.";
         UnitBox.SelectedIndex = 0;
         TimeBox.Text = "09:00";
         IntervalBox.Text = "1";
