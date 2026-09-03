@@ -27,6 +27,9 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // Phase 2: apply persisted theme before first window renders (avoids flash)
+        try { ThemeManager.Initialize(); } catch { }
+
         var args = e.Args;
         string? elevatedScriptId = GetArg(args, ElevatedRunFlag);
         string? configPath = GetArg(args, ConfigPathFlag);

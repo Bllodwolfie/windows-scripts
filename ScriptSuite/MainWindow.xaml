@@ -121,7 +121,14 @@
                     <TextBlock Text="Show hidden" Foreground="{DynamicResource Brush.Foreground.Secondary}" />
                 </CheckBox>
             </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal">
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="Theme:" Foreground="{DynamicResource Brush.Foreground.Secondary}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12" />
+                <ComboBox x:Name="ThemeCombo" Width="90" Margin="0,0,12,0" VerticalAlignment="Center"
+                          SelectionChanged="ThemeCombo_SelectionChanged"
+                          AutomationProperties.Name="Theme selector">
+                    <ComboBoxItem Content="Dark" />
+                    <ComboBoxItem Content="Latte" />
+                </ComboBox>
                 <Button Content="History" Click="HistoryButton_Click" Padding="16,8" Margin="0,0,8,0"
                         AutomationProperties.Name="Open run history" />
                 <Button Content="Scheduled" Click="ScheduledHistoryButton_Click" Padding="16,8" Margin="0,0,8,0"

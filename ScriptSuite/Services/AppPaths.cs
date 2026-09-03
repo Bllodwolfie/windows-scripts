@@ -31,6 +31,7 @@ public static class AppPaths
 
     public static string SchedulesPath => Path.Combine(AppDataRoot, "schedules.json");
     public static string RiskConsentsPath => Path.Combine(AppDataRoot, "risk-consents.json");
+    public static string ThemePath => Path.Combine(AppDataRoot, "theme.json");
 
     public static string ConfigPathFor(string scriptId) => Path.Combine(ConfigsDir, scriptId + ".json");
 

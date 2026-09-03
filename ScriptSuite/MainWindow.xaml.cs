@@ -30,6 +30,11 @@ public partial class MainWindow : Window
         _vm = new MainWindowViewModel(catalog, stateStore, scheduleStore);
         DataContext = _vm;
         RefreshView();
+
+        // Theme switch: init ComboBox without firing handler
+        ThemeCombo.SelectionChanged -= ThemeCombo_SelectionChanged;
+        ThemeCombo.SelectedIndex = ThemeManager.CurrentTheme == "Latte" ? 1 : 0;
+        ThemeCombo.SelectionChanged += ThemeCombo_SelectionChanged;
     }
 
     private void RefreshView()
@@ -124,6 +129,14 @@ public partial class MainWindow : Window
         {
             var window = new SettingsWindow(row.Manifest, _configService) { Owner = this };
             window.ShowDialog();
+        }
+    }
+
+    private void ThemeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ThemeCombo.SelectedItem is System.Windows.Controls.ComboBoxItem item && item.Content is string theme)
+        {
+            ThemeManager.Apply(theme);
         }
     }
 }
