@@ -6,5 +6,14 @@
   "requiresAdmin": false,
   "supportsDryRun": true,
   "scriptPath": "scripts/EmptyRecycleBin/EmptyRecycleBin.ps1",
-  "fields": []
+  "fields": [
+    {
+      "name": "MinAgeDays",
+      "label": "Only delete items older than",
+      "type": "int",
+      "unit": "days",
+      "default": 0,
+      "helpText": "Items newer than this are left in the Recycle Bin. 0 = delete everything."
+    }
+  ]
 }

@@ -33,6 +33,7 @@ public sealed class SettingsFieldViewModel : ViewModelBase
     private int? _pendingIntPrior;
     private string _newItemText = "";
     private string _pathWarning = "";
+    private string _validationMessage = "";
     private DispatcherTimer? _savedTimer;
     private DispatcherTimer? _debounce;
 
@@ -90,10 +91,27 @@ public sealed class SettingsFieldViewModel : ViewModelBase
             OnPropertyChanged();
             if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) && parsed != priorValue)
             {
+                // Blocking validation for MinAgeDays — deliberate departure from warn-but-save.
+                // Negative age is not recoverable (cannot do anything sensible), so block.
+                if (Field.Name == "MinAgeDays" && parsed < 0)
+                {
+                    ValidationMessage = "Must be >= 0";
+                    _pendingIntPrior = null;
+                    _intPending = false;
+                    _debounce?.Stop();
+                    return;
+                }
+                ValidationMessage = "";
                 _pendingIntPrior ??= priorValue;
                 _intValue = parsed;
                 _intPending = true;
                 ArmDebounce();
+            }
+            else if (value.Trim() == "-")
+            {
+                // Intermediate typing of negative sign — show validation but don't block yet
+                if (Field.Name == "MinAgeDays")
+                    ValidationMessage = "Must be >= 0";
             }
         }
     }
@@ -134,6 +152,22 @@ public sealed class SettingsFieldViewModel : ViewModelBase
 
     public bool HasPathWarning => !string.IsNullOrEmpty(_pathWarning);
 
+    /// <summary>Blocking validation for int fields where negative is not recoverable.
+    /// Unlike PathWarning (warn-but-save), this blocks the commit entirely.</summary>
+    public string ValidationMessage
+    {
+        get => _validationMessage;
+        private set
+        {
+            if (_validationMessage == value) return;
+            _validationMessage = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasValidationError));
+        }
+    }
+
+    public bool HasValidationError => !string.IsNullOrEmpty(_validationMessage);
+
     public bool IsSavedShown
     {
         get => _savedShown;
@@ -145,7 +179,15 @@ public sealed class SettingsFieldViewModel : ViewModelBase
         if (delta == 0) return;
         _debounce?.Stop();
         var prior = _intValue;
-        _intValue += delta;
+        var next = _intValue + delta;
+        // Block negative for MinAgeDays — clamp and show validation instead of saving
+        if (Field.Name == "MinAgeDays" && next < 0)
+        {
+            ValidationMessage = "Must be >= 0";
+            return;
+        }
+        ValidationMessage = "";
+        _intValue = next;
         _intPending = false;
         _pendingIntPrior = null;
         _intText = _intValue.ToString(CultureInfo.InvariantCulture);
@@ -205,6 +247,17 @@ public sealed class SettingsFieldViewModel : ViewModelBase
         }
         else if (_intPending)
         {
+            // Re-validate before commit — block negative MinAgeDays
+            if (Field.Name == "MinAgeDays" && _intValue < 0)
+            {
+                ValidationMessage = "Must be >= 0";
+                _intPending = false;
+                _pendingIntPrior = null;
+                _intText = _intValue.ToString(CultureInfo.InvariantCulture);
+                OnPropertyChanged(nameof(IntText));
+                return;
+            }
+            ValidationMessage = "";
             _intPending = false;
             var prior = _pendingIntPrior ?? _intValue;
             _pendingIntPrior = null;
@@ -227,6 +280,7 @@ public sealed class SettingsFieldViewModel : ViewModelBase
         _pendingTextPrior = null;
         _intPending = false;
         _pendingIntPrior = null;
+        ValidationMessage = "";
         Items.Clear();
         foreach (var item in items)
             Items.Add(item);

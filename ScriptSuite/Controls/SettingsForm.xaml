@@ -122,6 +122,10 @@
                                Margin="0,6,0,0"
                                Visibility="{Binding HasPathWarning, Converter={StaticResource BoolToVis}}" />
 
+                    <TextBlock Text="{Binding ValidationMessage}" Foreground="#FFF38BA8" FontSize="12" TextWrapping="Wrap"
+                               Margin="0,6,0,0"
+                               Visibility="{Binding HasValidationError, Converter={StaticResource BoolToVis}}" />
+
                     <TextBlock Text="Saved" Foreground="#FFA6E3A1" FontSize="11" Margin="0,6,0,0"
                                Visibility="{Binding IsSavedShown, Converter={StaticResource BoolToVis}}" />
                 </StackPanel>

@@ -9,8 +9,28 @@ param(
     [string[]]$IncludeOnly = @()
 )
 
-# This script has no configurable settings; the parameter exists so the app can
-# pass -ConfigPath uniformly for every script.
+# Config: MinAgeDays (int, default 0) — only delete items older than N days.
+# 0 = delete everything (current behavior, backward compatible). Existing configs
+# without this key fall back to 0 via the default below and the manifest default.
+$Config = [PSCustomObject]@{ MinAgeDays = 0 }
+if (Test-Path -LiteralPath $ConfigPath) {
+    try {
+        $loaded = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+        if ($null -ne $loaded) { $Config = $loaded }
+    } catch {
+        Write-Warning "EmptyRecycleBin config is corrupt or unreadable at $ConfigPath — using defaults (MinAgeDays=0)."
+    }
+}
+# Normalize MinAgeDays: int, default 0, clamp negative to 0 (UI blocks negative, but hand-edited JSON must still be safe)
+$minAgeDays = 0
+if ($null -ne $Config.PSObject.Properties["MinAgeDays"]) {
+    try { $minAgeDays = [int]$Config.MinAgeDays } catch { $minAgeDays = 0 }
+}
+if ($minAgeDays -lt 0) {
+    Write-Warning "MinAgeDays is negative ($minAgeDays) — treating as 0 (delete everything)."
+    $minAgeDays = 0
+}
+$cutoff = (Get-Date).AddDays(-$minAgeDays)
 
 # Milestone 8: the app can confirm a preview with items deselected, passing
 # -IncludeOnly (the reconstructed "original location\name" Targets the user
@@ -24,24 +44,98 @@ function Get-RecycleTarget($item) {
     if ($orig) { Join-Path $orig $item.Name } else { $item.Name }
 }
 
+# Root-cause: original whole-bin path used Clear-RecycleBin -Force, which cannot
+# filter by age. To support MinAgeDays we must enumerate Shell.Application
+# Namespace(10) items and read each item's DateDeleted via the extended property
+# System.Recycle.DateDeleted (not basic .DateCreated). Individual per-item
+# deletion already used direct $Recycle.Bin file deletion for dialog-proofing;
+# whole-bin filtered path now reuses that same per-item path after age filtering.
+function Get-RecycleDateDeleted($item) {
+    try {
+        $val = $item.ExtendedProperty('System.Recycle.DateDeleted')
+        if ($null -ne $val) {
+            # ExtendedProperty may return a string or DateTime depending on locale/PS version
+            if ($val -is [DateTime]) { return $val }
+            # Try parse string like "09/02/2026 21:51:25" or locale-specific GetDetailsOf fallback
+            $parsed = $null
+            if ([DateTime]::TryParse([string]$val, [ref]$parsed)) { return $parsed }
+        }
+    } catch {}
+    return $null
+}
+
 if ($DryRun) {
     $shell = New-Object -ComObject Shell.Application
     $bin = $shell.Namespace(10)
+    $now = Get-Date
+    $deleteCount = 0
+    $skipCount = 0
+    $deleteSize = 0
+    $skipSize = 0
     foreach ($item in $bin.Items()) {
         $target = Get-RecycleTarget $item
-        $size = if ($item.Size -lt 1MB) { ($item.Size / 1KB).ToString('N1', [System.Globalization.CultureInfo]::InvariantCulture) + ' KB' } else { ($item.Size / 1MB).ToString('N1', [System.Globalization.CultureInfo]::InvariantCulture) + ' MB' }
-        [PSCustomObject]@{
-            Action = 'Delete'
-            Target = $target
-            Detail = "$size, would be permanently deleted"
+        $size = $item.Size
+        $sizeStr = if ($size -lt 1MB) { ($size / 1KB).ToString('N1', [System.Globalization.CultureInfo]::InvariantCulture) + ' KB' } else { ($size / 1MB).ToString('N1', [System.Globalization.CultureInfo]::InvariantCulture) + ' MB' }
+        $dateDeleted = Get-RecycleDateDeleted $item
+        $ageDays = if ($null -ne $dateDeleted) { ($now - $dateDeleted).TotalDays } else { -1 }
+        # If DateDeleted unavailable and MinAgeDays==0, treat as old enough to delete (preserve current behavior: delete everything). If >0 and date missing, conservatively skip.
+        $isOld = if ($minAgeDays -eq 0) { $true } else { $null -ne $dateDeleted -and $ageDays -ge $minAgeDays }
+        # Also respect IncludeOnly if preview was filtered? Dry-run ignores IncludeOnly and shows all, but keep gate for consistency
+        if ($IncludeOnly.Count -gt 0 -and $IncludeOnly -notcontains $target) { continue }
+        if ($isOld) {
+            $deleteCount++
+            $deleteSize += $size
+            $ageInfo = if ($null -ne $dateDeleted) { "{0:N0} days old" -f $ageDays } else { "age unknown" }
+            [PSCustomObject]@{
+                Action = 'Delete'
+                Target = $target
+                Detail = "$sizeStr, $ageInfo, would be permanently deleted"
+            }
+        } else {
+            $skipCount++
+            $skipSize += $size
+            $ageInfo = if ($null -ne $dateDeleted) { "{0:N1} days old" -f $ageDays } else { "age unknown" }
+            [PSCustomObject]@{
+                Action = 'Skip'
+                Target = $target
+                Detail = "$sizeStr, $ageInfo — younger than $minAgeDays days, would be skipped"
+            }
         }
+    }
+    # Summary line for console evidence, matching other cleanup scripts' reporting style (counts + total size)
+    if ($deleteCount -gt 0 -or $skipCount -gt 0) {
+        $delSizeStr = if ($deleteSize -lt 1MB) { "{0:N1} KB" -f ($deleteSize / 1KB) } else { "{0:N1} MB" -f ($deleteSize / 1MB) }
+        $skipSizeStr = if ($skipSize -lt 1MB) { "{0:N1} KB" -f ($skipSize / 1KB) } else { "{0:N1} MB" -f ($skipSize / 1MB) }
+        Write-Host ("Recycle Bin dry-run: {0} item(s) ({1}) would be deleted, {2} skipped (younger than {3} days, {4})." -f $deleteCount, $delSizeStr, $skipCount, $minAgeDays, $skipSizeStr)
     }
     exit
 }
 
 if ($IncludeOnly.Count -eq 0) {
-    Clear-RecycleBin -Force -ErrorAction SilentlyContinue
-    return
+    if ($minAgeDays -eq 0) {
+        # Preserve exact current behavior for MinAgeDays=0: fast whole-bin clear, no age filtering
+        Clear-RecycleBin -Force -ErrorAction SilentlyContinue
+        return
+    } else {
+        # Filtered whole-bin: enumerate and only delete items old enough, reusing per-item dialog-proof path below
+        $shell = New-Object -ComObject Shell.Application
+        $bin = $shell.Namespace(10)
+        $now = Get-Date
+        $filtered = @()
+        foreach ($item in $bin.Items()) {
+            $dateDeleted = Get-RecycleDateDeleted $item
+            $ageDays = if ($null -ne $dateDeleted) { ($now - $dateDeleted).TotalDays } else { -1 }
+            if ($null -ne $dateDeleted -and $ageDays -ge $minAgeDays) {
+                $filtered += Get-RecycleTarget $item
+            }
+        }
+        if ($filtered.Count -eq 0) {
+            Write-Host ("Recycle Bin: 0 items older than {0} days — nothing to delete." -f $minAgeDays)
+            return
+        }
+        $IncludeOnly = $filtered
+        # fall through to per-item deletion for filtered list
+    }
 }
 
 # Per-item permanent delete WITHOUT the shell, so no confirmation dialog can
