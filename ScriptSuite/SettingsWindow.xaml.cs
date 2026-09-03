@@ -38,7 +38,21 @@ public partial class SettingsWindow : Window
             AdvancedRulesControl.DataContext = _advancedRules;
             AdvancedRulesControl.Visibility = Visibility.Visible;
         }
+
+        // Script-level help (window header ?)
+        var overview = GetScriptOverviewHelp(manifest.Id);
+        if (!string.IsNullOrWhiteSpace(overview))
+        {
+            HelpTextBlock.Text = overview;
+            HelpButton.Visibility = Visibility.Visible;
+        }
     }
+
+    private static string GetScriptOverviewHelp(string id) => id switch
+    {
+        "ClearEventLogs" => "This clears every Windows event log after saving a backup. Event logs are Windows' own diagnostic history, not this app's logs. Each log with events is exported as a .evtx file in the backup folder, then cleared. If a backup fails, that log is left untouched. You can re-import a .evtx file in Event Viewer, but the app will not restore it for you.",
+        _ => ""
+    };
 
     protected override void OnClosing(CancelEventArgs e)
     {

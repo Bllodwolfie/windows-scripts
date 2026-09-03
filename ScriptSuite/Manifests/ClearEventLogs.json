@@ -12,7 +12,8 @@
       "label": "Backup folder",
       "type": "path",
       "default": "%USERPROFILE%\\Documents\\Script_Logs\\EventLogBackups",
-      "helpText": "Where .evtx backups are stored before each log is cleared."
+      "helpText": "Where .evtx backups are stored before each log is cleared.",
+      "helpDetail": "Windows event logs are system-wide diagnostic records kept by Windows itself — not this app's logs. This script exports every enabled log that has events to a .evtx file in this folder, then clears the live log. If a backup fails, that log is skipped and not cleared. To put events back, open Event Viewer and import the .evtx file — the app does not restore automatically."
     }
   ]
 }
