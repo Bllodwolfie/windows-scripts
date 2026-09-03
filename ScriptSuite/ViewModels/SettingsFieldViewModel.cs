@@ -54,6 +54,15 @@ public sealed class SettingsFieldViewModel : ViewModelBase
     public ScriptField Field { get; }
     public string Label => Field.Label;
     public string HelpText => Field.HelpText ?? "";
+    public string HelpDetail => Field.HelpDetail ?? "";
+    public bool HasHelpDetail => !string.IsNullOrWhiteSpace(Field.HelpDetail);
+    private bool _isHelpExpanded;
+    public bool IsHelpExpanded
+    {
+        get => _isHelpExpanded;
+        set => Set(ref _isHelpExpanded, value);
+    }
+    public void ToggleHelp() => IsHelpExpanded = !IsHelpExpanded;
     public string Unit => Field.Unit ?? "";
     public bool ShowUnit => !string.IsNullOrEmpty(Field.Unit);
     public bool IsFilePath => Field.IsFilePath;

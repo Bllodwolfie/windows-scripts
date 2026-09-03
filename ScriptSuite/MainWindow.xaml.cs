@@ -139,4 +139,9 @@ public partial class MainWindow : Window
             ThemeManager.Apply(theme);
         }
     }
+
+    private void DashboardHelpButton_Click(object sender, RoutedEventArgs e)
+    {
+        DashboardHelpPanel.Visibility = DashboardHelpPanel.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+    }
 }

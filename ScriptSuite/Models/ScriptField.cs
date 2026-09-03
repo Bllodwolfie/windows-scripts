@@ -15,6 +15,7 @@ public sealed class ScriptField
     [JsonPropertyName("unit")] public string? Unit { get; set; }
     [JsonPropertyName("default")] public JsonElement Default { get; set; }
     [JsonPropertyName("helpText")] public string? HelpText { get; set; }
+    [JsonPropertyName("helpDetail")] public string? HelpDetail { get; set; }
 
     /// <summary>For "path" fields, whether the path is a file or a folder
     /// (the Browse button needs to know which dialog to open). Absent means

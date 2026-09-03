@@ -12,13 +12,32 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <TextBlock x:Name="TitleText" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Foreground.Primary}" />
-        <TextBlock x:Name="DescText" Grid.Row="1" Margin="0,6,0,14" Foreground="{DynamicResource Brush.Foreground.Secondary}" TextWrapping="Wrap" />
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="TitleText" Grid.Column="0" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Foreground.Primary}" VerticalAlignment="Center" />
+            <Button x:Name="ScheduleHelpButton" Grid.Column="1" Content="?" Width="22" Height="22" FontSize="11" FontWeight="SemiBold"
+                    Foreground="{DynamicResource Brush.Accent.Primary}" Background="Transparent" BorderBrush="{DynamicResource Brush.Accent.Primary}" BorderThickness="1"
+                    Click="ScheduleHelpButton_Click" VerticalAlignment="Center" AutomationProperties.Name="Help">
+                <Button.Resources>
+                    <Style TargetType="Border">
+                        <Setter Property="CornerRadius" Value="11" />
+                    </Style>
+                </Button.Resources>
+            </Button>
+        </Grid>
+        <Border x:Name="ScheduleHelpPanel" Grid.Row="1" Background="{DynamicResource Brush.Background.Primary}" CornerRadius="6" Padding="10" Margin="0,8,0,0" Visibility="Collapsed">
+            <TextBlock x:Name="ScheduleHelpText" Foreground="{DynamicResource Brush.Foreground.Secondary}" FontSize="12" TextWrapping="Wrap" />
+        </Border>
+        <TextBlock x:Name="DescText" Grid.Row="2" Margin="0,6,0,14" Foreground="{DynamicResource Brush.Foreground.Secondary}" TextWrapping="Wrap" />
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,10">
             <TextBlock Text="Every" VerticalAlignment="Center" Margin="0,0,8,0"/>
             <TextBox x:Name="IntervalBox" Width="60" Height="26" VerticalContentAlignment="Center"/>
             <ComboBox x:Name="UnitBox" Width="120" Margin="8,0,0,0" Height="26">
@@ -30,17 +49,17 @@
             <TextBox x:Name="TimeBox" Width="70" Height="26" VerticalContentAlignment="Center" ToolTip="HH:mm e.g. 09:00"/>
         </StackPanel>
 
-        <CheckBox x:Name="RiskCheck" Grid.Row="3" Margin="0,0,0,10" Visibility="Collapsed">
+        <CheckBox x:Name="RiskCheck" Grid.Row="4" Margin="0,0,0,10" Visibility="Collapsed">
             <TextBlock TextWrapping="Wrap" Width="460" Foreground="{DynamicResource Brush.Status.Warning.Text}">
                 I understand the risks — this script will run unattended with the privileges shown above.
             </TextBlock>
         </CheckBox>
-        <TextBlock x:Name="AdminNote" Grid.Row="4" Foreground="{DynamicResource Brush.Status.Error}" TextWrapping="Wrap" Visibility="Collapsed"
+        <TextBlock x:Name="AdminNote" Grid.Row="5" Foreground="{DynamicResource Brush.Status.Error}" TextWrapping="Wrap" Visibility="Collapsed"
                    Text="This script requires administrator. Scheduling it will trigger a one-time UAC prompt to register the privileged task. After that runs silently forever after." Margin="0,0,0,10"/>
 
-        <TextBlock x:Name="ErrorText" Grid.Row="5" Foreground="{DynamicResource Brush.Status.Error}" TextWrapping="Wrap" />
+        <TextBlock x:Name="ErrorText" Grid.Row="6" Foreground="{DynamicResource Brush.Status.Error}" TextWrapping="Wrap" />
 
-        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right">
+        <StackPanel Grid.Row="7" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="Remove Schedule" Click="Remove_Click" Padding="12,6" Margin="0,0,8,0" x:Name="RemoveBtn"/>
             <Button Content="Cancel" Click="Cancel_Click" Padding="12,6" Margin="0,0,8,0"/>
             <Button Content="Save" Click="Save_Click" Padding="16,6" Background="{DynamicResource Brush.Accent.Primary}" Foreground="{DynamicResource Brush.Accent.Primary.Foreground}"/>

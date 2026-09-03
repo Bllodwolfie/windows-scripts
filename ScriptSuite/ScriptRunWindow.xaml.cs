@@ -298,6 +298,11 @@ public partial class ScriptRunWindow : Window
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 
+    private void RunHelpButton_Click(object sender, RoutedEventArgs e)
+    {
+        RunHelpPanel.Visibility = RunHelpPanel.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+    }
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
         // Escape closes the run window, but never mid-run (the Close button is

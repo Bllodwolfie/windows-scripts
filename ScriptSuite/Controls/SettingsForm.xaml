@@ -104,12 +104,24 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="{Binding Label}" FontWeight="SemiBold" FontSize="14"
                                    Foreground="{DynamicResource Brush.Foreground.Primary}" VerticalAlignment="Center" />
                         <TextBlock Grid.Column="1" Text="{Binding Unit}" Foreground="{DynamicResource Brush.Foreground.Tertiary}" FontSize="12"
                                    Margin="8,0,0,0" VerticalAlignment="Center"
                                    Visibility="{Binding ShowUnit, Converter={StaticResource BoolToVis}}" />
+                        <Button Grid.Column="2" Content="?" Width="22" Height="22" Margin="8,0,0,0" FontSize="11" FontWeight="SemiBold"
+                                Foreground="{DynamicResource Brush.Accent.Primary}" Background="Transparent" BorderBrush="{DynamicResource Brush.Accent.Primary}" BorderThickness="1"
+                                Visibility="{Binding HasHelpDetail, Converter={StaticResource BoolToVis}}"
+                                Click="HelpToggle_Click" Tag="{Binding}"
+                                AutomationProperties.Name="Help">
+                            <Button.Resources>
+                                <Style TargetType="Border">
+                                    <Setter Property="CornerRadius" Value="11" />
+                                </Style>
+                            </Button.Resources>
+                        </Button>
                     </Grid>
 
                     <ContentControl Margin="0,8,0,0" Content="{Binding}"
@@ -117,6 +129,11 @@
 
                     <TextBlock Text="{Binding HelpText}" Foreground="{DynamicResource Brush.Foreground.Help}" FontSize="12" TextWrapping="Wrap"
                                Margin="0,8,0,0" />
+
+                    <Border Background="{DynamicResource Brush.Background.Primary}" CornerRadius="6" Padding="10" Margin="0,8,0,0"
+                            Visibility="{Binding IsHelpExpanded, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{Binding HelpDetail}" Foreground="{DynamicResource Brush.Foreground.Secondary}" FontSize="12" TextWrapping="Wrap" />
+                    </Border>
 
                     <TextBlock Text="{Binding PathWarning}" Foreground="{DynamicResource Brush.Status.Warning.Text}" FontSize="12" TextWrapping="Wrap"
                                Margin="0,6,0,0"

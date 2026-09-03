@@ -130,4 +130,12 @@ public partial class SettingsForm : UserControl
         if ((sender as FrameworkElement)?.DataContext is SettingsFieldViewModel vm)
             vm.CommitPending();
     }
+
+    private void HelpToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is SettingsFieldViewModel vm)
+            vm.ToggleHelp();
+        else if ((sender as FrameworkElement)?.DataContext is SettingsFieldViewModel vm2)
+            vm2.ToggleHelp();
+    }
 }

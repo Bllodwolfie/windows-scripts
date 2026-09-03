@@ -56,4 +56,9 @@ public partial class SettingsWindow : Window
         }
         base.OnKeyDown(e);
     }
+
+    private void HelpButton_Click(object sender, RoutedEventArgs e)
+    {
+        HelpPanel.Visibility = HelpPanel.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+    }
 }

@@ -57,15 +57,33 @@
 
         <!-- Header -->
         <StackPanel Grid.Row="0">
-            <StackPanel Orientation="Horizontal">
-                <TextBlock x:Name="NameText" Style="{StaticResource RunHeaderText}" />
-                <TextBlock Text="&#x26E8;" FontSize="14" Foreground="{DynamicResource Brush.Status.Warning.Text}" VerticalAlignment="Center"
-                           Margin="8,0,0,0" AutomationProperties.Name="Runs elevated"
-                           x:Name="AdminIcon" Visibility="Collapsed" />
-            </StackPanel>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <TextBlock x:Name="NameText" Style="{StaticResource RunHeaderText}" />
+                    <TextBlock Text="&#x26E8;" FontSize="14" Foreground="{DynamicResource Brush.Status.Warning.Text}" VerticalAlignment="Center"
+                               Margin="8,0,0,0" AutomationProperties.Name="Runs elevated"
+                               x:Name="AdminIcon" Visibility="Collapsed" />
+                </StackPanel>
+                <Button Grid.Column="1" x:Name="RunHelpButton" Content="?" Width="22" Height="22" FontSize="11" FontWeight="SemiBold"
+                        Foreground="{DynamicResource Brush.Accent.Primary}" Background="Transparent" BorderBrush="{DynamicResource Brush.Accent.Primary}" BorderThickness="1"
+                        Click="RunHelpButton_Click" VerticalAlignment="Center" AutomationProperties.Name="Help">
+                    <Button.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="11" />
+                        </Style>
+                    </Button.Resources>
+                </Button>
+            </Grid>
             <TextBlock x:Name="DescriptionText" Style="{StaticResource RunSubText}" />
             <TextBlock Text="Runs elevated (UAC prompt appears when you confirm)."
                        Foreground="{DynamicResource Brush.Status.Warning.Text}" Margin="0,4,0,0" x:Name="AdminNote" Visibility="Collapsed" />
+            <Border x:Name="RunHelpPanel" Background="{DynamicResource Brush.Background.Primary}" CornerRadius="6" Padding="10" Margin="0,8,0,0" Visibility="Collapsed">
+                <TextBlock x:Name="RunHelpText" Foreground="{DynamicResource Brush.Foreground.Secondary}" FontSize="12" TextWrapping="Wrap" />
+            </Border>
         </StackPanel>
 
         <!-- Preview / selection -->

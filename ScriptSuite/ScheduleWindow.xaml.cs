@@ -39,6 +39,11 @@ public partial class ScheduleWindow : Window
         RemoveBtn.Visibility = _scheduleStore.Has(manifest.Id) ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    private void ScheduleHelpButton_Click(object sender, RoutedEventArgs e)
+    {
+        ScheduleHelpPanel.Visibility = ScheduleHelpPanel.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+    }
+
     private void Cancel_Click(object sender, RoutedEventArgs e) => Close();
 
     private void Remove_Click(object sender, RoutedEventArgs e)

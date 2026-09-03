@@ -13,24 +13,45 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TextBlock x:Name="ScriptNameText" Grid.Row="0" FontSize="22" FontWeight="Bold" Foreground="{DynamicResource Brush.Foreground.Primary}" />
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="ScriptNameText" Grid.Column="0" FontSize="22" FontWeight="Bold" Foreground="{DynamicResource Brush.Foreground.Primary}" VerticalAlignment="Center" />
+            <Button x:Name="HelpButton" Grid.Column="1" Content="?" Width="22" Height="22" Margin="8,0,0,0" FontSize="11" FontWeight="SemiBold"
+                    Foreground="{DynamicResource Brush.Accent.Primary}" Background="Transparent" BorderBrush="{DynamicResource Brush.Accent.Primary}" BorderThickness="1"
+                    Click="HelpButton_Click" Visibility="Collapsed" AutomationProperties.Name="Help">
+                <Button.Resources>
+                    <Style TargetType="Border">
+                        <Setter Property="CornerRadius" Value="11" />
+                    </Style>
+                </Button.Resources>
+            </Button>
+        </Grid>
         <TextBlock x:Name="ScriptDescriptionText" Grid.Row="1" Foreground="{DynamicResource Brush.Foreground.Secondary}" TextWrapping="Wrap"
                    Margin="0,4,0,0" />
 
-        <TextBlock x:Name="NoFieldsText" Grid.Row="2" Foreground="{DynamicResource Brush.Foreground.Help}" FontSize="13"
+        <Border x:Name="HelpPanel" Grid.Row="2" Background="{DynamicResource Brush.Background.Primary}" CornerRadius="6" Padding="10" Margin="0,8,0,0" Visibility="Collapsed">
+            <TextBlock x:Name="HelpTextBlock" Foreground="{DynamicResource Brush.Foreground.Secondary}" FontSize="12" TextWrapping="Wrap" />
+        </Border>
+
+        <TextBlock x:Name="NoFieldsText" Grid.Row="3" Foreground="{DynamicResource Brush.Foreground.Help}" FontSize="13"
                    TextWrapping="Wrap" Margin="0,16,0,0"
                    Text="This script has no configurable settings."
                    Visibility="Collapsed" />
 
-        <controls:SettingsForm x:Name="SettingsFormControl" Grid.Row="2" Margin="0,12,0,0" />
+        <controls:SettingsForm x:Name="SettingsFormControl" Grid.Row="4" Margin="0,12,0,0" />
 
         <!-- Advanced per-extension rules — DownloadsCleanup only (additive, collapsed by default).
              Visible only for DownloadsCleanup; other scripts keep original SettingsForm only. -->
-        <controls:DownloadsAdvancedRulesControl x:Name="AdvancedRulesControl" Grid.Row="3" Margin="0,8,0,0"
+        <controls:DownloadsAdvancedRulesControl x:Name="AdvancedRulesControl" Grid.Row="5" Margin="0,8,0,0"
                                                Visibility="Collapsed" />
     </Grid>
 </Window>
