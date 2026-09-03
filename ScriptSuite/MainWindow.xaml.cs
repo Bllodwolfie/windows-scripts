@@ -31,10 +31,7 @@ public partial class MainWindow : Window
         DataContext = _vm;
         RefreshView();
 
-        // Theme switch: init ComboBox without firing handler
-        ThemeCombo.SelectionChanged -= ThemeCombo_SelectionChanged;
-        ThemeCombo.SelectedIndex = ThemeManager.CurrentTheme == "Latte" ? 1 : 0;
-        ThemeCombo.SelectionChanged += ThemeCombo_SelectionChanged;
+        UpdateThemeToggleIcon();
     }
 
     private void RefreshView()
@@ -132,12 +129,21 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ThemeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void ThemeToggleButton_Click(object sender, RoutedEventArgs e)
     {
-        if (ThemeCombo.SelectedItem is System.Windows.Controls.ComboBoxItem item && item.Content is string theme)
-        {
-            ThemeManager.Apply(theme);
-        }
+        var next = ThemeManager.CurrentTheme == "Dark" ? "Latte" : "Dark";
+        ThemeManager.Apply(next);
+        UpdateThemeToggleIcon();
+    }
+
+    private void UpdateThemeToggleIcon()
+    {
+        // Moon = currently Dark (click → Latte), Sun = currently Latte (click → Dark)
+        bool isDark = ThemeManager.CurrentTheme == "Dark";
+        if (MoonIcon != null) MoonIcon.Visibility = isDark ? Visibility.Visible : Visibility.Collapsed;
+        if (SunIcon != null) SunIcon.Visibility = isDark ? Visibility.Collapsed : Visibility.Visible;
+        if (ThemeToggleButton != null)
+            ThemeToggleButton.ToolTip = isDark ? "Switch to Latte theme" : "Switch to Dark theme";
     }
 
     private void DashboardHelpButton_Click(object sender, RoutedEventArgs e)
