@@ -78,7 +78,11 @@ $Config = @{
 }
 
 if (Test-Path -LiteralPath $ConfigPath) {
-    $Config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+    try {
+        $Config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+    } catch {
+        Write-Warning "SystemHealthReport config is corrupt or unreadable at $ConfigPath — using defaults. Check or reset the config via Settings."
+    }
 }
 
 # JSON stores env-var paths as "%USERPROFILE%\..."; expand them at load time.
@@ -160,6 +164,20 @@ function Get-GpuVRAMLabel($gpuObj) {
 
 $outputDir = Expand-ConfigPath $Config.OutputDir
 $outputPath = "$outputDir\$($Config.OutputFile)"
+
+# B6: validate OutputDir — file-where-folder-expected and missing drive should fail clearly
+try {
+    if (Test-Path -LiteralPath $outputDir) {
+        $dirItem = Get-Item -LiteralPath $outputDir -ErrorAction SilentlyContinue
+        if ($null -ne $dirItem -and -not $dirItem.PSIsContainer) {
+            throw "OutputDir is not a folder (is a file): $outputDir"
+        }
+    }
+    $null = New-Item -ItemType Directory -Path $outputDir -Force -ErrorAction Stop
+} catch {
+    Write-Error "SystemHealthReport: Failed to create output folder '$outputDir': $_"
+    exit 1
+}
 
 # Read the Windows setting for light vs dark apps theme to pick the palette
 $isLight = (Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "AppsUseLightTheme" -ErrorAction SilentlyContinue).AppsUseLightTheme -eq 1
@@ -760,5 +778,16 @@ if ($gpuRows) {
 [void]$html.AppendLine('</body>')
 [void]$html.AppendLine('</html>')
 
-# Write with a UTF-8 BOM so the browser reliably renders special characters/icons
-[System.IO.File]::WriteAllText($outputPath, $html.ToString(), [System.Text.UTF8Encoding]::new($true))
+# Write with a UTF-8 BOM so the browser reliably renders special characters/icons — B6: catch missing drive / file-as-folder and exit non-zero
+try {
+    Copy-Item -LiteralPath "$assetDir\Cat_bobber-dark.png" -Destination "$outputDir\$($Config.CatImageDark)" -Force -ErrorAction Stop | Out-Null
+    Copy-Item -LiteralPath "$assetDir\Cat_bobber-light.png" -Destination "$outputDir\$($Config.CatImageLight)" -Force -ErrorAction Stop | Out-Null
+} catch {
+    Write-Warning "SystemHealthReport: Could not copy mascot images to '$outputDir': $_"
+}
+try {
+    [System.IO.File]::WriteAllText($outputPath, $html.ToString(), [System.Text.UTF8Encoding]::new($true))
+} catch {
+    Write-Error "SystemHealthReport: Failed to write report to '$outputPath': $_"
+    exit 1
+}
