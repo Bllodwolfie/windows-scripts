@@ -191,6 +191,16 @@ if ($null -ne $Config.AdvancedRules) {
 
 if (-not $DryRun) { Write-Log "Cleanup started" }
 
+# B4: guard non-existent drive / bad provider — Get-ChildItem -File throws parameter-binding error on Z:\ instead of path-not-found
+if (-not (Test-Path -LiteralPath $source)) {
+    Write-Warning "Source folder '$source' does not exist or is not accessible — skipping."
+    if (-not $DryRun) {
+        Write-Log "SKIPPED : Source folder not found: $source"
+        Write-Log "Cleanup finished"
+    }
+    return
+}
+
 # Skipped files (locked, in use) are counted and surfaced below so the run
 # reports accurately instead of claiming success while leaving files behind.
 $script:deletedCount = 0
