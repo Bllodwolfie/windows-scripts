@@ -35,7 +35,11 @@ $Config = @{
 }
 
 if (Test-Path -LiteralPath $ConfigPath) {
-    $Config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+    try {
+        $Config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+    } catch {
+        Write-Warning "DownloadsCleanup config is corrupt or unreadable at $ConfigPath — using defaults. Check or reset the config via Settings."
+    }
 }
 
 # The JSON file stores env-var paths as "%USERPROFILE%\..." so they stay
@@ -160,11 +164,21 @@ function Write-Log($message) {
 # (built once up front so each file only needs a single hashtable lookup).
 # JSON deserializes the nested object into a PSCustomObject, so enumerate its
 # properties here and expand any %USERPROFILE% paths in the keys.
+# Fallback defaults use a hashtable, so handle both.
 $extMap = @{}
-foreach ($prop in $categoriesRaw.PSObject.Properties) {
-    $dest = Expand-ConfigPath $prop.Name
-    foreach ($ext in @($prop.Value)) {
-        $extMap[$ext.ToLower()] = $dest
+if ($categoriesRaw -is [hashtable]) {
+    foreach ($kvp in $categoriesRaw.GetEnumerator()) {
+        $dest = Expand-ConfigPath $kvp.Key
+        foreach ($ext in @($kvp.Value)) {
+            $extMap[[string]$ext.ToLower()] = $dest
+        }
+    }
+} else {
+    foreach ($prop in $categoriesRaw.PSObject.Properties) {
+        $dest = Expand-ConfigPath $prop.Name
+        foreach ($ext in @($prop.Value)) {
+            $extMap[[string]$ext.ToLower()] = $dest
+        }
     }
 }
 
@@ -178,14 +192,26 @@ foreach ($prop in $categoriesRaw.PSObject.Properties) {
 # places so the user is not surprised. This comment is the spec anchor.
 $advancedMap = @{}
 if ($null -ne $Config.AdvancedRules) {
-    foreach ($prop in $Config.AdvancedRules.PSObject.Properties) {
-        $extKey = $prop.Name.ToLower()
-        if (-not $extKey.StartsWith(".")) { $extKey = "." + $extKey }
-        $rule = $prop.Value
-        $action = if ($rule.PSObject.Properties["Action"]) { [string]$rule.Action } else { "" }
-        $destRaw = if ($rule.PSObject.Properties["Destination"]) { [string]$rule.Destination } else { "" }
-        $destExpanded = if ($destRaw) { Expand-ConfigPath $destRaw } else { "" }
-        $advancedMap[$extKey] = @{ Action = $action; Destination = $destExpanded; RawDestination = $destRaw }
+    if ($Config.AdvancedRules -is [hashtable]) {
+        foreach ($kvp in $Config.AdvancedRules.GetEnumerator()) {
+            $extKey = ([string]$kvp.Key).ToLower()
+            if (-not $extKey.StartsWith(".")) { $extKey = "." + $extKey }
+            $rule = $kvp.Value
+            $action = if ($rule -is [hashtable] -and $rule.ContainsKey("Action")) { [string]$rule["Action"] } elseif ($rule.PSObject.Properties["Action"]) { [string]$rule.Action } else { "" }
+            $destRaw = if ($rule -is [hashtable] -and $rule.ContainsKey("Destination")) { [string]$rule["Destination"] } elseif ($rule.PSObject.Properties["Destination"]) { [string]$rule.Destination } else { "" }
+            $destExpanded = if ($destRaw) { Expand-ConfigPath $destRaw } else { "" }
+            $advancedMap[$extKey] = @{ Action = $action; Destination = $destExpanded; RawDestination = $destRaw }
+        }
+    } else {
+        foreach ($prop in $Config.AdvancedRules.PSObject.Properties) {
+            $extKey = $prop.Name.ToLower()
+            if (-not $extKey.StartsWith(".")) { $extKey = "." + $extKey }
+            $rule = $prop.Value
+            $action = if ($rule.PSObject.Properties["Action"]) { [string]$rule.Action } else { "" }
+            $destRaw = if ($rule.PSObject.Properties["Destination"]) { [string]$rule.Destination } else { "" }
+            $destExpanded = if ($destRaw) { Expand-ConfigPath $destRaw } else { "" }
+            $advancedMap[$extKey] = @{ Action = $action; Destination = $destExpanded; RawDestination = $destRaw }
+        }
     }
 }
 

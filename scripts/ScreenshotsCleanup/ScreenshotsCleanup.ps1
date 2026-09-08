@@ -25,7 +25,11 @@ $Config = @{
 }
 
 if (Test-Path -LiteralPath $ConfigPath) {
-    $Config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+    try {
+        $Config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+    } catch {
+        Write-Warning "ScreenshotsCleanup config is corrupt or unreadable at $ConfigPath — using defaults (TargetFolder=$($Config.TargetFolder), CutoffDays=$($Config.CutoffDays)). Check or reset the config via Settings."
+    }
 }
 
 # JSON stores env-var paths as "%USERPROFILE%\..."; expand them at load time.
