@@ -315,8 +315,12 @@ public sealed class SettingsFieldViewModel : ViewModelBase
         if (Field.Type != "path") return "";
         var value = _textValue;
         if (string.IsNullOrWhiteSpace(value)) return "Enter a path.";
+        // R2: trailing space/dot note — Windows strips these silently
+        if (value.Length > 0 && (value.EndsWith(" ") || value.EndsWith(".")))
+            return "Trailing space/dot will be stripped by Windows — check the path.";
         var expanded = Environment.ExpandEnvironmentVariables(value.Trim());
-        if (!Path.IsPathRooted(expanded)) return "Path is not absolute (use e.g. C:\\Users\\...).";
+        // R3: both \ and / separators are accepted — update message to reflect that
+        if (!Path.IsPathRooted(expanded)) return "Path is not absolute (use e.g. C:\\Users\\... or C:/Users/... — both \\ and / are accepted).";
         if (Field.IsFilePath)
         {
             if (File.Exists(expanded)) return "";
