@@ -227,17 +227,17 @@ $summaryCards = @"
         <div class="summary">
             <div class="card" style="border-left: 4px solid var(--mauve);">
                 <span class="card-label">OS</span>
-                <span class="card-value">$($os.Caption -replace 'Microsoft ','')</span>
-                <span class="card-sub">Build $($os.BuildNumber)</span>
+                <span class="card-value">$([System.Net.WebUtility]::HtmlEncode(($os.Caption -replace 'Microsoft ')))</span>
+                <span class="card-sub">Build $([System.Net.WebUtility]::HtmlEncode($os.BuildNumber))</span>
             </div>
             <div class="card" style="border-left: 4px solid var(--blue);">
                 <span class="card-label">Uptime</span>
                 <span class="card-value">$($uptime.Days)d $($uptime.Hours)h</span>
-                <span class="card-sub">since $($bootTime.ToString('MMM dd, HH:mm', [System.Globalization.CultureInfo]::InvariantCulture))</span>
+                <span class="card-sub">since $([System.Net.WebUtility]::HtmlEncode($bootTime.ToString('MMM dd, HH:mm', [System.Globalization.CultureInfo]::InvariantCulture)))</span>
             </div>
             <div class="card" style="border-left: 4px solid var(--peach);">
                 <span class="card-label">CPU</span>
-                <span class="card-value">$(($cpu.Name -replace '\(R\)|\(TM\)|®|™').Trim())</span>
+                <span class="card-value">$([System.Net.WebUtility]::HtmlEncode((($cpu.Name -replace '\(R\)|\(TM\)|®|™').Trim())))</span>
                 <span class="card-sub">$($cpu.NumberOfCores) cores / $($cpu.NumberOfLogicalProcessors) threads</span>
             </div>
             <div class="card" style="border-left: 4px solid $(Get-RiskColor $memPct);">
@@ -256,7 +256,7 @@ foreach ($d in $disks) {
     $label = if ($d.VolumeName) { $d.VolumeName } else { "Local Disk" }
     $summaryCards += @"
             <div class="card" style="border-left: 4px solid $(Get-RiskColor $pct);">
-                <span class="card-label">$label ($($d.DeviceID))</span>
+                <span class="card-label">$([System.Net.WebUtility]::HtmlEncode($label)) ($([System.Net.WebUtility]::HtmlEncode($d.DeviceID)))</span>
                 <span class="card-value">$used / $total GB</span>
                 <div class="bar"><div class="bar-fill" style="width:${pct}%;background:$(Get-RiskColor $pct);"></div></div>
             </div>
@@ -266,15 +266,15 @@ $summaryCards += "        </div>"
 
 # Section: System Info
 $sysRows = @"
-            <tr><td class="key">Hostname</td><td>$($cs.Name)</td></tr>
-            <tr><td class="key">OS</td><td>$($os.Caption)</td></tr>
-            <tr><td class="key">Version</td><td>$($os.Version) (Build $($os.BuildNumber))</td></tr>
-            <tr><td class="key">Architecture</td><td>$($os.OSArchitecture)</td></tr>
-            <tr><td class="key">Install Date</td><td>$($os.InstallDate.ToString('yyyy-MM-dd HH:mm'))</td></tr>
-            <tr><td class="key">Last Boot</td><td>$($bootTime.ToString('yyyy-MM-dd HH:mm:ss'))</td></tr>
+            <tr><td class="key">Hostname</td><td>$([System.Net.WebUtility]::HtmlEncode($cs.Name))</td></tr>
+            <tr><td class="key">OS</td><td>$([System.Net.WebUtility]::HtmlEncode($os.Caption))</td></tr>
+            <tr><td class="key">Version</td><td>$([System.Net.WebUtility]::HtmlEncode($os.Version)) (Build $([System.Net.WebUtility]::HtmlEncode($os.BuildNumber)))</td></tr>
+            <tr><td class="key">Architecture</td><td>$([System.Net.WebUtility]::HtmlEncode($os.OSArchitecture))</td></tr>
+            <tr><td class="key">Install Date</td><td>$([System.Net.WebUtility]::HtmlEncode($os.InstallDate.ToString('yyyy-MM-dd HH:mm')))</td></tr>
+            <tr><td class="key">Last Boot</td><td>$([System.Net.WebUtility]::HtmlEncode($bootTime.ToString('yyyy-MM-dd HH:mm:ss')))</td></tr>
             <tr><td class="key">Uptime</td><td>$($uptime.Days) days, $($uptime.Hours) hours, $($uptime.Minutes) minutes</td></tr>
-            <tr><td class="key">Manufacturer</td><td>$($cs.Manufacturer)</td></tr>
-            <tr><td class="key">Model</td><td>$($cs.Model)</td></tr>
+            <tr><td class="key">Manufacturer</td><td>$([System.Net.WebUtility]::HtmlEncode($cs.Manufacturer))</td></tr>
+            <tr><td class="key">Model</td><td>$([System.Net.WebUtility]::HtmlEncode($cs.Model))</td></tr>
 "@
 
 # Section: Memory
@@ -294,7 +294,7 @@ foreach ($d in $disks) {
     $pct = if ($total -gt 0) { [math]::Round($used / $total * 100, 0) } else { 0 }
     $label = if ($d.VolumeName) { $d.VolumeName } else { "Local Disk" }
     $diskRows += @"
-            <tr><td class="key">$label ($($d.DeviceID))</td><td><div class="bar" style="max-width:300px"><div class="bar-fill" style="width:${pct}%;background:$(Get-RiskColor $pct);"></div></div> $used / $total GB ($pct%)</td></tr>
+            <tr><td class="key">$([System.Net.WebUtility]::HtmlEncode($label)) ($([System.Net.WebUtility]::HtmlEncode($d.DeviceID)))</td><td><div class="bar" style="max-width:300px"><div class="bar-fill" style="width:${pct}%;background:$(Get-RiskColor $pct);"></div></div> $used / $total GB ($pct%)</td></tr>
 "@
 }
 
@@ -302,7 +302,7 @@ foreach ($d in $disks) {
 $netRows = ""
 foreach ($n in $net) {
     $netRows += @"
-            <tr><td class="key">$($n.Description)</td><td>Connected</td></tr>
+            <tr><td class="key">$([System.Net.WebUtility]::HtmlEncode($n.Description))</td><td>Connected</td></tr>
 "@
 }
 
@@ -320,9 +320,9 @@ foreach ($gpu in $gpuObjs) {
     }
 
     $gpuRows += @"
-            <tr><td class="key">GPU $gpuIndex</td><td>$name</td></tr>
-            <tr><td class="key">VRAM $gpuIndex</td><td>$vramLabel</td></tr>
-            <tr><td class="key">Driver $gpuIndex</td><td>$driverVer</td></tr>
+            <tr><td class="key">GPU $gpuIndex</td><td>$([System.Net.WebUtility]::HtmlEncode($name))</td></tr>
+            <tr><td class="key">VRAM $gpuIndex</td><td>$([System.Net.WebUtility]::HtmlEncode($vramLabel))</td></tr>
+            <tr><td class="key">Driver $gpuIndex</td><td>$([System.Net.WebUtility]::HtmlEncode($driverVer))</td></tr>
 "@
 }
 
@@ -332,7 +332,7 @@ $i = 1
 foreach ($p in $procs) {
     $mb = [math]::Round($p.WorkingSet64 / 1MB, 1)
     $procRows += @"
-            <tr><td>$i</td><td>$($p.Name)</td><td>$($p.ProcessName)</td><td>$mb MB</td><td>$($p.Id)</td></tr>
+            <tr><td>$i</td><td>$([System.Net.WebUtility]::HtmlEncode($p.Name))</td><td>$([System.Net.WebUtility]::HtmlEncode($p.ProcessName))</td><td>$mb MB</td><td>$($p.Id)</td></tr>
 "@
     $i++
 }
@@ -345,7 +345,7 @@ if ($errors) {
         if ($msg.Length -gt 150) { $msg = $msg.Substring(0,150) + "..." }
         $color = if ($e.LevelDisplayName -eq 'Critical') { "var(--red)" } else { "var(--yellow)" }
         $errRows += @"
-            <tr><td style="color:$color">$($e.LevelDisplayName)</td><td>$($e.TimeCreated.ToString('MMM dd HH:mm', [System.Globalization.CultureInfo]::InvariantCulture))</td><td>$($e.ProviderName)</td><td>$msg</td></tr>
+            <tr><td style="color:$color">$([System.Net.WebUtility]::HtmlEncode($e.LevelDisplayName))</td><td>$([System.Net.WebUtility]::HtmlEncode($e.TimeCreated.ToString('MMM dd HH:mm', [System.Globalization.CultureInfo]::InvariantCulture)))</td><td>$([System.Net.WebUtility]::HtmlEncode($e.ProviderName))</td><td>$([System.Net.WebUtility]::HtmlEncode($msg))</td></tr>
 "@
     }
 } else {
@@ -353,7 +353,7 @@ if ($errors) {
 }
 
 # Section: Windows Update
-$wuRows = "<tr><td class='key'>Last Successful Check</td><td>$wuLastCheck</td></tr>"
+$wuRows = "<tr><td class='key'>Last Successful Check</td><td>$([System.Net.WebUtility]::HtmlEncode($wuLastCheck))</td></tr>"
 
 # ----- HTML assembly -----
 # The full HTML/CSS/JS is built line-by-line into a StringBuilder for
@@ -364,7 +364,7 @@ $html = [System.Text.StringBuilder]::new()
 [void]$html.AppendLine('<head>')
 [void]$html.AppendLine('<meta charset="UTF-8">')
 [void]$html.AppendLine('<meta name="viewport" content="width=device-width, initial-scale=1.0">')
-[void]$html.AppendLine("<title>System Health Report - $($cs.Name)</title>")
+[void]$html.AppendLine("<title>System Health Report - $([System.Net.WebUtility]::HtmlEncode($cs.Name))</title>")
 [void]$html.AppendLine('<style>')
 # :root defaults to Mocha; [data-theme="..."] overrides let the in-page toggle
 # switch palettes instantly by flipping the html element's data-theme attribute
@@ -572,9 +572,9 @@ foreach ($line in (Write-Palette $Config.Latte)) { [void]$html.AppendLine($line)
 [void]$html.AppendLine('<body>')
 # Full-screen intro/splash panel shown before the report content
 [void]$html.AppendLine('<div class="intro">')
-[void]$html.AppendLine("    <img src='$($Config.CatImageDark)' alt='Cat' class='intro-cat intro-cat-mocha'>")
-[void]$html.AppendLine("    <img src='$($Config.CatImageLight)' alt='Cat' class='intro-cat intro-cat-latte'>")
-[void]$html.AppendLine("    <h1>Hello $($env:USERNAME)</h1>")
+[void]$html.AppendLine("    <img src='$([System.Net.WebUtility]::HtmlEncode($Config.CatImageDark))' alt='Cat' class='intro-cat intro-cat-mocha'>")
+[void]$html.AppendLine("    <img src='$([System.Net.WebUtility]::HtmlEncode($Config.CatImageLight))' alt='Cat' class='intro-cat intro-cat-latte'>")
+[void]$html.AppendLine("    <h1>Hello $([System.Net.WebUtility]::HtmlEncode($env:USERNAME))</h1>")
 [void]$html.AppendLine("    <p class='intro-body'>Ready to see today's system report?</p>")
 [void]$html.AppendLine("    <p class='intro-scroll'>&#9660; &#9660;</p>")
 [void]$html.AppendLine('</div>')
@@ -605,7 +605,7 @@ foreach ($line in (Write-Palette $Config.Latte)) { [void]$html.AppendLine($line)
 [void]$html.AppendLine('</button>')
 [void]$html.AppendLine('<div class="header-body">')
 [void]$html.AppendLine('<h1>System Health Report</h1>')
-[void]$html.AppendLine("<div class=""subtitle"">$($cs.Name) &middot; $(Get-Date -Format 'dd''/''MM''/''yyyy HH:mm') &middot; Catppuccin $themeName</div>")
+[void]$html.AppendLine("<div class=""subtitle"">$([System.Net.WebUtility]::HtmlEncode($cs.Name)) &middot; $(Get-Date -Format 'dd''/''MM''/''yyyy HH:mm') &middot; Catppuccin $themeName</div>")
 [void]$html.AppendLine('</div>')
 [void]$html.AppendLine('<button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">')
 [void]$html.AppendLine('    <span class="icon-moon">')
@@ -631,7 +631,7 @@ foreach ($line in (Write-Palette $Config.Latte)) { [void]$html.AppendLine($line)
 [void]$html.AppendLine('<div class="fade-section">')
 [void]$html.AppendLine('<h2 id="cpu"><span class="accent">&#9670;</span> CPU</h2>')
 [void]$html.AppendLine('<table><tbody>')
-[void]$html.AppendLine('<tr><td class="key">Processor</td><td>' + (($cpu.Name -replace '\(R\)|\(TM\)|®|™').Trim()) + '</td></tr>')
+[void]$html.AppendLine('<tr><td class="key">Processor</td><td>' + [System.Net.WebUtility]::HtmlEncode((($cpu.Name -replace '\(R\)|\(TM\)|®|™').Trim())) + '</td></tr>')
 [void]$html.AppendLine("<tr><td class=""key"">Cores</td><td>$($cpu.NumberOfCores) physical / $($cpu.NumberOfLogicalProcessors) logical</td></tr>")
 [void]$html.AppendLine("<tr><td class=""key"">Max Clock</td><td>$($cpu.MaxClockSpeed) MHz</td></tr>")
 [void]$html.AppendLine("<tr><td class=""key"">L2 Cache</td><td>$($cpu.L2CacheSize) KB</td></tr>")
