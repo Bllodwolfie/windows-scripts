@@ -99,7 +99,15 @@ public sealed class ScheduledTaskService
     public static (bool ok, string? error) RegisterElevated(ScheduleEntry entry)
     {
         string exe = ExePath;
-        var psi = new ProcessStartInfo(exe, $"--register-scheduled-task {entry.ScriptId} --unit {entry.Unit} --interval {entry.Interval} --time {entry.TimeOfDay}") { UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Hidden };
+        var psi = new ProcessStartInfo(exe) { UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Hidden };
+        psi.ArgumentList.Add("--register-scheduled-task");
+        psi.ArgumentList.Add(entry.ScriptId);
+        psi.ArgumentList.Add("--unit");
+        psi.ArgumentList.Add(entry.Unit);
+        psi.ArgumentList.Add("--interval");
+        psi.ArgumentList.Add(entry.Interval.ToString());
+        psi.ArgumentList.Add("--time");
+        psi.ArgumentList.Add(entry.TimeOfDay);
         try
         {
             using var p = Process.Start(psi)!;
