@@ -13,10 +13,30 @@ $Config = @{
 
 if (Test-Path -LiteralPath $ConfigPath) {
     try {
-        $Config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+        $loaded = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+        if ($null -ne $loaded) { $Config = $loaded } else { throw "empty config" }
     } catch {
-        Write-Warning "SoftwareInventory config is corrupt or unreadable at $ConfigPath — using defaults. Check or reset the config via Settings."
+        Write-Warning "SoftwareInventory config is corrupt or unreadable at $ConfigPath — using defaults (OutputFile=$($Config.OutputFile)). Check or reset the config via Settings."
     }
+    $raw = (Get-Content -LiteralPath $ConfigPath -Raw -ErrorAction SilentlyContinue)
+    if ($null -ne $raw -and $raw.Trim() -eq "") {
+        Write-Warning "SoftwareInventory config is empty at $ConfigPath — using defaults (OutputFile=$($Config.OutputFile))."
+    }
+}
+
+function Test-PathScope([string]$Path, [string]$ExpectedRoot) {
+    if ([string]::IsNullOrWhiteSpace($Path)) { Write-Error "Path must be absolute: $Path (empty)"; exit 1 }
+    $expanded = [Environment]::ExpandEnvironmentVariables($Path.Trim())
+    if (-not [System.IO.Path]::IsPathRooted($expanded)) { Write-Error "Path must be absolute: $Path"; exit 1 }
+    if ($ExpectedRoot) {
+        $exp = [Environment]::ExpandEnvironmentVariables($ExpectedRoot)
+        try { $full = [System.IO.Path]::GetFullPath($expanded) } catch { $full = $expanded }
+        try { $root = [System.IO.Path]::GetFullPath($exp) } catch { $root = $exp }
+        if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
+            Write-Warning "Path '$Path' is outside expected scope (expected under '$ExpectedRoot') — proceeding anyway"
+        }
+    }
+    if ($Path -match '[\. ]$') { Write-Warning "Trailing space/dot will be stripped by Windows: '$Path'" }
 }
 
 # JSON stores env-var paths as "%USERPROFILE%\..."; expand them at load time.
@@ -25,6 +45,7 @@ function Expand-ConfigPath([string]$Path) {
 }
 
 $outputFile = Expand-ConfigPath $Config.OutputFile
+Test-PathScope $outputFile $null
 
 # B6: validate OutputFile — file-where-folder-expected and missing drive should fail clearly, not silently with exit 0
 try {

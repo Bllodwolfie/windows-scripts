@@ -31,7 +31,31 @@ $Config = @{
 }
 
 if (Test-Path -LiteralPath $ConfigPath) {
-    $Config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+    try {
+        $loaded = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+        if ($null -ne $loaded) { $Config = $loaded } else { throw "empty config" }
+    } catch {
+        Write-Warning "EmptyFolderCleanup config is corrupt or unreadable at $ConfigPath — using defaults (TargetFolder=$($Config.TargetFolder)). Check or reset the config via Settings."
+    }
+    $raw = (Get-Content -LiteralPath $ConfigPath -Raw -ErrorAction SilentlyContinue)
+    if ($null -ne $raw -and $raw.Trim() -eq "") {
+        Write-Warning "EmptyFolderCleanup config is empty at $ConfigPath — using defaults (TargetFolder=$($Config.TargetFolder))."
+    }
+}
+
+function Test-PathScope([string]$Path, [string]$ExpectedRoot) {
+    if ([string]::IsNullOrWhiteSpace($Path)) { Write-Error "Path must be absolute: $Path (empty)"; exit 1 }
+    $expanded = [Environment]::ExpandEnvironmentVariables($Path.Trim())
+    if (-not [System.IO.Path]::IsPathRooted($expanded)) { Write-Error "Path must be absolute: $Path"; exit 1 }
+    if ($ExpectedRoot) {
+        $exp = [Environment]::ExpandEnvironmentVariables($ExpectedRoot)
+        try { $full = [System.IO.Path]::GetFullPath($expanded) } catch { $full = $expanded }
+        try { $root = [System.IO.Path]::GetFullPath($exp) } catch { $root = $exp }
+        if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
+            Write-Warning "Path '$Path' is outside expected scope (expected under '$ExpectedRoot') — proceeding anyway"
+        }
+    }
+    if ($Path -match '[\. ]$') { Write-Warning "Trailing space/dot will be stripped by Windows: '$Path'" }
 }
 
 # JSON stores env-var paths as "%USERPROFILE%\..."; expand them at load time.
@@ -122,6 +146,8 @@ $path    = if ($Config.TargetFolder) { Expand-ConfigPath $Config.TargetFolder } 
 $logDir  = Expand-ConfigPath $Config.LogDir
 $logFile = Join-Path $logDir $Config.LogFile
 
+Test-PathScope $path $null
+
 $null = New-Item -ItemType Directory -Path $logDir -Force -ErrorAction SilentlyContinue
 
 function Write-Log($message) {
@@ -187,12 +213,29 @@ if (Test-Path -LiteralPath $path) {
         if ($undeletable.Count -gt 0) {
             foreach ($u in $undeletable) {
                 Write-Warning "Could not remove empty folder: $u"
+                # R7: structured failure for UI/history — matches Action/Target/Detail pattern + Path/Reason/Status
+                [PSCustomObject]@{
+                    Action = 'Delete'
+                    Target = $u
+                    Detail = 'Failed: locked or long path or protected'
+                    Path   = $u
+                    Reason = 'locked or long path or protected'
+                    Status = 'Failed'
+                }
             }
         }
     } while ($deletedAnything)
     $remainingEmpty = @(Get-ChildItem -LiteralPath $path -Directory -Recurse -ErrorAction SilentlyContinue | Where-Object { (Get-ChildItem -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue).Count -eq 0 }).Count
     if ($remainingEmpty -gt 0) {
         Write-Warning "$remainingEmpty empty folder(s) could not be removed (long path or locked)"
+        [PSCustomObject]@{
+            Action = 'Summary'
+            Target = $path
+            Detail = "$remainingEmpty empty folder(s) could not be removed (long path or locked)"
+            Path   = $path
+            Reason = 'remaining empty folders after passes'
+            Status = 'Warning'
+        }
     }
     Write-Log "Cleanup finished"
 }

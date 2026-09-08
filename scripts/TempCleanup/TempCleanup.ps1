@@ -17,9 +17,14 @@ $Config = @{
 
 if (Test-Path -LiteralPath $ConfigPath) {
     try {
-        $Config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+        $loaded = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+        if ($null -ne $loaded) { $Config = $loaded } else { throw "empty config" }
     } catch {
         Write-Warning "TempCleanup config is corrupt or unreadable at $ConfigPath — using defaults (TargetFolder=$env:TEMP, CutoffDays=7). Check or reset the config via Settings."
+    }
+    $raw = (Get-Content -LiteralPath $ConfigPath -Raw -ErrorAction SilentlyContinue)
+    if ($null -ne $raw -and $raw.Trim() -eq "") {
+        Write-Warning "TempCleanup config is empty at $ConfigPath — using defaults (TargetFolder=$env:TEMP, CutoffDays=7)."
     }
 }
 
@@ -33,6 +38,21 @@ function ConvertTo-LongPath([string]$Path) {
     try { $full = [System.IO.Path]::GetFullPath($Path) } catch { return $Path }
     if ($full.Length -ge 240) { return "\\?\" + $full }
     return $full
+}
+
+function Test-PathScope([string]$Path, [string]$ExpectedRoot) {
+    if ([string]::IsNullOrWhiteSpace($Path)) { Write-Error "Path must be absolute: $Path (empty)"; exit 1 }
+    $expanded = [Environment]::ExpandEnvironmentVariables($Path.Trim())
+    if (-not [System.IO.Path]::IsPathRooted($expanded)) { Write-Error "Path must be absolute: $Path"; exit 1 }
+    if ($ExpectedRoot) {
+        $exp = [Environment]::ExpandEnvironmentVariables($ExpectedRoot)
+        try { $full = [System.IO.Path]::GetFullPath($expanded) } catch { $full = $expanded }
+        try { $root = [System.IO.Path]::GetFullPath($exp) } catch { $root = $exp }
+        if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
+            Write-Warning "Path '$Path' is outside expected scope (expected under '$ExpectedRoot') — proceeding anyway"
+        }
+    }
+    if ($Path -match '[\. ]$') { Write-Warning "Trailing space/dot will be stripped by Windows: '$Path'" }
 }
 
 # Delete-path history (M2 / M8 / M9): why this code looks the way it does.
@@ -146,6 +166,7 @@ function Remove-FileToRecycleBin([string]$Path) {
 # Target folder from config; fall back to the original %TEMP% default if the
 # config is missing or empty (e.g. an older config file without the field).
 $target = if ($Config.TargetFolder) { Expand-ConfigPath $Config.TargetFolder } else { $env:TEMP }
+Test-PathScope $target $env:TEMP
 
 # Cat3c low-priority guard: Z:\ (nonexistent drive) and similar bad provider
 # paths make Get-ChildItem -File throw a parameter-binding error instead of a
@@ -157,7 +178,15 @@ if (-not (Test-Path -LiteralPath $target)) {
     return
 }
 
-$cutoff = (Get-Date).AddDays(-$Config.CutoffDays)
+# R4: explicit warning on wrong-type CutoffDays
+$cutoffDays = 7
+$rawCut = $null
+if ($Config -is [hashtable] -and $Config.ContainsKey("CutoffDays")) { $rawCut = $Config["CutoffDays"] }
+elseif ($null -ne $Config.PSObject.Properties["CutoffDays"]) { $rawCut = $Config.CutoffDays }
+if ($null -ne $rawCut) {
+    try { $cutoffDays = [int]$rawCut } catch { Write-Warning "CutoffDays value '$rawCut' is invalid — using default 7"; $cutoffDays = 7 }
+}
+$cutoff = (Get-Date).AddDays(-$cutoffDays)
 
 # Recurse through the target folder and either preview (DryRun) or delete files
 # older than the cutoff. Each delete goes to the Recycle Bin; files/folders that

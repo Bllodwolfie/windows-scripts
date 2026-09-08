@@ -36,10 +36,30 @@ $Config = @{
 
 if (Test-Path -LiteralPath $ConfigPath) {
     try {
-        $Config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+        $loaded = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+        if ($null -ne $loaded) { $Config = $loaded } else { throw "empty config" }
     } catch {
-        Write-Warning "DownloadsCleanup config is corrupt or unreadable at $ConfigPath — using defaults. Check or reset the config via Settings."
+        Write-Warning "DownloadsCleanup config is corrupt or unreadable at $ConfigPath — using defaults (SourceDir=$($Config.SourceDir), CutoffDays=$($Config.CutoffDays)). Check or reset the config via Settings."
     }
+    $raw = (Get-Content -LiteralPath $ConfigPath -Raw -ErrorAction SilentlyContinue)
+    if ($null -ne $raw -and $raw.Trim() -eq "") {
+        Write-Warning "DownloadsCleanup config is empty at $ConfigPath — using defaults (SourceDir=$($Config.SourceDir), CutoffDays=$($Config.CutoffDays))."
+    }
+}
+
+function Test-PathScope([string]$Path, [string]$ExpectedRoot) {
+    if ([string]::IsNullOrWhiteSpace($Path)) { Write-Error "Path must be absolute: $Path (empty)"; exit 1 }
+    $expanded = [Environment]::ExpandEnvironmentVariables($Path.Trim())
+    if (-not [System.IO.Path]::IsPathRooted($expanded)) { Write-Error "Path must be absolute: $Path"; exit 1 }
+    if ($ExpectedRoot) {
+        $exp = [Environment]::ExpandEnvironmentVariables($ExpectedRoot)
+        try { $full = [System.IO.Path]::GetFullPath($expanded) } catch { $full = $expanded }
+        try { $root = [System.IO.Path]::GetFullPath($exp) } catch { $root = $exp }
+        if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
+            Write-Warning "Path '$Path' is outside expected scope (expected under '$ExpectedRoot') — proceeding anyway"
+        }
+    }
+    if ($Path -match '[\. ]$') { Write-Warning "Trailing space/dot will be stripped by Windows: '$Path'" }
 }
 
 # The JSON file stores env-var paths as "%USERPROFILE%\..." so they stay
@@ -146,11 +166,21 @@ function Remove-FileToRecycleBin([string]$Path) {
 }
 
 $source  = Expand-ConfigPath $Config.SourceDir
-$cutoff  = (Get-Date).AddDays(-$Config.CutoffDays)
+# R4: explicit warning on wrong-type CutoffDays
+$cutoffDays = 7
+$rawCut = $null
+if ($Config -is [hashtable] -and $Config.ContainsKey("CutoffDays")) { $rawCut = $Config["CutoffDays"] }
+elseif ($null -ne $Config.PSObject.Properties["CutoffDays"]) { $rawCut = $Config.CutoffDays }
+if ($null -ne $rawCut) {
+    try { $cutoffDays = [int]$rawCut } catch { Write-Warning "CutoffDays value '$rawCut' is invalid — using default 7"; $cutoffDays = 7 }
+}
+$cutoff  = (Get-Date).AddDays(-$cutoffDays)
 $logDir  = Expand-ConfigPath $Config.LogDir
 $logFile = Join-Path $logDir $Config.LogFile
 $deleteExts = @($Config.DeleteExts)
 $categoriesRaw = $Config.Categories
+
+Test-PathScope $source "$env:USERPROFILE\Downloads"
 
 $null = New-Item -ItemType Directory -Path $logDir -Force -ErrorAction SilentlyContinue
 

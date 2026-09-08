@@ -26,15 +26,35 @@ $Config = @{
 
 if (Test-Path -LiteralPath $ConfigPath) {
     try {
-        $Config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+        $loaded = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+        if ($null -ne $loaded) { $Config = $loaded } else { throw "empty config" }
     } catch {
         Write-Warning "ScreenshotsCleanup config is corrupt or unreadable at $ConfigPath — using defaults (TargetFolder=$($Config.TargetFolder), CutoffDays=$($Config.CutoffDays)). Check or reset the config via Settings."
+    }
+    $raw = (Get-Content -LiteralPath $ConfigPath -Raw -ErrorAction SilentlyContinue)
+    if ($null -ne $raw -and $raw.Trim() -eq "") {
+        Write-Warning "ScreenshotsCleanup config is empty at $ConfigPath — using defaults (TargetFolder=$($Config.TargetFolder), CutoffDays=$($Config.CutoffDays))."
     }
 }
 
 # JSON stores env-var paths as "%USERPROFILE%\..."; expand them at load time.
 function Expand-ConfigPath([string]$Path) {
     [Environment]::ExpandEnvironmentVariables($Path)
+}
+
+function Test-PathScope([string]$Path, [string]$ExpectedRoot) {
+    if ([string]::IsNullOrWhiteSpace($Path)) { Write-Error "Path must be absolute: $Path (empty)"; exit 1 }
+    $expanded = [Environment]::ExpandEnvironmentVariables($Path.Trim())
+    if (-not [System.IO.Path]::IsPathRooted($expanded)) { Write-Error "Path must be absolute: $Path"; exit 1 }
+    if ($ExpectedRoot) {
+        $exp = [Environment]::ExpandEnvironmentVariables($ExpectedRoot)
+        try { $full = [System.IO.Path]::GetFullPath($expanded) } catch { $full = $expanded }
+        try { $root = [System.IO.Path]::GetFullPath($exp) } catch { $root = $exp }
+        if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
+            Write-Warning "Path '$Path' is outside expected scope (expected under '$ExpectedRoot') — proceeding anyway"
+        }
+    }
+    if ($Path -match '[\. ]$') { Write-Warning "Trailing space/dot will be stripped by Windows: '$Path'" }
 }
 
 # Delete-path history (M2 / M8 / M9): why this code looks the way it does.
@@ -136,9 +156,19 @@ function Remove-FileToRecycleBin([string]$Path) {
 # Target folder from config; fall back to the original Screenshots default if
 # the config is missing or empty (e.g. an older config file without the field).
 $path    = if ($Config.TargetFolder) { Expand-ConfigPath $Config.TargetFolder } else { "$env:USERPROFILE\Pictures\Screenshots" }
-$cutoff  = (Get-Date).AddDays(-$Config.CutoffDays)
+# R4: explicit warning on wrong-type CutoffDays
+$cutoffDays = 7
+$rawCut = $null
+if ($Config -is [hashtable] -and $Config.ContainsKey("CutoffDays")) { $rawCut = $Config["CutoffDays"] }
+elseif ($null -ne $Config.PSObject.Properties["CutoffDays"]) { $rawCut = $Config.CutoffDays }
+if ($null -ne $rawCut) {
+    try { $cutoffDays = [int]$rawCut } catch { Write-Warning "CutoffDays value '$rawCut' is invalid — using default 7"; $cutoffDays = 7 }
+}
+$cutoff  = (Get-Date).AddDays(-$cutoffDays)
 $logDir  = Expand-ConfigPath $Config.LogDir
 $logFile = Join-Path $logDir $Config.LogFile
+
+Test-PathScope $path "$env:USERPROFILE\Pictures\Screenshots"
 
 $null = New-Item -ItemType Directory -Path $logDir -Force -ErrorAction SilentlyContinue
 
