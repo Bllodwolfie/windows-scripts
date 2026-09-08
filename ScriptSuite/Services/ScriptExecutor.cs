@@ -268,8 +268,17 @@ public sealed class ScriptExecutor
             Verb = "runas",
             WindowStyle = ProcessWindowStyle.Hidden,
             CreateNoWindow = true,
-            Arguments = $"--elevated-run {scriptId} --config-path {Quote(configPath)} --result-path {Quote(resultPath)} --live-log {Quote(liveLog)} --include-only {Quote(includePath)}",
         };
+        psi.ArgumentList.Add("--elevated-run");
+        psi.ArgumentList.Add(scriptId);
+        psi.ArgumentList.Add("--config-path");
+        psi.ArgumentList.Add(configPath);
+        psi.ArgumentList.Add("--result-path");
+        psi.ArgumentList.Add(resultPath);
+        psi.ArgumentList.Add("--live-log");
+        psi.ArgumentList.Add(liveLog);
+        psi.ArgumentList.Add("--include-only");
+        psi.ArgumentList.Add(includePath);
 
         Process child;
         try
