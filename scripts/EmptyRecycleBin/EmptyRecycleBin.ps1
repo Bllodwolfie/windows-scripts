@@ -21,10 +21,13 @@ if (Test-Path -LiteralPath $ConfigPath) {
         Write-Warning "EmptyRecycleBin config is corrupt or unreadable at $ConfigPath — using defaults (MinAgeDays=0)."
     }
 }
-# Normalize MinAgeDays: int, default 0, clamp negative to 0 (UI blocks negative, but hand-edited JSON must still be safe)
+# Normalize MinAgeDays: int, default 0, clamp negative to 0 (UI blocks negative, but hand-edited JSON must still be safe) — R4: explicit warning on wrong type
 $minAgeDays = 0
-if ($null -ne $Config.PSObject.Properties["MinAgeDays"]) {
-    try { $minAgeDays = [int]$Config.MinAgeDays } catch { $minAgeDays = 0 }
+$rawMin = $null
+if ($Config -is [hashtable] -and $Config.ContainsKey("MinAgeDays")) { $rawMin = $Config["MinAgeDays"] }
+elseif ($null -ne $Config.PSObject.Properties["MinAgeDays"]) { $rawMin = $Config.MinAgeDays }
+if ($null -ne $rawMin) {
+    try { $minAgeDays = [int]$rawMin } catch { Write-Warning "MinAgeDays value '$rawMin' is invalid — using default 0"; $minAgeDays = 0 }
 }
 if ($minAgeDays -lt 0) {
     Write-Warning "MinAgeDays is negative ($minAgeDays) — treating as 0 (delete everything)."
