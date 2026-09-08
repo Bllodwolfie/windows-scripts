@@ -28,6 +28,13 @@ function Expand-ConfigPath([string]$Path) {
     [Environment]::ExpandEnvironmentVariables($Path)
 }
 
+function ConvertTo-LongPath([string]$Path) {
+    if ($Path.StartsWith("\\?\")) { return $Path }
+    try { $full = [System.IO.Path]::GetFullPath($Path) } catch { return $Path }
+    if ($full.Length -ge 240) { return "\\?\" + $full }
+    return $full
+}
+
 # Delete-path history (M2 / M8 / M9): why this code looks the way it does.
 #   M2 - the delete originally used the VisualBasic FileSystem API, which
 #        surfaces a MODAL native "File In Use" error dialog when a file is
@@ -110,14 +117,25 @@ public static class RecycleBin {
 # between. Throws if the file is still present afterwards, so callers log the
 # failure rather than a false success.
 function Remove-FileToRecycleBin([string]$Path) {
+    $longPath = ConvertTo-LongPath $Path
     $invalid = [IntPtr]::new(-1)
-    $h = [RecycleBin]::OpenDeleteHandle($Path)
+    $h = [RecycleBin]::OpenDeleteHandle($longPath)
     if ($h -eq [IntPtr]::Zero -or $h -eq $invalid) {
         throw [System.IO.IOException]::new("File is locked and cannot be recycled: $Path")
     }
     try {
-        $rc = [RecycleBin]::RecycleFile($Path)
-        if ($rc -ne 0 -or (Test-Path -LiteralPath $Path)) {
+        $rc = [RecycleBin]::RecycleFile($longPath)
+        # SHFileOperationW (shell) does not support \\?\ long paths — error 124. Fall back to
+        # permanent delete via .NET (supports \\?\) which is still better than mis-reporting as locked.
+        if ($rc -eq 124) {
+            try {
+                [System.IO.File]::Delete($longPath)
+                $rc = 0
+            } catch {
+                throw [System.IO.IOException]::new("File could not be deleted (long path fallback failed): $Path : $_")
+            }
+        }
+        if ($rc -ne 0 -or (Test-Path -LiteralPath $longPath)) {
             throw [System.IO.IOException]::new("File could not be recycled (SHFileOperation error $rc): $Path")
         }
     } finally {
