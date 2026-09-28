@@ -1,5 +1,6 @@
 {
   "TargetFolder": "%USERPROFILE%\\Downloads",
+  "IgnoreFolders": [],
   "LogDir": "%USERPROFILE%\\Documents\\Script_Logs",
   "LogFile": "CleanupLog.txt"
 }

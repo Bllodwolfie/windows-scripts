@@ -89,12 +89,48 @@
             </StackPanel>
         </DataTemplate>
 
+        <DataTemplate x:Key="PathListTemplate">
+            <StackPanel>
+                <ItemsControl ItemsSource="{Binding Items}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="{DynamicResource Brush.Background.Card.Hover}" CornerRadius="4" Padding="6,2" Margin="0,0,4,4">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding}" Foreground="{DynamicResource Brush.Foreground.Primary}" VerticalAlignment="Center" />
+                                    <Button Content="&#x2715;" Click="ChipRemove_Click" FontSize="10" Padding="3,0"
+                                            Margin="5,0,0,0" Foreground="{DynamicResource Brush.Status.Error}"
+                                            Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            AutomationProperties.Name="Remove" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                    <TextBox Text="{Binding NewItemText, UpdateSourceTrigger=PropertyChanged}" Width="220"
+                             Padding="6,4" KeyDown="AddItem_KeyDown"
+                             AutomationProperties.Name="Add folder" />
+                    <Button Content="Browse…" Click="BrowseNewItem_Click" Padding="12,4" Margin="6,0,0,0" />
+                    <Button Content="Add" Click="AddItem_Click" Padding="12,4" Margin="6,0,0,0" />
+                </StackPanel>
+                <TextBlock Text="{Binding ListPathWarning}" Foreground="{DynamicResource Brush.Status.Warning.Text}" FontSize="12" TextWrapping="Wrap"
+                           Margin="0,6,0,0"
+                           Visibility="{Binding HasListPathWarning, Converter={StaticResource BoolToVis}}" />
+            </StackPanel>
+        </DataTemplate>
+
         <local:FieldTemplateSelector x:Key="FieldTemplateSelector"
             IntTemplate="{StaticResource IntTemplate}"
             StringTemplate="{StaticResource StringTemplate}"
             PathTemplate="{StaticResource PathTemplate}"
             BoolTemplate="{StaticResource BoolTemplate}"
-            ListTemplate="{StaticResource ListTemplate}" />
+            ListTemplate="{StaticResource ListTemplate}"
+            PathListTemplate="{StaticResource PathListTemplate}" />
 
         <!-- One field row: label/unit, control slot, help text, Saved note. -->
         <DataTemplate x:Key="FieldRowTemplate" DataType="{x:Type vm:SettingsFieldViewModel}">

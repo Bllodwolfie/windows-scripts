@@ -17,6 +17,7 @@ public sealed class FieldTemplateSelector : DataTemplateSelector
     public DataTemplate? PathTemplate { get; set; }
     public DataTemplate? BoolTemplate { get; set; }
     public DataTemplate? ListTemplate { get; set; }
+    public DataTemplate? PathListTemplate { get; set; }
 
     public override DataTemplate? SelectTemplate(object item, DependencyObject container) =>
         item is SettingsFieldViewModel vm ? vm.Field.Type switch
@@ -25,6 +26,7 @@ public sealed class FieldTemplateSelector : DataTemplateSelector
             "bool" => BoolTemplate,
             "path" => PathTemplate,
             "stringList" => ListTemplate,
+            "pathList" => PathListTemplate,
             _ => StringTemplate,
         }
         : null;
@@ -117,6 +119,27 @@ public partial class SettingsForm : UserControl
             if (dlg.ShowDialog() == true)
                 vm.SetPath(dlg.FolderName);
         }
+    }
+
+    /// <summary>Browse for a pathList entry (e.g. EmptyFolderCleanup IgnoreFolders):
+    /// fills the add-row text box; the user still presses Add to commit it.</summary>
+    private void BrowseNewItem_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not SettingsFieldViewModel vm)
+            return;
+
+        string expanded = Environment.ExpandEnvironmentVariables(vm.NewItemText ?? "");
+        string? initialDir = Path.IsPathRooted(expanded) ? expanded : null;
+        if (initialDir is null || !Directory.Exists(initialDir))
+            initialDir = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+
+        var dlg = new OpenFolderDialog
+        {
+            Title = "Choose folder for " + vm.Label,
+            InitialDirectory = initialDir,
+        };
+        if (dlg.ShowDialog() == true)
+            vm.NewItemText = dlg.FolderName;
     }
 
     private void Undo_Click(object sender, RoutedEventArgs e)

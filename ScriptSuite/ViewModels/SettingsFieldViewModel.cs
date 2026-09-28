@@ -49,6 +49,7 @@ public sealed class SettingsFieldViewModel : ViewModelBase
         _boolValue = boolVal;
         foreach (var item in items)
             Items.Add(item);
+        RefreshListPathWarning();
     }
 
     public ScriptField Field { get; }
@@ -144,6 +145,41 @@ public sealed class SettingsFieldViewModel : ViewModelBase
         set => Set(ref _newItemText, value);
     }
 
+    /// <summary>Warn-but-save note for pathList fields (e.g. EmptyFolderCleanup
+    /// IgnoreFolders): counts entries that are not absolute (never match) or
+    /// do not exist yet (kept if created later). The value is always saved —
+    /// same pattern as ValidatePath for single path fields.</summary>
+    public string ListPathWarning { get; private set; } = "";
+
+    public bool HasListPathWarning => !string.IsNullOrEmpty(ListPathWarning);
+
+    private void RefreshListPathWarning()
+    {
+        string next = "";
+        if (Field.Type == "pathList" && Items.Count > 0)
+        {
+            int bad = 0, missing = 0;
+            foreach (var item in Items)
+            {
+                var v = (item ?? "").Trim();
+                if (v.Length == 0) { bad++; continue; }
+                string expanded;
+                try { expanded = Environment.ExpandEnvironmentVariables(v); }
+                catch { bad++; continue; }
+                if (!Path.IsPathRooted(expanded)) { bad++; continue; }
+                if (!Directory.Exists(expanded)) missing++;
+            }
+            var parts = new List<string>();
+            if (bad > 0) parts.Add($"{bad} {(bad == 1 ? "entry is" : "entries are")} not absolute and will never match");
+            if (missing > 0) parts.Add($"{missing} {(missing == 1 ? "folder does" : "folders do")} not exist yet — kept if created");
+            if (parts.Count > 0) next = "Note: " + string.Join("; ", parts) + ".";
+        }
+        if (ListPathWarning == next) return;
+        ListPathWarning = next;
+        OnPropertyChanged(nameof(ListPathWarning));
+        OnPropertyChanged(nameof(HasListPathWarning));
+    }
+
     /// <summary>Inline warning shown under a path field after a save attempt.
     /// Warn-but-save: the value is still persisted, the warning just flags that
     /// the resolved path doesn't currently exist (or isn't absolute).</summary>
@@ -217,6 +253,7 @@ public sealed class SettingsFieldViewModel : ViewModelBase
         Items.Add(v);
         _newItemText = "";
         OnPropertyChanged(nameof(NewItemText));
+        RefreshListPathWarning();
         Commit(prior, ToArrayNode(Items.ToList()));
     }
 
@@ -225,6 +262,7 @@ public sealed class SettingsFieldViewModel : ViewModelBase
         if (!Items.Contains(value)) return;
         var prior = ToArrayNode(Items.ToList());
         Items.Remove(value);
+        RefreshListPathWarning();
         Commit(prior, ToArrayNode(Items.ToList()));
     }
 
@@ -293,6 +331,7 @@ public sealed class SettingsFieldViewModel : ViewModelBase
         Items.Clear();
         foreach (var item in items)
             Items.Add(item);
+        RefreshListPathWarning();
         OnPropertyChanged(nameof(TextValue));
         OnPropertyChanged(nameof(IntText));
         OnPropertyChanged(nameof(BoolValue));
@@ -392,6 +431,7 @@ public sealed class SettingsFieldViewModel : ViewModelBase
                 return ("", 0, v, new List<string>());
             }
             case "stringList":
+            case "pathList":
             {
                 var items = new List<string>();
                 if (node is JsonArray arr)

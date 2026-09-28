@@ -63,6 +63,50 @@ function Expand-ConfigPath([string]$Path) {
     [Environment]::ExpandEnvironmentVariables($Path)
 }
 
+# IgnoreFolders (list of paths, default empty): folders that must never be
+# deleted, even when empty. Ignoring a folder protects everything under it,
+# because the folder itself is never a delete candidate and therefore keeps
+# occupying its parent (both in the DryRun simulation below and on disk in
+# the real pass). A missing key is treated as an empty list so existing
+# configs behave exactly as before.
+$ignoreRaw = @()
+if ($Config -is [hashtable]) {
+    if ($Config.ContainsKey("IgnoreFolders") -and $null -ne $Config["IgnoreFolders"]) { $ignoreRaw = @($Config["IgnoreFolders"]) }
+} elseif ($null -ne $Config.PSObject.Properties["IgnoreFolders"] -and $null -ne $Config.IgnoreFolders) {
+    $ignoreRaw = @($Config.IgnoreFolders)
+}
+
+function Normalize-IgnorePath([string]$P) {
+    if ([string]::IsNullOrWhiteSpace($P)) { return $null }
+    $e = [Environment]::ExpandEnvironmentVariables($P.Trim()).TrimEnd('\', '/')
+    # Compare against normalized non-prefixed paths: the \\?\ long-path prefix
+    # is applied only at delete time inside Remove-EmptyFolder (enumeration
+    # stays unprefixed since the M12 Cat1b 5001-vs-5101 regression), so strip
+    # it here to keep both sides in the same form.
+    if ($e.StartsWith("\\?\")) { $e = $e.Substring(4) }
+    try { return [System.IO.Path]::GetFullPath($e).TrimEnd('\', '/') } catch { return $e }
+}
+
+$ignoreList = @()
+foreach ($raw in $ignoreRaw) {
+    $n = Normalize-IgnorePath ([string]$raw)
+    if ($n) { $ignoreList += $n }
+}
+
+# True when $FullName is an ignored folder itself or lives under one.
+# A path outside the scan root simply never matches (harmless, no error).
+# Supplied IncludeOnly entries do NOT override this: ignore always wins.
+function Test-Ignored([string]$FullName) {
+    if ($ignoreList.Count -eq 0) { return $false }
+    $n = Normalize-IgnorePath $FullName
+    if (-not $n) { return $false }
+    foreach ($ig in $ignoreList) {
+        if ($n.Equals($ig, [StringComparison]::OrdinalIgnoreCase) -or
+            $n.StartsWith($ig + '\', [StringComparison]::OrdinalIgnoreCase)) { return $true }
+    }
+    return $false
+}
+
 function ConvertTo-LongPath([string]$Path) {
     if ($Path.StartsWith("\\?\")) { return $Path }
     try { $full = [System.IO.Path]::GetFullPath($Path) } catch { return $Path }
@@ -169,6 +213,7 @@ if (Test-Path -LiteralPath $path) {
             $empty = @(Get-ChildItem -LiteralPath $path -Directory -Recurse -ErrorAction SilentlyContinue |
                 Where-Object {
                     -not $simRemoved.Contains($_.FullName) -and
+                    -not (Test-Ignored $_.FullName) -and
                     (Test-Selected $_.FullName) -and
                     (@(Get-ChildItem -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue | Where-Object { -not $simRemoved.Contains($_.FullName) }).Count -eq 0)
                 })
@@ -190,6 +235,7 @@ if (Test-Path -LiteralPath $path) {
         # Find all subfolders (recursively) that currently contain zero items
         $empty = @(Get-ChildItem -LiteralPath $path -Directory -Recurse -ErrorAction SilentlyContinue |
             Where-Object {
+                -not (Test-Ignored $_.FullName) -and
                 (Test-Selected $_.FullName) -and
                 (Get-ChildItem -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue).Count -eq 0
             })
@@ -225,7 +271,9 @@ if (Test-Path -LiteralPath $path) {
             }
         }
     } while ($deletedAnything)
-    $remainingEmpty = @(Get-ChildItem -LiteralPath $path -Directory -Recurse -ErrorAction SilentlyContinue | Where-Object { (Get-ChildItem -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue).Count -eq 0 }).Count
+    # Ignored folders stay empty on disk by design — exclude them here too, or
+    # a run that correctly kept them would still report Warning + Summary.
+    $remainingEmpty = @(Get-ChildItem -LiteralPath $path -Directory -Recurse -ErrorAction SilentlyContinue | Where-Object { -not (Test-Ignored $_.FullName) -and (Get-ChildItem -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue).Count -eq 0 }).Count
     if ($remainingEmpty -gt 0) {
         Write-Warning "$remainingEmpty empty folder(s) could not be removed (long path or locked)"
         [PSCustomObject]@{
