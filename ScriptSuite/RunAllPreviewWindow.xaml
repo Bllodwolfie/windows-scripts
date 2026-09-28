@@ -142,6 +142,8 @@
             <TextBlock Text="Run All — Preview" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource Brush.Foreground.Primary}" />
             <TextBlock Text="This is what each enabled script would do. EmptyRecycleBin always runs first in the batch."
                        Foreground="{DynamicResource Brush.Foreground.Secondary}" Margin="0,4,0,0" TextWrapping="Wrap" />
+            <TextBlock x:Name="SummaryText" Text="Gathering previews…"
+                       Foreground="{DynamicResource Brush.Accent.Primary}" FontWeight="SemiBold" Margin="0,6,0,0" TextWrapping="Wrap" />
         </StackPanel>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,12,0,12">

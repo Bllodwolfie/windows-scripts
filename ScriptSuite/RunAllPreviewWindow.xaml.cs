@@ -14,6 +14,7 @@ public partial class RunAllPreviewWindow : Window
     private readonly IReadOnlyList<ScriptManifest> _order;
     private readonly ObservableCollection<RunScriptPreviewItem> _sections = new();
     private bool _running;
+    private int _finalized;
 
     public RunAllPreviewWindow(ScriptExecutor executor, IReadOnlyList<ScriptManifest> order, RunHistoryStore history)
     {
@@ -48,6 +49,7 @@ public partial class RunAllPreviewWindow : Window
                 {
                     SetUi(section, s => s.PreviewMessage =
                         "No preview — this script only generates a report and changes nothing.");
+                    SetUi(section, _ => { _finalized++; UpdateSummary(); });
                     continue;
                 }
 
@@ -69,12 +71,12 @@ public partial class RunAllPreviewWindow : Window
                         SetUi(section, s => s.PreviewMessage = "Nothing to do right now.");
                     }
                     // Collapse/expand per section: >20 items starts collapsed with summary.
-                    SetUi(section, s => s.FinalizePreview());
+                    SetUi(section, s => { s.FinalizePreview(); _finalized++; UpdateSummary(); });
                 }
                 catch (Exception ex)
                 {
                     SetUi(section, s => s.PreviewMessage = "Preview failed: " + ex.Message);
-                    SetUi(section, s => s.FinalizePreview());
+                    SetUi(section, s => { s.FinalizePreview(); _finalized++; UpdateSummary(); });
                 }
             }
         });
@@ -153,6 +155,45 @@ public partial class RunAllPreviewWindow : Window
                 t.Visibility = Visibility.Visible;
             });
         });
+    }
+
+    /// <summary>Top-line aggregate across all sections, recomputed from the same
+    /// PreviewItems already gathered (no re-scan). Counts the established
+    /// DryRunItem verbs (Delete/Move/Skip); report-only scripts (no dry-run
+    /// support) cannot contribute item counts and are tallied separately.</summary>
+    public static string BuildSummaryText(int deleteCount, int moveCount, int skipCount, int reportOnlyCount, int finalizedCount, int totalCount)
+    {
+        var parts = new List<string>();
+        if (deleteCount > 0) parts.Add($"{deleteCount:N0} to delete");
+        if (moveCount > 0) parts.Add($"{moveCount:N0} to move");
+        if (skipCount > 0) parts.Add($"{skipCount:N0} to skip");
+        string suffix = reportOnlyCount > 0
+            ? $" (+ {reportOnlyCount:N0} report-only script{(reportOnlyCount == 1 ? "" : "s")} — no preview)"
+            : "";
+        if (finalizedCount < totalCount)
+            return parts.Count == 0 ? "Gathering previews…" : "Gathering previews so far: " + string.Join(", ", parts) + suffix + "…";
+        if (parts.Count == 0 && reportOnlyCount == 0)
+            return "Nothing to do right now.";
+        if (parts.Count == 0)
+            return "Nothing to do right now" + suffix + ".";
+        return "Across all scripts: " + string.Join(", ", parts) + suffix + ".";
+    }
+
+    private void UpdateSummary()
+    {
+        int del = 0, mov = 0, skip = 0;
+        foreach (var section in _sections)
+        {
+            foreach (var item in section.PreviewItems)
+            {
+                string action = (item.Action ?? "").ToLowerInvariant();
+                if (action == "delete") del++;
+                else if (action == "move") mov++;
+                else if (action == "skip") skip++;
+            }
+        }
+        int reportOnly = _sections.Count(s => !s.Manifest.SupportsDryRun);
+        SummaryText.Text = BuildSummaryText(del, mov, skip, reportOnly, _finalized, _sections.Count);
     }
 
     private void TogglePreview_Click(object sender, RoutedEventArgs e)
