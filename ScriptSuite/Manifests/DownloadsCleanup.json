@@ -31,6 +31,14 @@
       "default": [".zip", ".rar", ".7z", ".ttf", ".otf", ".exe", ".msi"],
       "helpText": "Files with these extensions are deleted instead of moved. One extension per tag, starting with a dot.",
       "helpDetail": "These files go to the Recycle Bin, not permanent delete. Other old files are moved into category folders (Music, Videos, Pictures, Modeling, Spreadsheets, Presentations, Text, Configuration). If an Advanced Rule exists for the same extension, that rule wins — even if the extension is listed here."
+    },
+    {
+      "name": "IgnorePatterns",
+      "label": "Filename patterns to never touch",
+      "type": "patternList",
+      "default": [],
+      "helpText": "Files whose name matches any pattern are never touched, regardless of extension rules.",
+      "helpDetail": "Glob-style patterns matched against the filename only (not the folder path), ignoring case — e.g. pinned_* keeps every file starting with pinned_, *keep* keeps any file with keep in the name. Checked before Advanced Rules, the delete list, and category moves: an ignored filename wins over everything. Leave empty for today's behavior."
     }
   ]
 }

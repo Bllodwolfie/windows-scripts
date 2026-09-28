@@ -245,6 +245,28 @@ if ($null -ne $Config.AdvancedRules) {
     }
 }
 
+# IgnorePatterns (list of glob patterns, default empty): files whose NAME matches
+# any pattern are never touched, regardless of extension rules. Matched against
+# the filename only (not the full path), case-insensitive (PowerShell -like).
+# Checked BEFORE AdvancedRules and before DeleteExts/Categories — an ignored
+# filename wins over every extension-based rule. Missing key = @().
+$ignorePatterns = @()
+if ($Config -is [hashtable]) {
+    if ($Config.ContainsKey("IgnorePatterns") -and $null -ne $Config["IgnorePatterns"]) { $ignorePatterns = @($Config["IgnorePatterns"]) }
+} elseif ($null -ne $Config.PSObject.Properties["IgnorePatterns"] -and $null -ne $Config.IgnorePatterns) {
+    $ignorePatterns = @($Config.IgnorePatterns)
+}
+$ignorePatterns = @($ignorePatterns | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ -ne "" })
+
+# Returns the matched pattern, or $null when the file is not ignored.
+function Test-IgnoredPattern([string]$Name) {
+    if ($ignorePatterns.Count -eq 0) { return $null }
+    foreach ($pat in $ignorePatterns) {
+        if ($Name -like $pat) { return $pat }
+    }
+    return $null
+}
+
 if (-not $DryRun) { Write-Log "Cleanup started" }
 
 # B4: guard non-existent drive / bad provider — Get-ChildItem -File throws parameter-binding error on Z:\ instead of path-not-found
@@ -270,6 +292,19 @@ Get-ChildItem -LiteralPath $source -File -ErrorAction SilentlyContinue | Where-O
     $fileFullName = $_.FullName
     $fileLength = $_.Length
     $fileTime = $_.LastWriteTime
+
+    # IgnorePatterns — checked first, before IncludeOnly, AdvancedRules and
+    # DeleteExts/Categories (see loader comment above): an ignored filename is
+    # never touched. Single loop covers DryRun and real alike.
+    $ignoredBy = Test-IgnoredPattern $name
+    if ($ignoredBy) {
+        if ($DryRun) {
+            [PSCustomObject]@{ Action = 'Skip'; Target = $fileFullName; Detail = 'ignored per ignore pattern: ' + $ignoredBy }
+        } else {
+            Write-Log "SKIPPED : $name (ignored per ignore pattern: $ignoredBy)"
+        }
+        return
+    }
 
     # Milestone 8: only touch the targets the user kept checked in the preview.
     if ($IncludeOnly.Count -gt 0 -and $IncludeOnly -notcontains $fileFullName) { return }
