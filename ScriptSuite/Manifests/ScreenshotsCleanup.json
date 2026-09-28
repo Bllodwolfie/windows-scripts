@@ -23,6 +23,14 @@
       "default": 7,
       "helpText": "Screenshots older than this many days will be deleted.",
       "helpDetail": "Files go to the Recycle Bin, so you can restore them. Based on last write time — younger screenshots are left alone."
+    },
+    {
+      "name": "IgnorePatterns",
+      "label": "Filename patterns to never touch",
+      "type": "patternList",
+      "default": [],
+      "helpText": "Files whose name matches any pattern are never deleted, regardless of age.",
+      "helpDetail": "Glob-style patterns matched against the filename only (not the folder path), ignoring case — e.g. pinned_* keeps every file starting with pinned_, *keep* keeps any file with keep in the name. A pattern with no wildcards matches that exact filename. Leave empty for today's behavior."
     }
   ]
 }

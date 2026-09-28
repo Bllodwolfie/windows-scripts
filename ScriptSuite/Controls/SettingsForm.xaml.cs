@@ -18,6 +18,7 @@ public sealed class FieldTemplateSelector : DataTemplateSelector
     public DataTemplate? BoolTemplate { get; set; }
     public DataTemplate? ListTemplate { get; set; }
     public DataTemplate? PathListTemplate { get; set; }
+    public DataTemplate? PatternListTemplate { get; set; }
 
     public override DataTemplate? SelectTemplate(object item, DependencyObject container) =>
         item is SettingsFieldViewModel vm ? vm.Field.Type switch
@@ -27,6 +28,7 @@ public sealed class FieldTemplateSelector : DataTemplateSelector
             "path" => PathTemplate,
             "stringList" => ListTemplate,
             "pathList" => PathListTemplate,
+            "patternList" => PatternListTemplate,
             _ => StringTemplate,
         }
         : null;

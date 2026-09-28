@@ -432,6 +432,7 @@ public sealed class SettingsFieldViewModel : ViewModelBase
             }
             case "stringList":
             case "pathList":
+            case "patternList":
             {
                 var items = new List<string>();
                 if (node is JsonArray arr)

@@ -42,6 +42,28 @@ function Expand-ConfigPath([string]$Path) {
     [Environment]::ExpandEnvironmentVariables($Path)
 }
 
+# IgnorePatterns (list of glob patterns, default empty): files whose NAME matches
+# any pattern are never touched, regardless of age. Matched against the filename
+# only (not the full path), case-insensitive (PowerShell -like). A pattern with
+# no wildcards matches that exact filename. Missing key = @() so existing
+# configs behave exactly as before.
+$ignorePatterns = @()
+if ($Config -is [hashtable]) {
+    if ($Config.ContainsKey("IgnorePatterns") -and $null -ne $Config["IgnorePatterns"]) { $ignorePatterns = @($Config["IgnorePatterns"]) }
+} elseif ($null -ne $Config.PSObject.Properties["IgnorePatterns"] -and $null -ne $Config.IgnorePatterns) {
+    $ignorePatterns = @($Config.IgnorePatterns)
+}
+$ignorePatterns = @($ignorePatterns | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ -ne "" })
+
+# Returns the matched pattern, or $null when the file is not ignored.
+function Test-IgnoredPattern([string]$Name) {
+    if ($ignorePatterns.Count -eq 0) { return $null }
+    foreach ($pat in $ignorePatterns) {
+        if ($Name -like $pat) { return $pat }
+    }
+    return $null
+}
+
 function Test-PathScope([string]$Path, [string]$ExpectedRoot) {
     if ([string]::IsNullOrWhiteSpace($Path)) { Write-Error "Path must be absolute: $Path (empty)"; exit 1 }
     $expanded = [Environment]::ExpandEnvironmentVariables($Path.Trim())
@@ -190,6 +212,17 @@ if (-not (Test-Path -LiteralPath $path)) {
 $removed = 0
 $skipped = 0
 foreach ($f in @(Get-ChildItem -LiteralPath $path -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -lt $cutoff })) {
+    # IgnorePatterns wins over age and over IncludeOnly: an ignored filename is
+    # never touched. Single loop covers DryRun and real execution alike.
+    $ignoredBy = Test-IgnoredPattern $f.Name
+    if ($ignoredBy) {
+        if ($DryRun) {
+            [PSCustomObject]@{ Action = 'Skip'; Target = $f.FullName; Detail = 'ignored per ignore pattern: ' + $ignoredBy }
+        } else {
+            Write-Log "SKIPPED : $($f.Name) (ignored per ignore pattern: $ignoredBy)"
+        }
+        continue
+    }
     # Milestone 8: only touch the targets the user kept checked in the preview.
     if ($IncludeOnly.Count -gt 0 -and $IncludeOnly -notcontains $f.FullName) { continue }
     if ($DryRun) {
