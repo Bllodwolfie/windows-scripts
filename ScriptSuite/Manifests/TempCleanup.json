@@ -23,6 +23,14 @@
       "default": 7,
       "helpText": "Files in the temp folder older than this many days will be deleted.",
       "helpDetail": "Based on last write time. Younger files are left alone. 7 days keeps recent temp files for apps that are still running."
+    },
+    {
+      "name": "IgnoreFolders",
+      "label": "Folders to never delete from",
+      "type": "pathList",
+      "default": [],
+      "helpText": "Files under these folders are never deleted, regardless of age.",
+      "helpDetail": "Each entry is a folder whose files this script will always keep — even old ones — including everything in its subfolders. Entries may use %VAR% paths and trailing slashes; matching ignores case. An entry outside the cleaned folder simply never matches. Folders that do not exist yet are fine — they apply if created later. This script only ever deletes files, never folders. Leave empty for today's behavior."
     }
   ]
 }

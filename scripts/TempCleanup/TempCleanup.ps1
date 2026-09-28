@@ -33,6 +33,45 @@ function Expand-ConfigPath([string]$Path) {
     [Environment]::ExpandEnvironmentVariables($Path)
 }
 
+# IgnoreFolders (list of paths, default empty): files under an ignored folder
+# are never deleted, regardless of age. Same matching as EmptyFolderCleanup:
+# env-expanded, trailing-slash normalized, case-insensitive, \\?\ agnostic.
+# A file is exempt when its own path equals an entry or lives under one, so
+# this composes with the age filter (ignore wins over age) and with IncludeOnly
+# (ignore wins over explicit selection). Missing key = @() so existing configs
+# behave exactly as before. Note TempCleanup deletes FILES only — folders
+# themselves (ignored or not) are never removed by this script.
+$ignoreRaw = @()
+if ($Config -is [hashtable]) {
+    if ($Config.ContainsKey("IgnoreFolders") -and $null -ne $Config["IgnoreFolders"]) { $ignoreRaw = @($Config["IgnoreFolders"]) }
+} elseif ($null -ne $Config.PSObject.Properties["IgnoreFolders"] -and $null -ne $Config.IgnoreFolders) {
+    $ignoreRaw = @($Config.IgnoreFolders)
+}
+
+function Normalize-IgnorePath([string]$P) {
+    if ([string]::IsNullOrWhiteSpace($P)) { return $null }
+    $e = [Environment]::ExpandEnvironmentVariables($P.Trim()).TrimEnd('\', '/')
+    if ($e.StartsWith("\\?\")) { $e = $e.Substring(4) }
+    try { return [System.IO.Path]::GetFullPath($e).TrimEnd('\', '/') } catch { return $e }
+}
+
+$ignoreList = @()
+foreach ($raw in $ignoreRaw) {
+    $n = Normalize-IgnorePath ([string]$raw)
+    if ($n) { $ignoreList += $n }
+}
+
+function Test-Ignored([string]$FullName) {
+    if ($ignoreList.Count -eq 0) { return $false }
+    $n = Normalize-IgnorePath $FullName
+    if (-not $n) { return $false }
+    foreach ($ig in $ignoreList) {
+        if ($n.Equals($ig, [StringComparison]::OrdinalIgnoreCase) -or
+            $n.StartsWith($ig + '\', [StringComparison]::OrdinalIgnoreCase)) { return $true }
+    }
+    return $false
+}
+
 function ConvertTo-LongPath([string]$Path) {
     if ($Path.StartsWith("\\?\")) { return $Path }
     try { $full = [System.IO.Path]::GetFullPath($Path) } catch { return $Path }
@@ -199,6 +238,9 @@ $script:skippedCount  = 0
 Get-ChildItem -LiteralPath $target -File -Recurse -ErrorAction SilentlyContinue |
     Where-Object { $_.LastWriteTime -lt $cutoff } |
     ForEach-Object {
+        # IgnoreFolders: files under an ignored folder are never touched,
+        # regardless of age. Single pipeline covers DryRun and real alike.
+        if (Test-Ignored $_.FullName) { return }
         # Milestone 8: when the app confirms a preview with items deselected,
         # it passes -IncludeOnly (the Target full paths the user kept checked).
         # Only those targets are touched; everything else is left alone.
