@@ -87,6 +87,34 @@ public sealed class RunHistoryStore
         return rows;
     }
 
+    /// <summary>Latest run per script, keyed by ScriptId. Single query — used
+    /// by the dashboard's last-run status line. Read-only, writes nothing.</summary>
+    public Dictionary<string, RunHistoryEntry> GetLatestByScript()
+    {
+        var map = new Dictionary<string, RunHistoryEntry>(StringComparer.OrdinalIgnoreCase);
+        using var conn = Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT Id, ScriptId, StartedAt, FinishedAt, Outcome, Summary FROM RunHistory
+            WHERE Id IN (SELECT MAX(Id) FROM RunHistory GROUP BY ScriptId);
+            """;
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            var entry = new RunHistoryEntry
+            {
+                Id = reader.GetInt64(0),
+                ScriptId = reader.GetString(1),
+                StartedAt = reader.IsDBNull(2) ? null : reader.GetString(2),
+                FinishedAt = reader.IsDBNull(3) ? null : reader.GetString(3),
+                Outcome = reader.GetString(4),
+                Summary = reader.IsDBNull(5) ? null : reader.GetString(5),
+            };
+            map[entry.ScriptId] = entry;
+        }
+        return map;
+    }
+
     private SqliteConnection Open()
     {
         var conn = new SqliteConnection($"Data Source={_dbPath}");

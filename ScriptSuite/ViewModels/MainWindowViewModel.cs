@@ -12,14 +12,16 @@ public sealed class MainWindowViewModel : ViewModelBase
     private readonly ManifestCatalog _catalog;
     private readonly DashboardStateStore _stateStore;
     private readonly ScheduleStore _scheduleStore;
+    private readonly RunHistoryStore _historyStore;
     private bool _showHidden;
     private bool _isRunning;
 
-    public MainWindowViewModel(ManifestCatalog catalog, DashboardStateStore stateStore, ScheduleStore scheduleStore)
+    public MainWindowViewModel(ManifestCatalog catalog, DashboardStateStore stateStore, ScheduleStore scheduleStore, RunHistoryStore historyStore)
     {
         _catalog = catalog;
         _stateStore = stateStore;
         _scheduleStore = scheduleStore;
+        _historyStore = historyStore;
     }
 
     public ScheduleStore ScheduleStore => _scheduleStore;
@@ -49,12 +51,16 @@ public sealed class MainWindowViewModel : ViewModelBase
     public void Refresh()
     {
         Categories.Clear();
+        Dictionary<string, RunHistoryEntry> latest;
+        try { latest = _historyStore.GetLatestByScript(); }
+        catch { latest = new Dictionary<string, RunHistoryEntry>(StringComparer.OrdinalIgnoreCase); }
         foreach (var (category, scripts) in _catalog.GroupByCategory())
         {
             var cat = new ScriptCategoryViewModel(category);
             foreach (var manifest in scripts)
             {
                 var row = new ScriptRowViewModel(manifest, _stateStore, _scheduleStore);
+                row.SetLastRun(latest.TryGetValue(manifest.Id, out var entry) ? entry : null);
                 if (row.IsHidden && !ShowHidden)
                     continue;
                 cat.Rows.Add(row);

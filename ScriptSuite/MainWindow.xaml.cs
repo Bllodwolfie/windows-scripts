@@ -27,7 +27,7 @@ public partial class MainWindow : Window
         _configService = configService;
         _historyStore = historyStore;
 
-        _vm = new MainWindowViewModel(catalog, stateStore, scheduleStore);
+        _vm = new MainWindowViewModel(catalog, stateStore, scheduleStore, historyStore);
         DataContext = _vm;
         RefreshView();
 
@@ -77,6 +77,7 @@ public partial class MainWindow : Window
         finally
         {
             _vm.IsRunning = false;
+            RefreshView();
         }
     }
 
@@ -116,6 +117,7 @@ public partial class MainWindow : Window
             finally
             {
                 _vm.IsRunning = false;
+                RefreshView();
             }
         }
     }

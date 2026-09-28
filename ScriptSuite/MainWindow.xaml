@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:ScriptSuite.ViewModels"
+        xmlns:conv="clr-namespace:ScriptSuite.Converters"
         mc:Ignorable="d"
         Title="Script Suite" Height="640" Width="980"
         MinHeight="480" MinWidth="700"
@@ -11,6 +12,8 @@
         Background="{DynamicResource Brush.Background.Primary}" Foreground="{DynamicResource Brush.Foreground.Primary}">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <conv:OutcomeToBrushConverter x:Key="OutcomeToBrush" />
+        <conv:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVis" />
 
         <Style x:Key="ScriptTitleText" TargetType="TextBlock">
             <Setter Property="FontSize" Value="20" />
@@ -105,6 +108,18 @@
                             </Border>
                         </StackPanel>
                         <TextBlock Text="{Binding Description}" Style="{StaticResource DescriptionText}" />
+                        <!-- Last-run status (read-only over RunHistory; refreshed after every run) -->
+                        <TextBlock FontSize="12" Margin="0,2,0,0"
+                                   Visibility="{Binding HasLastRun, Converter={StaticResource BoolToVis}}">
+                            <Run Text="Last run: " Foreground="{DynamicResource Brush.Foreground.Tertiary}" />
+                            <Run Text="{Binding LastRunAgo, Mode=OneWay}" Foreground="{DynamicResource Brush.Foreground.Secondary}" />
+                            <Run Text=" (" Foreground="{DynamicResource Brush.Foreground.Tertiary}" />
+                            <Run Text="{Binding LastRunOutcome, Mode=OneWay}" Foreground="{Binding LastRunOutcome, Converter={StaticResource OutcomeToBrush}}" FontWeight="SemiBold" />
+                            <Run Text=")" Foreground="{DynamicResource Brush.Foreground.Tertiary}" />
+                        </TextBlock>
+                        <TextBlock Text="Never run" FontSize="12" Margin="0,2,0,0"
+                                   Foreground="{DynamicResource Brush.Foreground.Tertiary}"
+                                   Visibility="{Binding HasLastRun, Converter={StaticResource InverseBoolToVis}}" />
                         <StackPanel Orientation="Horizontal" Visibility="{Binding HasSchedule, Converter={StaticResource BoolToVis}}" Margin="0,4,0,0">
                             <TextBlock Text="◷" Foreground="{DynamicResource Brush.Accent.Primary}" FontSize="12" VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="{Binding ScheduleSummary}" Foreground="{DynamicResource Brush.Accent.Primary}" FontSize="12" VerticalAlignment="Center" />

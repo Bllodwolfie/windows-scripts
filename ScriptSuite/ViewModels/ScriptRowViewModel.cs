@@ -42,6 +42,53 @@ public sealed class ScriptRowViewModel : ViewModelBase
 
     public bool ShowCustomBadge => Manifest.IsCustom;
 
+    private string _lastRunAgo = "";
+    private string _lastRunOutcome = "";
+
+    /// <summary>Dashboard last-run status (read-only display over RunHistory).
+    /// Set by MainWindowViewModel.Refresh from GetLatestByScript; empty when
+    /// the script has never run.</summary>
+    public bool HasLastRun => !string.IsNullOrEmpty(_lastRunOutcome);
+
+    public string LastRunAgo => _lastRunAgo;
+
+    public string LastRunOutcome => _lastRunOutcome;
+
+    public void SetLastRun(RunHistoryEntry? entry)
+    {
+        string ago = "";
+        string outcome = "";
+        if (entry is not null)
+        {
+            outcome = entry.Outcome ?? "";
+            ago = FormatAgo(entry.StartedAt);
+        }
+        bool changed = false;
+        if (_lastRunAgo != ago) { _lastRunAgo = ago; OnPropertyChanged(nameof(LastRunAgo)); changed = true; }
+        if (_lastRunOutcome != outcome) { _lastRunOutcome = outcome; OnPropertyChanged(nameof(LastRunOutcome)); changed = true; }
+        if (changed) OnPropertyChanged(nameof(HasLastRun));
+    }
+
+    /// <summary>Relative time for a "yyyy-MM-dd HH:mm:ss" history timestamp.
+    /// Unparseable or future timestamps fall back to the raw date part.</summary>
+    internal static string FormatAgo(string? startedAt)
+    {
+        if (string.IsNullOrWhiteSpace(startedAt))
+            return "";
+        if (!DateTime.TryParseExact(startedAt.Trim(), "yyyy-MM-dd HH:mm:ss",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out var when))
+            return startedAt.Length >= 10 ? startedAt[..10] : startedAt;
+        var span = DateTime.Now - when;
+        if (span.TotalSeconds < 0) return when.ToString("yyyy-MM-dd");
+        if (span.TotalMinutes < 1) return "just now";
+        if (span.TotalMinutes < 60) return $"{(int)span.TotalMinutes} minute{((int)span.TotalMinutes == 1 ? "" : "s")} ago";
+        if (span.TotalHours < 24) return $"{(int)span.TotalHours} hour{((int)span.TotalHours == 1 ? "" : "s")} ago";
+        if (span.TotalDays < 1.5) return "yesterday";
+        if (span.TotalDays < 30) return $"{(int)span.TotalDays} days ago";
+        return when.ToString("yyyy-MM-dd");
+    }
+
     /// <summary>Checked = included in Run All. Separate from visibility.</summary>
     public bool RunAllIncluded
     {
