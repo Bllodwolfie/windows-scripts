@@ -14,6 +14,15 @@
       "default": "%USERPROFILE%\\Documents\\Script_Logs\\EventLogBackups",
       "helpText": "Where .evtx backups are stored before each log is cleared.",
       "helpDetail": "Windows event logs are system-wide diagnostic records kept by Windows itself — not this app's logs. This script exports every enabled log that has events to a .evtx file in this folder, then clears the live log. If a backup fails, that log is skipped and not cleared. To put events back, open Event Viewer and import the .evtx file — the app does not restore automatically."
+    },
+    {
+      "name": "CutoffDays",
+      "label": "Only clear logs inactive for",
+      "type": "int",
+      "unit": "days",
+      "default": 0,
+      "helpText": "Only logs with no new events for this many days are cleared.",
+      "helpDetail": "A log is cleared only when its newest event is older than this many days — active logs are kept. 0 clears every enabled log that has events (today's behavior). Windows cannot delete individual old entries; whole logs are backed up to .evtx first, then cleared."
     }
   ]
 }

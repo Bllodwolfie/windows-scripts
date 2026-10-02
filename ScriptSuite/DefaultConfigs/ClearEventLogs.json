@@ -1,3 +1,4 @@
 {
-  "BackupDir": "%USERPROFILE%\\Documents\\Script_Logs\\EventLogBackups"
+  "BackupDir": "%USERPROFILE%\\Documents\\Script_Logs\\EventLogBackups",
+  "CutoffDays": 0
 }
