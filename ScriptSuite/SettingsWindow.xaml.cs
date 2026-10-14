@@ -57,7 +57,6 @@ public partial class SettingsWindow : Window
         "ScreenshotsCleanup" => "Deletes old screenshots. Only files directly in the Screenshots folder are checked. Files go to the Recycle Bin and can be restored. If the folder does not exist yet, nothing happens.",
         "EmptyFolderCleanup" => "Removes empty folders under the chosen root. It checks recursively and makes multiple passes, but never deletes the root folder itself. Only empty folders are removed, so no data is lost — they are deleted permanently, not to the Recycle Bin, because they contain nothing.",
         "RestorePoint" => "Use this before risky system changes. It creates a System Restore point with the name you enter, then verifies it actually appeared. System Protection must be enabled on the drive — if it is off, the script will warn and may not create a point.",
-        "OBSRecordingsMover" => "Moves every .mkv file from the source folder to the destination folder. Only files directly in the source folder are moved — subfolders and other file types are left alone. If the source folder does not exist, nothing happens. The destination is created if missing, and name collisions are resolved by appending a timestamp.",
         _ => ""
     };
 
