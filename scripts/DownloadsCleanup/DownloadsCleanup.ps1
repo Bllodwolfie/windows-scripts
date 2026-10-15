@@ -247,6 +247,18 @@ if ($null -ne $Config.AdvancedRules) {
     }
 }
 
+# Security (B-H2): every organize destination (Categories keys and
+# AdvancedRules destinations) becomes a mkdir + move target, so each must
+# resolve inside the user profile — a hostile config must not redirect moves
+# to system locations. Abort on the first escape (Test-PathScope now fails
+# closed instead of warn-and-proceed).
+foreach ($dest in (@($extMap.Values) | Select-Object -Unique)) {
+    Test-PathScope ([string]$dest) "$env:USERPROFILE"
+}
+foreach ($rule in @($advancedMap.Values)) {
+    if ($rule.Destination) { Test-PathScope ([string]$rule.Destination) "$env:USERPROFILE" }
+}
+
 # IgnorePatterns (list of glob patterns, default empty): files whose NAME matches
 # any pattern are never touched, regardless of extension rules. Matched against
 # the filename only (not the full path), case-insensitive (PowerShell -like).

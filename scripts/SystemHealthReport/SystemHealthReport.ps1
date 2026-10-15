@@ -99,7 +99,8 @@ function Test-PathScope([string]$Path, [string]$ExpectedRoot) {
         try { $full = [System.IO.Path]::GetFullPath($expanded) } catch { $full = $expanded }
         try { $root = [System.IO.Path]::GetFullPath($exp) } catch { $root = $exp }
         if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
-            Write-Warning "Path '$Path' is outside expected scope (expected under '$ExpectedRoot') — proceeding anyway"
+            Write-Error "Path '$Path' is outside expected scope (expected under '$ExpectedRoot') — aborting"
+            exit 1
         }
     }
     if ($Path -match '[\. ]$') { Write-Warning "Trailing space/dot will be stripped by Windows: '$Path'" }
@@ -184,7 +185,20 @@ function Get-GpuVRAMLabel($gpuObj) {
 
 $outputDir = Expand-ConfigPath $Config.OutputDir
 $outputPath = "$outputDir\$($Config.OutputFile)"
-Test-PathScope $outputDir $null
+# Security (B-M4): confine the report dir to the user profile (was $null =
+# unchecked) and abort on escape.
+Test-PathScope $outputDir "$env:USERPROFILE"
+# Security (B-M4): the file-name halves are concatenated onto $outputDir, so
+# they must be bare names — e.g. "OutputFile": "..\\..\\evil.html" would
+# otherwise escape the scoped dir. Abort on separators or dot-segments.
+foreach ($leaf in @($Config.OutputFile, $Config.CatImageDark, $Config.CatImageLight)) {
+    $leafName = [string]$leaf
+    if ([string]::IsNullOrEmpty($leafName)) { continue }
+    if ($leafName -match '[\\/]' -or $leafName -eq '..' -or $leafName -eq '.') {
+        Write-Error "SystemHealthReport: output file name '$leafName' must be a bare file name inside the output dir — aborting"
+        exit 1
+    }
+}
 
 # R4: explicit warning on wrong-type ints (MaxTopProcesses etc.) — was silently falling back or crashing
 function Get-IntConfig([string]$Key, [int]$Default) {
