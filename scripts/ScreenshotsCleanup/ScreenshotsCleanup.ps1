@@ -213,7 +213,7 @@ if (-not (Test-Path -LiteralPath $path)) {
 
 $removed = 0
 $skipped = 0
-foreach ($f in @(Get-ChildItem -LiteralPath $path -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -lt $cutoff })) {
+foreach ($f in @(Get-ChildItem -LiteralPath $path -File -Force -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -lt $cutoff })) {
     # IgnorePatterns wins over age and over IncludeOnly: an ignored filename is
     # never touched. Single loop covers DryRun and real execution alike.
     $ignoredBy = Test-IgnoredPattern $f.Name

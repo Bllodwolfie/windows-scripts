@@ -237,7 +237,7 @@ $cutoff = (Get-Date).AddDays(-$cutoffDays)
 # (Action/Target/Detail) for the app's preview UI.
 $script:deletedCount = 0
 $script:skippedCount  = 0
-Get-ChildItem -LiteralPath $target -File -Recurse -ErrorAction SilentlyContinue |
+Get-ChildItem -LiteralPath $target -File -Force -Recurse -ErrorAction SilentlyContinue |
     Where-Object { $_.LastWriteTime -lt $cutoff } |
     ForEach-Object {
         # IgnoreFolders: files under an ignored folder are never touched,

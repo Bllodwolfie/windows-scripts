@@ -108,6 +108,23 @@ function Test-Ignored([string]$FullName) {
     return $false
 }
 
+# Folder listing state: 'Empty' (lists cleanly, zero surviving children),
+# 'NonEmpty', or 'Inaccessible' (nothing listable AND at least one listing
+# error, e.g. ACL-denied — must never be mistaken for empty, since an
+# unreadable folder also yields zero items). $Removed optionally hides
+# already-simulated-removed children (DryRun multi-pass); pass $null when
+# no simulation applies.
+function Get-FolderState([string]$FullName, $Removed) {
+    $listErr = @()
+    $kids = @(Get-ChildItem -LiteralPath $FullName -Force -ErrorAction SilentlyContinue -ErrorVariable listErr)
+    if ($null -ne $Removed -and $kids.Count -gt 0) {
+        $kids = @($kids | Where-Object { -not $Removed.Contains($_.FullName) })
+    }
+    if ($kids.Count -gt 0) { return 'NonEmpty' }
+    if ($listErr.Count -gt 0) { return 'Inaccessible' }
+    return 'Empty'
+}
+
 function ConvertTo-LongPath([string]$Path) {
     if ($Path.StartsWith("\\?\")) { return $Path }
     try { $full = [System.IO.Path]::GetFullPath($Path) } catch { return $Path }
@@ -208,15 +225,30 @@ if (Test-Path -LiteralPath $path) {
         # delete (including parents that only become empty after their empty
         # children are removed), as structured objects for the app's preview.
         $simRemoved = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        # Inaccessible folders are never delete candidates. Surface them once
+        # as Skip items instead of letting them spoof "empty" in the preview
+        # (an ACL-denied folder lists zero items, exactly like an empty one).
+        $reportedInaccessible = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        Get-ChildItem -LiteralPath $path -Directory -Force -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { -not (Test-Ignored $_.FullName) -and (Test-Selected $_.FullName) } |
+            ForEach-Object {
+                if ((Get-FolderState $_.FullName $null) -eq 'Inaccessible' -and $reportedInaccessible.Add($_.FullName)) {
+                    [PSCustomObject]@{
+                        Action = 'Skip'
+                        Target = $_.FullName
+                        Detail = 'inaccessible (access denied or locked), would be skipped'
+                    }
+                }
+            }
         $changed = $true
         while ($changed) {
             $changed = $false
-            $empty = @(Get-ChildItem -LiteralPath $path -Directory -Recurse -ErrorAction SilentlyContinue |
+            $empty = @(Get-ChildItem -LiteralPath $path -Directory -Force -Recurse -ErrorAction SilentlyContinue |
                 Where-Object {
                     -not $simRemoved.Contains($_.FullName) -and
                     -not (Test-Ignored $_.FullName) -and
                     (Test-Selected $_.FullName) -and
-                    (@(Get-ChildItem -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue | Where-Object { -not $simRemoved.Contains($_.FullName) }).Count -eq 0)
+                    (Get-FolderState $_.FullName $simRemoved) -eq 'Empty'
                 })
             foreach ($dir in $empty) {
                 [void]$simRemoved.Add($dir.FullName)
@@ -232,13 +264,19 @@ if (Test-Path -LiteralPath $path) {
     }
 
     Write-Log "Cleanup started"
+    # Inaccessible folders are never delete candidates (see DryRun note
+    # above): warn once here instead of attempting doomed deletes against them.
+    foreach ($dir in @(Get-ChildItem -LiteralPath $path -Directory -Force -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { -not (Test-Ignored $_.FullName) -and (Test-Selected $_.FullName) -and (Get-FolderState $_.FullName $null) -eq 'Inaccessible' })) {
+        Write-Warning "Skipping inaccessible folder: $($dir.FullName)"
+    }
     do {
         # Find all subfolders (recursively) that currently contain zero items
-        $empty = @(Get-ChildItem -LiteralPath $path -Directory -Recurse -ErrorAction SilentlyContinue |
+        $empty = @(Get-ChildItem -LiteralPath $path -Directory -Force -Recurse -ErrorAction SilentlyContinue |
             Where-Object {
                 -not (Test-Ignored $_.FullName) -and
                 (Test-Selected $_.FullName) -and
-                (Get-ChildItem -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue).Count -eq 0
+                (Get-FolderState $_.FullName $null) -eq 'Empty'
             })
 
         $deletedAnything = $false
@@ -274,7 +312,7 @@ if (Test-Path -LiteralPath $path) {
     } while ($deletedAnything)
     # Ignored folders stay empty on disk by design — exclude them here too, or
     # a run that correctly kept them would still report Warning + Summary.
-    $remainingEmpty = @(Get-ChildItem -LiteralPath $path -Directory -Recurse -ErrorAction SilentlyContinue | Where-Object { -not (Test-Ignored $_.FullName) -and (Get-ChildItem -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue).Count -eq 0 }).Count
+    $remainingEmpty = @(Get-ChildItem -LiteralPath $path -Directory -Force -Recurse -ErrorAction SilentlyContinue | Where-Object { -not (Test-Ignored $_.FullName) -and (Get-FolderState $_.FullName $null) -eq 'Empty' }).Count
     if ($remainingEmpty -gt 0) {
         Write-Warning "$remainingEmpty empty folder(s) could not be removed (long path or locked)"
         [PSCustomObject]@{

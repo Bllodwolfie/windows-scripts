@@ -299,7 +299,7 @@ $script:deletedCount = 0
 $script:skippedCount  = 0
 
 # Process every file in Downloads that's older than the cutoff
-Get-ChildItem -LiteralPath $source -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -lt $cutoff } | ForEach-Object {
+Get-ChildItem -LiteralPath $source -File -Force -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -lt $cutoff } | ForEach-Object {
     $ext = $_.Extension.ToLower()
     $name = $_.Name
     # Capture file props before any switch (switch overwrites $_)
