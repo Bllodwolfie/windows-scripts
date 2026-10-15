@@ -56,7 +56,8 @@ function Test-PathScope([string]$Path, [string]$ExpectedRoot) {
         try { $full = [System.IO.Path]::GetFullPath($expanded) } catch { $full = $expanded }
         try { $root = [System.IO.Path]::GetFullPath($exp) } catch { $root = $exp }
         if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
-            Write-Warning "Path '$Path' is outside expected scope (expected under '$ExpectedRoot') — proceeding anyway"
+            Write-Error "Path '$Path' is outside expected scope (expected under '$ExpectedRoot') — aborting"
+            exit 1
         }
     }
     if ($Path -match '[\. ]$') { Write-Warning "Trailing space/dot will be stripped by Windows: '$Path'" }
@@ -174,6 +175,7 @@ elseif ($null -ne $Config.PSObject.Properties["CutoffDays"]) { $rawCut = $Config
 if ($null -ne $rawCut) {
     try { $cutoffDays = [int]$rawCut } catch { Write-Warning "CutoffDays value '$rawCut' is invalid — using default 7"; $cutoffDays = 7 }
 }
+if ($cutoffDays -lt 0) { Write-Warning "CutoffDays is negative ($cutoffDays) — treating as 0"; $cutoffDays = 0 }
 $cutoff  = (Get-Date).AddDays(-$cutoffDays)
 $logDir  = Expand-ConfigPath $Config.LogDir
 $logFile = Join-Path $logDir $Config.LogFile

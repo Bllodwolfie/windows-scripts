@@ -52,7 +52,8 @@ function Test-PathScope([string]$Path, [string]$ExpectedRoot) {
         try { $full = [System.IO.Path]::GetFullPath($expanded) } catch { $full = $expanded }
         try { $root = [System.IO.Path]::GetFullPath($exp) } catch { $root = $exp }
         if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
-            Write-Warning "Path '$Path' is outside expected scope (expected under '$ExpectedRoot') — proceeding anyway"
+            Write-Error "Path '$Path' is outside expected scope (expected under '$ExpectedRoot') — aborting"
+            exit 1
         }
     }
     if ($Path -match '[\. ]$') { Write-Warning "Trailing space/dot will be stripped by Windows: '$Path'" }
@@ -190,7 +191,7 @@ $path    = if ($Config.TargetFolder) { Expand-ConfigPath $Config.TargetFolder } 
 $logDir  = Expand-ConfigPath $Config.LogDir
 $logFile = Join-Path $logDir $Config.LogFile
 
-Test-PathScope $path $null
+Test-PathScope $path "$env:USERPROFILE"
 
 $null = New-Item -ItemType Directory -Path $logDir -Force -ErrorAction SilentlyContinue
 

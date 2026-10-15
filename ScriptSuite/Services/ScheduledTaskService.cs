@@ -14,11 +14,34 @@ public sealed class ScheduledTaskService
     private static string TaskNameFor(string scriptId) => $"{Folder}\\{scriptId}";
     private static string ExePath => Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "ScriptSuite.exe");
 
+    // Security (A-H2): PowerShell single-quote escaping + strict allowlists so
+    // manifest/CLI-controlled ids and schedule fields cannot break out of the
+    // generated -EncodedCommand scripts (was: raw string concatenation).
+    private static string PsQuote(string s) => "'" + s.Replace("'", "''") + "'";
+    private static string RequireSafeId(string scriptId)
+    {
+        if (scriptId.Length == 0)
+            throw new ArgumentException("Empty ScriptId for scheduled task.", nameof(scriptId));
+        foreach (char c in scriptId)
+            if (!(char.IsLetterOrDigit(c) || c == '-' || c == '_'))
+                throw new ArgumentException($"Unsafe ScriptId for scheduled task: {scriptId}", nameof(scriptId));
+        return scriptId;
+    }
+    private static string RequireUnit(string unit) => unit switch
+    {
+        "Days" or "Weeks" or "Hours" => unit,
+        _ => throw new ArgumentException($"Unsafe schedule Unit: {unit}", nameof(unit)),
+    };
+
     public static bool TaskExists(string scriptId)
     {
         try
         {
-            var psi = new ProcessStartInfo("schtasks", $"/query /tn \"{TaskNameFor(scriptId)}\"") { CreateNoWindow = true, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+            // Security (A-H2): discrete argv tokens (was: "/query /tn \"...\"" string concat).
+            var psi = new ProcessStartInfo("schtasks") { CreateNoWindow = true, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+            psi.ArgumentList.Add("/query");
+            psi.ArgumentList.Add("/tn");
+            psi.ArgumentList.Add(TaskNameFor(scriptId));
             using var p = Process.Start(psi)!;
             p.WaitForExit(5000);
             return p.ExitCode == 0;
@@ -29,41 +52,41 @@ public sealed class ScheduledTaskService
     public static (bool ok, string? error, bool needsElevation) Register(ScheduleEntry entry, bool requiresAdmin)
     {
         string exe = ExePath.Replace("'", "''");
-        string id = entry.ScriptId;
+        string id = RequireSafeId(entry.ScriptId);
         if (!TimeSpan.TryParse(entry.TimeOfDay, out var ts)) ts = new TimeSpan(9, 0, 0);
         DateTime next = DateTime.Today.Add(ts);
         if (next <= DateTime.Now) next = next.AddDays(1);
         string nextStr = next.ToString("yyyy-MM-ddTHH:mm:ss");
         string tsStr = ts.ToString(@"hh\:mm");
-        string unit = entry.Unit;
+        string unit = RequireUnit(entry.Unit);
         int interval = entry.Interval;
 
         string ps;
         if (requiresAdmin)
         {
-            ps = "$exe='" + exe + "'; $arg='--scheduled-run " + id + "'; "
+            ps = "$exe='" + exe + "'; $arg=" + PsQuote("--scheduled-run " + id) + "; "
                + "$act=New-ScheduledTaskAction -Execute $exe -Argument $arg; "
-               + "$tr=New-ScheduledTaskTrigger -Once -At '" + nextStr + "'; "
-               + "if ('" + unit + "' -eq 'Days') { $tr=New-ScheduledTaskTrigger -Daily -DaysInterval " + interval + " -At '" + tsStr + "' } "
-               + "elseif ('" + unit + "' -eq 'Weeks') { $tr=New-ScheduledTaskTrigger -Weekly -WeeksInterval " + interval + " -DaysOfWeek " + next.DayOfWeek + " -At '" + tsStr + "' } "
-               + "elseif ('" + unit + "' -eq 'Hours') { $tr=New-ScheduledTaskTrigger -Once -At '" + nextStr + "' -RepetitionInterval (New-TimeSpan -Hours " + interval + ") -RepetitionDuration (New-TimeSpan -Days 1) } "
+               + "$tr=New-ScheduledTaskTrigger -Once -At " + PsQuote(nextStr) + "; "
+               + "if (" + PsQuote(unit) + " -eq 'Days') { $tr=New-ScheduledTaskTrigger -Daily -DaysInterval " + interval + " -At " + PsQuote(tsStr) + " } "
+               + "elseif (" + PsQuote(unit) + " -eq 'Weeks') { $tr=New-ScheduledTaskTrigger -Weekly -WeeksInterval " + interval + " -DaysOfWeek " + PsQuote(next.DayOfWeek.ToString()) + " -At " + PsQuote(tsStr) + " } "
+               + "elseif (" + PsQuote(unit) + " -eq 'Hours') { $tr=New-ScheduledTaskTrigger -Once -At " + PsQuote(nextStr) + " -RepetitionInterval (New-TimeSpan -Hours " + interval + ") -RepetitionDuration (New-TimeSpan -Days 1) } "
                + "$pr=New-ScheduledTaskPrincipal -UserId \"$env:USERDOMAIN\\$env:USERNAME\" -LogonType S4U -RunLevel Highest; "
                + "$st=New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -Hidden -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 2); "
-               + "try { if (Get-ScheduledTask -TaskName '" + id + "' -TaskPath '" + Folder + "\\' -ErrorAction SilentlyContinue) { Unregister-ScheduledTask -TaskName '" + id + "' -TaskPath '" + Folder + "\\' -Confirm:$false } } catch {} "
-               + "Register-ScheduledTask -TaskName '" + id + "' -TaskPath '" + Folder + "\\' -Action $act -Trigger $tr -Principal $pr -Settings $st -Force | Out-Null; Write-Host \"OK\"";
+               + "try { if (Get-ScheduledTask -TaskName " + PsQuote(id) + " -TaskPath " + PsQuote(Folder + "\\") + " -ErrorAction SilentlyContinue) { Unregister-ScheduledTask -TaskName " + PsQuote(id) + " -TaskPath " + PsQuote(Folder + "\\") + " -Confirm:$false } } catch {} "
+               + "Register-ScheduledTask -TaskName " + PsQuote(id) + " -TaskPath " + PsQuote(Folder + "\\") + " -Action $act -Trigger $tr -Principal $pr -Settings $st -Force | Out-Null; Write-Host \"OK\"";
         }
         else
         {
-            ps = "$exe='" + exe + "'; $arg='--scheduled-run " + id + "'; "
+            ps = "$exe='" + exe + "'; $arg=" + PsQuote("--scheduled-run " + id) + "; "
                + "$act=New-ScheduledTaskAction -Execute $exe -Argument $arg; "
-               + "$tr=New-ScheduledTaskTrigger -Once -At '" + nextStr + "'; "
-               + "if ('" + unit + "' -eq 'Days') { $tr=New-ScheduledTaskTrigger -Daily -DaysInterval " + interval + " -At '" + tsStr + "' } "
-               + "elseif ('" + unit + "' -eq 'Weeks') { $tr=New-ScheduledTaskTrigger -Weekly -WeeksInterval " + interval + " -DaysOfWeek " + next.DayOfWeek + " -At '" + tsStr + "' } "
-               + "elseif ('" + unit + "' -eq 'Hours') { $tr=New-ScheduledTaskTrigger -Once -At '" + nextStr + "' -RepetitionInterval (New-TimeSpan -Hours " + interval + ") -RepetitionDuration (New-TimeSpan -Days 1) } "
+               + "$tr=New-ScheduledTaskTrigger -Once -At " + PsQuote(nextStr) + "; "
+               + "if (" + PsQuote(unit) + " -eq 'Days') { $tr=New-ScheduledTaskTrigger -Daily -DaysInterval " + interval + " -At " + PsQuote(tsStr) + " } "
+               + "elseif (" + PsQuote(unit) + " -eq 'Weeks') { $tr=New-ScheduledTaskTrigger -Weekly -WeeksInterval " + interval + " -DaysOfWeek " + PsQuote(next.DayOfWeek.ToString()) + " -At " + PsQuote(tsStr) + " } "
+               + "elseif (" + PsQuote(unit) + " -eq 'Hours') { $tr=New-ScheduledTaskTrigger -Once -At " + PsQuote(nextStr) + " -RepetitionInterval (New-TimeSpan -Hours " + interval + ") -RepetitionDuration (New-TimeSpan -Days 1) } "
                + "$pr=New-ScheduledTaskPrincipal -UserId \"$env:USERDOMAIN\\$env:USERNAME\" -LogonType Interactive -RunLevel Limited; "
                + "$st=New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -Hidden -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 2); "
-               + "try { if (Get-ScheduledTask -TaskName '" + id + "' -TaskPath '" + Folder + "\\' -ErrorAction SilentlyContinue) { Unregister-ScheduledTask -TaskName '" + id + "' -TaskPath '" + Folder + "\\' -Confirm:$false } } catch {} "
-               + "Register-ScheduledTask -TaskName '" + id + "' -TaskPath '" + Folder + "\\' -Action $act -Trigger $tr -Principal $pr -Settings $st -Force | Out-Null; Write-Host \"OK\"";
+               + "try { if (Get-ScheduledTask -TaskName " + PsQuote(id) + " -TaskPath " + PsQuote(Folder + "\\") + " -ErrorAction SilentlyContinue) { Unregister-ScheduledTask -TaskName " + PsQuote(id) + " -TaskPath " + PsQuote(Folder + "\\") + " -Confirm:$false } } catch {} "
+               + "Register-ScheduledTask -TaskName " + PsQuote(id) + " -TaskPath " + PsQuote(Folder + "\\") + " -Action $act -Trigger $tr -Principal $pr -Settings $st -Force | Out-Null; Write-Host \"OK\"";
         }
 
         string b64 = Convert.ToBase64String(Encoding.Unicode.GetBytes(ps));
@@ -84,7 +107,8 @@ public sealed class ScheduledTaskService
 
     public static (bool ok, string? error) Unregister(string scriptId)
     {
-        string ps = "Unregister-ScheduledTask -TaskName '" + scriptId + "' -TaskPath '" + Folder + "\\' -Confirm:$false";
+        string id = RequireSafeId(scriptId);
+        string ps = "Unregister-ScheduledTask -TaskName " + PsQuote(id) + " -TaskPath " + PsQuote(Folder + "\\") + " -Confirm:$false";
         string b64 = Convert.ToBase64String(Encoding.Unicode.GetBytes(ps));
         var psi = new ProcessStartInfo("powershell.exe", $"-NoProfile -EncodedCommand {b64}") { CreateNoWindow = true, UseShellExecute = false };
         try

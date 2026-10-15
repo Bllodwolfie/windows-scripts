@@ -33,7 +33,8 @@ function Test-PathScope([string]$Path, [string]$ExpectedRoot) {
         try { $full = [System.IO.Path]::GetFullPath($expanded) } catch { $full = $expanded }
         try { $root = [System.IO.Path]::GetFullPath($exp) } catch { $root = $exp }
         if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
-            Write-Warning "Path '$Path' is outside expected scope (expected under '$ExpectedRoot') — proceeding anyway"
+            Write-Error "Path '$Path' is outside expected scope (expected under '$ExpectedRoot') — aborting"
+            exit 1
         }
     }
     if ($Path -match '[\. ]$') { Write-Warning "Trailing space/dot will be stripped by Windows: '$Path'" }
@@ -45,7 +46,7 @@ function Expand-ConfigPath([string]$Path) {
 }
 
 $outputFile = Expand-ConfigPath $Config.OutputFile
-Test-PathScope $outputFile $null
+Test-PathScope $outputFile "$env:USERPROFILE"
 
 # B6: validate OutputFile — file-where-folder-expected and missing drive should fail clearly, not silently with exit 0
 try {

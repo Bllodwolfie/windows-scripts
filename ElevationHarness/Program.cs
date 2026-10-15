@@ -57,8 +57,6 @@ bool TryGetArg(string[] a, string name, out string value)
 
 string GetArg(string[] a, string name) => TryGetArg(a, name, out var v) ? v : string.Empty;
 
-string Quote(string s) => "\"" + s + "\"";
-
 JsonElement LoadManifest(string scriptId)
 {
     string path = Path.Combine(ManifestDir, scriptId + ".json");
@@ -164,11 +162,19 @@ void RunParent(string scriptId, string configPath, bool forceElevated)
         Verb = "runas",
         WindowStyle = ProcessWindowStyle.Hidden,
         CreateNoWindow = true,
-        Arguments = $"--elevated-run {scriptId} --config-path {Quote(configPath)} --result-path {Quote(resultPath)}"
     };
+    // Security (A-H1): pass argv as discrete tokens so a hostile scriptId or
+    // path cannot split into extra arguments (was: naive Quote() + unquoted
+    // scriptId in an Arguments string).
+    psi.ArgumentList.Add("--elevated-run");
+    psi.ArgumentList.Add(scriptId);
+    psi.ArgumentList.Add("--config-path");
+    psi.ArgumentList.Add(configPath);
+    psi.ArgumentList.Add("--result-path");
+    psi.ArgumentList.Add(resultPath);
 
     Console.WriteLine($"[parent] launching elevated child for {scriptId}");
-    Console.WriteLine($"[parent] child args: {psi.Arguments}");
+    Console.WriteLine($"[parent] child argv: --elevated-run {scriptId} --config-path {configPath} --result-path {resultPath}");
 
 Process? child;
     try
