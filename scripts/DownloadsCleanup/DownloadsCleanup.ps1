@@ -278,7 +278,8 @@ $ignorePatterns = @($ignorePatterns | ForEach-Object { ([string]$_).Trim() } | W
 function Test-IgnoredPattern([string]$Name) {
     if ($ignorePatterns.Count -eq 0) { return $null }
     foreach ($pat in $ignorePatterns) {
-        if ($Name -like $pat) { return $pat }
+        $escaped = $pat.Replace('[', '`[').Replace(']', '`]')
+        if ($Name -like $escaped) { return $pat }
     }
     return $null
 }
