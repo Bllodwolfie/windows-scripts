@@ -100,8 +100,13 @@ function Test-PathScope([string]$Path, [string]$ExpectedRoot) {
         try { $full = [System.IO.Path]::GetFullPath($expanded) } catch { $full = $expanded }
         try { $root = [System.IO.Path]::GetFullPath($exp) } catch { $root = $exp }
         if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
-            Write-Error "Path '$clean' is outside expected scope (expected under '$ExpectedRoot') — aborting"
-            exit 1
+            $isElevated = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+            if ($isElevated) {
+                Write-Error "Path '$clean' is outside expected scope (expected under '$ExpectedRoot') — aborting (elevated execution)"
+                exit 1
+            } else {
+                Write-Warning "Path '$clean' is outside expected scope (expected under '$ExpectedRoot') — proceeding anyway"
+            }
         }
     }
     if ($clean -match '[\. ]$') { Write-Warning "Trailing space/dot will be stripped by Windows: '$clean'" }
