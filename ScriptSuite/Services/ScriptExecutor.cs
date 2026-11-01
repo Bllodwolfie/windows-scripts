@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Management.Automation;
@@ -208,7 +208,7 @@ public sealed class ScriptExecutor
         RunOutcome outcome;
         if (threw || ps.Streams.Error.Count > 0)
             outcome = RunOutcome.Failed;
-        else if (ps.Streams.Warning.Count > 0)
+        else if (HasOperationalWarning(ps.Streams.Warning))
             outcome = RunOutcome.Warning;
         else
             outcome = RunOutcome.Success;
@@ -462,6 +462,25 @@ public sealed class ScriptExecutor
         "Cancelled" => RunOutcome.Cancelled,
         _ => RunOutcome.Failed,
     };
+
+    private static bool HasOperationalWarning(System.Management.Automation.PSDataCollection<System.Management.Automation.WarningRecord> warnings)
+    {
+        foreach (var w in warnings)
+        {
+            if (w is not null && !IsInformationalScopeWarning(w.Message))
+                return true;
+        }
+        return false;
+    }
+
+    private static bool IsInformationalScopeWarning(string? message)
+    {
+        if (string.IsNullOrEmpty(message)) return false;
+        // Test-PathScope writes: "Path '<path>' is outside expected scope (expected under '<root>') — proceeding anyway"
+        // This is an informational boundary notice for customized paths (e.g. C:\Temp or D:\Downloads).
+        // It does not indicate an execution error or skipped work, so it should not demote Success -> Warning.
+        return message.Contains("is outside expected scope", StringComparison.OrdinalIgnoreCase);
+    }
 
     private static string Quote(string s) => "\"" + s + "\"";
 }
