@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using ScriptSuite.Models;
 using ScriptSuite.Services;
 
@@ -58,9 +58,13 @@ public partial class ScheduleWindow : Window
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
-        if (!int.TryParse(IntervalBox.Text.Trim(), out int interval) || interval < 1 || interval > 365)
-        { ErrorText.Text = "Interval must be 1-365"; return; }
         string unit = (UnitBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Content as string ?? "Days";
+        int maxInterval = unit == "Hours" ? 24 : 365;
+        if (!int.TryParse(IntervalBox.Text.Trim(), out int interval) || interval < 1 || interval > maxInterval)
+        {
+            ErrorText.Text = unit == "Hours" ? "Hourly interval must be 1-24" : "Interval must be 1-365";
+            return;
+        }
         string time = TimeBox.Text.Trim();
         if (!TimeSpan.TryParse(time, out _))
         { ErrorText.Text = "Time must be HH:mm e.g. 09:00"; return; }

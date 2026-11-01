@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Text;
 using ScriptSuite.Models;
@@ -60,6 +60,8 @@ public sealed class ScheduledTaskService
         string tsStr = ts.ToString(@"hh\:mm");
         string unit = RequireUnit(entry.Unit);
         int interval = entry.Interval;
+        if (interval <= 0) interval = 1;
+        if (interval > 24 && unit == "Hours") interval = 24;
 
         string ps;
         if (requiresAdmin)
@@ -69,7 +71,7 @@ public sealed class ScheduledTaskService
                + "$tr=New-ScheduledTaskTrigger -Once -At " + PsQuote(nextStr) + "; "
                + "if (" + PsQuote(unit) + " -eq 'Days') { $tr=New-ScheduledTaskTrigger -Daily -DaysInterval " + interval + " -At " + PsQuote(tsStr) + " } "
                + "elseif (" + PsQuote(unit) + " -eq 'Weeks') { $tr=New-ScheduledTaskTrigger -Weekly -WeeksInterval " + interval + " -DaysOfWeek " + PsQuote(next.DayOfWeek.ToString()) + " -At " + PsQuote(tsStr) + " } "
-               + "elseif (" + PsQuote(unit) + " -eq 'Hours') { $tr=New-ScheduledTaskTrigger -Once -At " + PsQuote(nextStr) + " -RepetitionInterval (New-TimeSpan -Hours " + interval + ") -RepetitionDuration (New-TimeSpan -Days 1) } "
+               + "elseif (" + PsQuote(unit) + " -eq 'Hours') { $tr=New-ScheduledTaskTrigger -Once -At " + PsQuote(nextStr) + " -RepetitionInterval (New-TimeSpan -Hours " + interval + ") } "
                + "$pr=New-ScheduledTaskPrincipal -UserId \"$env:USERDOMAIN\\$env:USERNAME\" -LogonType S4U -RunLevel Highest; "
                + "$st=New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -Hidden -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 2); "
                + "try { if (Get-ScheduledTask -TaskName " + PsQuote(id) + " -TaskPath " + PsQuote(Folder + "\\") + " -ErrorAction SilentlyContinue) { Unregister-ScheduledTask -TaskName " + PsQuote(id) + " -TaskPath " + PsQuote(Folder + "\\") + " -Confirm:$false } } catch {} "
@@ -82,7 +84,7 @@ public sealed class ScheduledTaskService
                + "$tr=New-ScheduledTaskTrigger -Once -At " + PsQuote(nextStr) + "; "
                + "if (" + PsQuote(unit) + " -eq 'Days') { $tr=New-ScheduledTaskTrigger -Daily -DaysInterval " + interval + " -At " + PsQuote(tsStr) + " } "
                + "elseif (" + PsQuote(unit) + " -eq 'Weeks') { $tr=New-ScheduledTaskTrigger -Weekly -WeeksInterval " + interval + " -DaysOfWeek " + PsQuote(next.DayOfWeek.ToString()) + " -At " + PsQuote(tsStr) + " } "
-               + "elseif (" + PsQuote(unit) + " -eq 'Hours') { $tr=New-ScheduledTaskTrigger -Once -At " + PsQuote(nextStr) + " -RepetitionInterval (New-TimeSpan -Hours " + interval + ") -RepetitionDuration (New-TimeSpan -Days 1) } "
+               + "elseif (" + PsQuote(unit) + " -eq 'Hours') { $tr=New-ScheduledTaskTrigger -Once -At " + PsQuote(nextStr) + " -RepetitionInterval (New-TimeSpan -Hours " + interval + ") } "
                + "$pr=New-ScheduledTaskPrincipal -UserId \"$env:USERDOMAIN\\$env:USERNAME\" -LogonType Interactive -RunLevel Limited; "
                + "$st=New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -Hidden -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 2); "
                + "try { if (Get-ScheduledTask -TaskName " + PsQuote(id) + " -TaskPath " + PsQuote(Folder + "\\") + " -ErrorAction SilentlyContinue) { Unregister-ScheduledTask -TaskName " + PsQuote(id) + " -TaskPath " + PsQuote(Folder + "\\") + " -Confirm:$false } } catch {} "
