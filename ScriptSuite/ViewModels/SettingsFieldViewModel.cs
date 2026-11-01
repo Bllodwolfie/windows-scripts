@@ -103,7 +103,7 @@ public sealed class SettingsFieldViewModel : ViewModelBase
             {
                 // Blocking validation for MinAgeDays — deliberate departure from warn-but-save.
                 // Negative age is not recoverable (cannot do anything sensible), so block.
-                if (Field.Name == "MinAgeDays" && parsed < 0)
+                if (Field.Name.EndsWith("Days") && parsed < 0)
                 {
                     ValidationMessage = "Must be >= 0";
                     _pendingIntPrior = null;
@@ -120,7 +120,7 @@ public sealed class SettingsFieldViewModel : ViewModelBase
             else if (value.Trim() == "-")
             {
                 // Intermediate typing of negative sign — show validation but don't block yet
-                if (Field.Name == "MinAgeDays")
+                if (Field.Name.EndsWith("Days"))
                     ValidationMessage = "Must be >= 0";
             }
         }
@@ -226,7 +226,7 @@ public sealed class SettingsFieldViewModel : ViewModelBase
         var prior = _intValue;
         var next = _intValue + delta;
         // Block negative for MinAgeDays — clamp and show validation instead of saving
-        if (Field.Name == "MinAgeDays" && next < 0)
+        if (Field.Name.EndsWith("Days") && next < 0)
         {
             ValidationMessage = "Must be >= 0";
             return;
@@ -306,7 +306,7 @@ public sealed class SettingsFieldViewModel : ViewModelBase
         else if (_intPending)
         {
             // Re-validate before commit — block negative MinAgeDays
-            if (Field.Name == "MinAgeDays" && _intValue < 0)
+            if (Field.Name.EndsWith("Days") && _intValue < 0)
             {
                 ValidationMessage = "Must be >= 0";
                 _intPending = false;

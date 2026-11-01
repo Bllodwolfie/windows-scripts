@@ -229,7 +229,10 @@ elseif ($null -ne $Config.PSObject.Properties["CutoffDays"]) { $rawCut = $Config
 if ($null -ne $rawCut) {
     try { $cutoffDays = [int]$rawCut } catch { Write-Warning "CutoffDays value '$rawCut' is invalid — using default 7"; $cutoffDays = 7 }
 }
-if ($cutoffDays -lt 0) { Write-Warning "CutoffDays is negative ($cutoffDays) — treating as 0"; $cutoffDays = 0 }
+if ($cutoffDays -lt 0) {
+    Write-Warning "CutoffDays is negative ($cutoffDays) — treating as 0."
+    $cutoffDays = 0
+}
 $cutoff = (Get-Date).AddDays(-$cutoffDays)
 
 # Recurse through the target folder and either preview (DryRun) or delete files
