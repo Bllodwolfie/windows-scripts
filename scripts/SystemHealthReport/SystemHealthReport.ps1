@@ -270,8 +270,8 @@ $errors = Get-WinEvent -FilterHashtable @{LogName='System'; Level=1,2; StartTime
     Sort-Object TimeCreated -Descending |
     Select-Object -First $Config.MaxErrorEvents
 
-# Windows Update last check
-$wuLastCheck = "Unknown"
+# Windows Update last installed update
+$wuLastInstalled = "Unknown"
 try {
     $session = New-Object -ComObject Microsoft.Update.Session -ErrorAction Stop
     $searcher = $session.CreateUpdateSearcher()
@@ -279,7 +279,9 @@ try {
     if ($count -gt 0) {
         $lastEntry = $searcher.QueryHistory(0, 1) | Select-Object -First 1
         if ($lastEntry -and $lastEntry.Date) {
-            $wuLastCheck = $lastEntry.Date.ToString("yyyy-MM-dd HH:mm")
+            $dateStr = $lastEntry.Date.ToString("yyyy-MM-dd HH:mm")
+            $titleStr = if ($lastEntry.Title) { " ($($lastEntry.Title))" } else { "" }
+            $wuLastInstalled = "$dateStr$titleStr"
         }
     }
 } catch {}
@@ -430,7 +432,7 @@ if ($errors) {
 }
 
 # Section: Windows Update
-$wuRows = "<tr><td class='key'>Last Successful Check</td><td>$([System.Net.WebUtility]::HtmlEncode($wuLastCheck))</td></tr>"
+$wuRows = "<tr><td class='key'>Last Installed Update</td><td>$([System.Net.WebUtility]::HtmlEncode($wuLastInstalled))</td></tr>"
 
 # ----- HTML assembly -----
 # The full HTML/CSS/JS is built line-by-line into a StringBuilder for
