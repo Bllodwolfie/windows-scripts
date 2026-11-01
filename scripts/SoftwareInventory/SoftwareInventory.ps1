@@ -1,4 +1,4 @@
-# Generates a text report of all installed software by reading the standard
+﻿# Generates a text report of all installed software by reading the standard
 # Windows "Uninstall" registry keys (covers 64-bit, 32-bit-on-64-bit, and
 # per-user installs), then writes it to OutputFile.
 
@@ -26,23 +26,25 @@ if (Test-Path -LiteralPath $ConfigPath) {
 
 function Test-PathScope([string]$Path, [string]$ExpectedRoot) {
     if ([string]::IsNullOrWhiteSpace($Path)) { Write-Error "Path must be absolute: $Path (empty)"; exit 1 }
-    $expanded = [Environment]::ExpandEnvironmentVariables($Path.Trim())
+    $clean = $Path.Trim().Trim('"', "'")
+    $expanded = [Environment]::ExpandEnvironmentVariables($clean)
     if (-not [System.IO.Path]::IsPathRooted($expanded)) { Write-Error "Path must be absolute: $Path"; exit 1 }
     if ($ExpectedRoot) {
-        $exp = [Environment]::ExpandEnvironmentVariables($ExpectedRoot)
+        $exp = if ($ExpectedRoot) { [Environment]::ExpandEnvironmentVariables($ExpectedRoot.Trim().Trim('"', "'")) } else { "" }
         try { $full = [System.IO.Path]::GetFullPath($expanded) } catch { $full = $expanded }
         try { $root = [System.IO.Path]::GetFullPath($exp) } catch { $root = $exp }
         if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
-            Write-Error "Path '$Path' is outside expected scope (expected under '$ExpectedRoot') — aborting"
+            Write-Error "Path '$clean' is outside expected scope (expected under '$ExpectedRoot') — aborting"
             exit 1
         }
     }
-    if ($Path -match '[\. ]$') { Write-Warning "Trailing space/dot will be stripped by Windows: '$Path'" }
+    if ($clean -match '[\. ]$') { Write-Warning "Trailing space/dot will be stripped by Windows: '$clean'" }
 }
 
 # JSON stores env-var paths as "%USERPROFILE%\..."; expand them at load time.
 function Expand-ConfigPath([string]$Path) {
-    [Environment]::ExpandEnvironmentVariables($Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $Path }
+    [Environment]::ExpandEnvironmentVariables($Path.Trim().Trim('"', "'"))
 }
 
 $outputFile = Expand-ConfigPath $Config.OutputFile

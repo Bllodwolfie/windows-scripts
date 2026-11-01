@@ -1,4 +1,4 @@
-# Generates a self-contained HTML system health report (system info, CPU, GPU,
+﻿# Generates a self-contained HTML system health report (system info, CPU, GPU,
 # memory, storage, network, top processes, recent event-log errors, Windows
 # Update status) using a Catppuccin Mocha/Latte theme that follows the
 # Windows dark/light mode setting. Output is a single .html file plus two
@@ -92,23 +92,25 @@ if (Test-Path -LiteralPath $ConfigPath) {
 
 function Test-PathScope([string]$Path, [string]$ExpectedRoot) {
     if ([string]::IsNullOrWhiteSpace($Path)) { Write-Error "Path must be absolute: $Path (empty)"; exit 1 }
-    $expanded = [Environment]::ExpandEnvironmentVariables($Path.Trim())
+    $clean = $Path.Trim().Trim('"', "'")
+    $expanded = [Environment]::ExpandEnvironmentVariables($clean)
     if (-not [System.IO.Path]::IsPathRooted($expanded)) { Write-Error "Path must be absolute: $Path"; exit 1 }
     if ($ExpectedRoot) {
-        $exp = [Environment]::ExpandEnvironmentVariables($ExpectedRoot)
+        $exp = if ($ExpectedRoot) { [Environment]::ExpandEnvironmentVariables($ExpectedRoot.Trim().Trim('"', "'")) } else { "" }
         try { $full = [System.IO.Path]::GetFullPath($expanded) } catch { $full = $expanded }
         try { $root = [System.IO.Path]::GetFullPath($exp) } catch { $root = $exp }
         if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
-            Write-Error "Path '$Path' is outside expected scope (expected under '$ExpectedRoot') — aborting"
+            Write-Error "Path '$clean' is outside expected scope (expected under '$ExpectedRoot') — aborting"
             exit 1
         }
     }
-    if ($Path -match '[\. ]$') { Write-Warning "Trailing space/dot will be stripped by Windows: '$Path'" }
+    if ($clean -match '[\. ]$') { Write-Warning "Trailing space/dot will be stripped by Windows: '$clean'" }
 }
 
 # JSON stores env-var paths as "%USERPROFILE%\..."; expand them at load time.
 function Expand-ConfigPath([string]$Path) {
-    [Environment]::ExpandEnvironmentVariables($Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $Path }
+    [Environment]::ExpandEnvironmentVariables($Path.Trim().Trim('"', "'"))
 }
 
 # Converts a palette hashtable (Mocha or Latte) into CSS custom-property

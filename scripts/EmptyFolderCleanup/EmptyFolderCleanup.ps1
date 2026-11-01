@@ -1,4 +1,4 @@
-# Recursively removes empty folders under TargetFolder.
+﻿# Recursively removes empty folders under TargetFolder.
 # Loops repeatedly because deleting a folder can leave its now-empty parent
 # behind, which needs another pass to catch. Each pass tracks whether any
 # folder was actually deleted; if a pass removes nothing (e.g. a locked folder
@@ -45,23 +45,25 @@ if (Test-Path -LiteralPath $ConfigPath) {
 
 function Test-PathScope([string]$Path, [string]$ExpectedRoot) {
     if ([string]::IsNullOrWhiteSpace($Path)) { Write-Error "Path must be absolute: $Path (empty)"; exit 1 }
-    $expanded = [Environment]::ExpandEnvironmentVariables($Path.Trim())
+    $clean = $Path.Trim().Trim('"', "'")
+    $expanded = [Environment]::ExpandEnvironmentVariables($clean)
     if (-not [System.IO.Path]::IsPathRooted($expanded)) { Write-Error "Path must be absolute: $Path"; exit 1 }
     if ($ExpectedRoot) {
-        $exp = [Environment]::ExpandEnvironmentVariables($ExpectedRoot)
+        $exp = if ($ExpectedRoot) { [Environment]::ExpandEnvironmentVariables($ExpectedRoot.Trim().Trim('"', "'")) } else { "" }
         try { $full = [System.IO.Path]::GetFullPath($expanded) } catch { $full = $expanded }
         try { $root = [System.IO.Path]::GetFullPath($exp) } catch { $root = $exp }
         if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
-            Write-Error "Path '$Path' is outside expected scope (expected under '$ExpectedRoot') — aborting"
+            Write-Error "Path '$clean' is outside expected scope (expected under '$ExpectedRoot') — aborting"
             exit 1
         }
     }
-    if ($Path -match '[\. ]$') { Write-Warning "Trailing space/dot will be stripped by Windows: '$Path'" }
+    if ($clean -match '[\. ]$') { Write-Warning "Trailing space/dot will be stripped by Windows: '$clean'" }
 }
 
 # JSON stores env-var paths as "%USERPROFILE%\..."; expand them at load time.
 function Expand-ConfigPath([string]$Path) {
-    [Environment]::ExpandEnvironmentVariables($Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $Path }
+    [Environment]::ExpandEnvironmentVariables($Path.Trim().Trim('"', "'"))
 }
 
 # IgnoreFolders (list of paths, default empty): folders that must never be
@@ -79,7 +81,8 @@ if ($Config -is [hashtable]) {
 
 function Normalize-IgnorePath([string]$P) {
     if ([string]::IsNullOrWhiteSpace($P)) { return $null }
-    $e = [Environment]::ExpandEnvironmentVariables($P.Trim()).TrimEnd('\', '/')
+    $clean = $P.Trim().Trim('"', "'")
+    $e = [Environment]::ExpandEnvironmentVariables($clean).TrimEnd('\', '/')
     # Compare against normalized non-prefixed paths: the \\?\ long-path prefix
     # is applied only at delete time inside Remove-EmptyFolder (enumeration
     # stays unprefixed since the M12 Cat1b 5001-vs-5101 regression), so strip

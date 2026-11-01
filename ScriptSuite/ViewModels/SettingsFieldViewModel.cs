@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Text.Json;
@@ -161,7 +161,7 @@ public sealed class SettingsFieldViewModel : ViewModelBase
             int bad = 0, missing = 0;
             foreach (var item in Items)
             {
-                var v = (item ?? "").Trim();
+                var v = (item ?? "").Trim().Trim('"', '\'');
                 if (v.Length == 0) { bad++; continue; }
                 string expanded;
                 try { expanded = Environment.ExpandEnvironmentVariables(v); }
@@ -243,6 +243,7 @@ public sealed class SettingsFieldViewModel : ViewModelBase
     public void AddNewItem()
     {
         var v = _newItemText.Trim();
+        if (Field.Type == "pathList") v = v.Trim('"', '\'');
         if (v.Length == 0 || Items.Contains(v))
         {
             _newItemText = "";
@@ -288,6 +289,11 @@ public sealed class SettingsFieldViewModel : ViewModelBase
         if (_textPending)
         {
             _textPending = false;
+            if (Field.Type == "path")
+            {
+                _textValue = _textValue.Trim().Trim('"', '\'');
+                OnPropertyChanged(nameof(TextValue));
+            }
             var prior = _pendingTextPrior ?? _textValue;
             _pendingTextPrior = null;
             Commit(JsonValue.Create(prior), JsonValue.Create(_textValue));
@@ -352,7 +358,7 @@ public sealed class SettingsFieldViewModel : ViewModelBase
     private string ValidatePath()
     {
         if (Field.Type != "path") return "";
-        var value = _textValue;
+        var value = _textValue.Trim().Trim('"', '\'');
         if (string.IsNullOrWhiteSpace(value)) return "Enter a path.";
         // R2: trailing space/dot note — Windows strips these silently
         if (value.Length > 0 && (value.EndsWith(" ") || value.EndsWith(".")))

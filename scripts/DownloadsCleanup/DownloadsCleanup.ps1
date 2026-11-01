@@ -1,4 +1,4 @@
-# Sorts and cleans up the Downloads folder:
+﻿# Sorts and cleans up the Downloads folder:
 #   - Files older than CutoffDays with an extension in DeleteExts are deleted outright.
 #   - Files older than CutoffDays with an extension listed under Categories are
 #     moved into the matching destination folder (created if missing).
@@ -49,24 +49,26 @@ if (Test-Path -LiteralPath $ConfigPath) {
 
 function Test-PathScope([string]$Path, [string]$ExpectedRoot) {
     if ([string]::IsNullOrWhiteSpace($Path)) { Write-Error "Path must be absolute: $Path (empty)"; exit 1 }
-    $expanded = [Environment]::ExpandEnvironmentVariables($Path.Trim())
+    $clean = $Path.Trim().Trim('"', "'")
+    $expanded = [Environment]::ExpandEnvironmentVariables($clean)
     if (-not [System.IO.Path]::IsPathRooted($expanded)) { Write-Error "Path must be absolute: $Path"; exit 1 }
     if ($ExpectedRoot) {
-        $exp = [Environment]::ExpandEnvironmentVariables($ExpectedRoot)
+        $exp = if ($ExpectedRoot) { [Environment]::ExpandEnvironmentVariables($ExpectedRoot.Trim().Trim('"', "'")) } else { "" }
         try { $full = [System.IO.Path]::GetFullPath($expanded) } catch { $full = $expanded }
         try { $root = [System.IO.Path]::GetFullPath($exp) } catch { $root = $exp }
         if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
-            Write-Error "Path '$Path' is outside expected scope (expected under '$ExpectedRoot') — aborting"
+            Write-Error "Path '$clean' is outside expected scope (expected under '$ExpectedRoot') — aborting"
             exit 1
         }
     }
-    if ($Path -match '[\. ]$') { Write-Warning "Trailing space/dot will be stripped by Windows: '$Path'" }
+    if ($clean -match '[\. ]$') { Write-Warning "Trailing space/dot will be stripped by Windows: '$clean'" }
 }
 
 # The JSON file stores env-var paths as "%USERPROFILE%\..." so they stay
 # portable; expand them back into absolute paths at load time.
 function Expand-ConfigPath([string]$Path) {
-    [Environment]::ExpandEnvironmentVariables($Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $Path }
+    [Environment]::ExpandEnvironmentVariables($Path.Trim().Trim('"', "'"))
 }
 
 # Delete-path history (M2 / M8 / M9): why this code looks the way it does.

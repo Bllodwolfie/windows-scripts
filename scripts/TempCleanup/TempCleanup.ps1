@@ -1,4 +1,4 @@
-# Deletes files in the user's %TEMP% folder that are older than CutoffDays.
+﻿# Deletes files in the user's %TEMP% folder that are older than CutoffDays.
 # Runs recursively; files/folders that fail to delete (locked, in-use) are silently skipped.
 
 param(
@@ -30,7 +30,8 @@ if (Test-Path -LiteralPath $ConfigPath) {
 
 # JSON stores env-var paths as "%TEMP%"/"%USERPROFILE%\..."; expand them at load time.
 function Expand-ConfigPath([string]$Path) {
-    [Environment]::ExpandEnvironmentVariables($Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $Path }
+    [Environment]::ExpandEnvironmentVariables($Path.Trim().Trim('"', "'"))
 }
 
 # IgnoreFolders (list of paths, default empty): files under an ignored folder
@@ -50,7 +51,8 @@ if ($Config -is [hashtable]) {
 
 function Normalize-IgnorePath([string]$P) {
     if ([string]::IsNullOrWhiteSpace($P)) { return $null }
-    $e = [Environment]::ExpandEnvironmentVariables($P.Trim()).TrimEnd('\', '/')
+    $clean = $P.Trim().Trim('"', "'")
+    $e = [Environment]::ExpandEnvironmentVariables($clean).TrimEnd('\', '/')
     if ($e.StartsWith("\\?\")) { $e = $e.Substring(4) }
     try { return [System.IO.Path]::GetFullPath($e).TrimEnd('\', '/') } catch { return $e }
 }
@@ -81,18 +83,19 @@ function ConvertTo-LongPath([string]$Path) {
 
 function Test-PathScope([string]$Path, [string]$ExpectedRoot) {
     if ([string]::IsNullOrWhiteSpace($Path)) { Write-Error "Path must be absolute: $Path (empty)"; exit 1 }
-    $expanded = [Environment]::ExpandEnvironmentVariables($Path.Trim())
+    $clean = $Path.Trim().Trim('"', "'")
+    $expanded = [Environment]::ExpandEnvironmentVariables($clean)
     if (-not [System.IO.Path]::IsPathRooted($expanded)) { Write-Error "Path must be absolute: $Path"; exit 1 }
     if ($ExpectedRoot) {
-        $exp = [Environment]::ExpandEnvironmentVariables($ExpectedRoot)
+        $exp = if ($ExpectedRoot) { [Environment]::ExpandEnvironmentVariables($ExpectedRoot.Trim().Trim('"', "'")) } else { "" }
         try { $full = [System.IO.Path]::GetFullPath($expanded) } catch { $full = $expanded }
         try { $root = [System.IO.Path]::GetFullPath($exp) } catch { $root = $exp }
         if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
-            Write-Error "Path '$Path' is outside expected scope (expected under '$ExpectedRoot') — aborting"
+            Write-Error "Path '$clean' is outside expected scope (expected under '$ExpectedRoot') — aborting"
             exit 1
         }
     }
-    if ($Path -match '[\. ]$') { Write-Warning "Trailing space/dot will be stripped by Windows: '$Path'" }
+    if ($clean -match '[\. ]$') { Write-Warning "Trailing space/dot will be stripped by Windows: '$clean'" }
 }
 
 # Delete-path history (M2 / M8 / M9): why this code looks the way it does.
