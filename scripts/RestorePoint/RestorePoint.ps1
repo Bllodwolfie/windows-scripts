@@ -1,4 +1,4 @@
-# Creates a System Restore point and verifies it actually appeared.
+﻿# Creates a System Restore point and verifies it actually appeared.
 # Uses the native SRSetRestorePoint API (Srclient.dll) directly: in PowerShell 7,
 # Checkpoint-Computer / Get-ComputerRestorePoint are implicit-remoting proxies
 # that run the real cmdlet in a Windows PowerShell 5.1 session, which cannot be
@@ -50,7 +50,8 @@ if ($IncludeOnly.Count -gt 0 -and $IncludeOnly -notcontains $Config.Description)
 }
 
 if (-not $shadow) {
-    Write-Warning "No System Protection / shadow storage found. Restore points may not be enabled on this system."
+    Write-Warning "No System Protection / shadow storage found. System Protection is disabled on this system — skipping restore point creation."
+    exit 0
 }
 
 # Native API used to create restore points (same call Checkpoint-Computer makes).
