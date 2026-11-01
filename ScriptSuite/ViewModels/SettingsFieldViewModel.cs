@@ -244,6 +244,11 @@ public sealed class SettingsFieldViewModel : ViewModelBase
     {
         var v = _newItemText.Trim();
         if (Field.Type == "pathList") v = v.Trim('"', '\'');
+        if (Field.Name == "DeleteExts")
+        {
+            v = v.ToLowerInvariant();
+            if (!string.IsNullOrEmpty(v) && !v.StartsWith(".")) v = "." + v;
+        }
         if (v.Length == 0 || Items.Contains(v))
         {
             _newItemText = "";

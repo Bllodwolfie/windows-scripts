@@ -181,7 +181,10 @@ if ($cutoffDays -lt 0) { Write-Warning "CutoffDays is negative ($cutoffDays) —
 $cutoff  = (Get-Date).AddDays(-$cutoffDays)
 $logDir  = Expand-ConfigPath $Config.LogDir
 $logFile = Join-Path $logDir $Config.LogFile
-$deleteExts = @($Config.DeleteExts)
+$deleteExts = @($Config.DeleteExts | ForEach-Object {
+    $e = ([string]$_).Trim().ToLower()
+    if ($e.Length -gt 0 -and -not $e.StartsWith('.')) { '.' + $e } else { $e }
+} | Where-Object { $_ -ne "" })
 $categoriesRaw = $Config.Categories
 
 Test-PathScope $source "$env:USERPROFILE\Downloads"
