@@ -46,8 +46,9 @@ public partial class App : Application
 
         if (elevatedScriptId is not null && resultPath is not null)
         {
-            RunElevatedChildHeadless(elevatedScriptId, configPath ?? "", resultPath, liveLogPath, includeOnlyPath);
-            Shutdown();
+            int code = RunElevatedChildHeadless(elevatedScriptId, configPath ?? "", resultPath, liveLogPath, includeOnlyPath);
+            Environment.ExitCode = code;
+            Shutdown(code);
             return;
         }
 
@@ -145,11 +146,58 @@ public partial class App : Application
 
     /// <summary>Elevated child mode. No window is created; the result is
     /// written to --result-path and the process exits.</summary>
-    private void RunElevatedChildHeadless(string scriptId, string configPath, string resultPath, string? liveLogPath, string? includeOnlyPath)
+    private int RunElevatedChildHeadless(string scriptId, string configPath, string resultPath, string? liveLogPath, string? includeOnlyPath)
     {
+        string? failureReason = null;
+        try
+        {
+            ScheduledTaskService.RequireSafeId(scriptId);
+        }
+        catch (Exception ex)
+        {
+            failureReason = $"Invalid script ID '{scriptId}': {ex.Message}";
+        }
+
         var catalog = new ManifestCatalog(AppPaths.ManifestsDir);
+        var manifest = failureReason == null ? catalog.Find(scriptId) : null;
+        if (failureReason == null)
+        {
+            if (manifest == null)
+            {
+                failureReason = $"Unknown script '{scriptId}'; refusing elevated execution";
+            }
+            else if (!manifest.RequiresAdmin)
+            {
+                failureReason = $"{scriptId} is not an administrator script; refusing elevated execution";
+            }
+        }
+
+        if (failureReason != null)
+        {
+            var payload = new Dictionary<string, object?>
+            {
+                ["ScriptId"] = scriptId,
+                ["Outcome"] = "Failed",
+                ["Logs"] = new List<string> { failureReason },
+                ["ItemCounts"] = new Dictionary<string, int>(),
+                ["ExitCode"] = 1,
+            };
+            try
+            {
+                if (liveLogPath is not null)
+                {
+                    try { File.AppendAllText(liveLogPath, "ERROR: " + failureReason + Environment.NewLine); } catch { }
+                }
+                Directory.CreateDirectory(Path.GetDirectoryName(resultPath)!);
+                File.WriteAllText(resultPath, JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }));
+            }
+            catch { }
+            Console.Error.WriteLine(failureReason);
+            return 1;
+        }
+
         var executor = new ScriptExecutor(catalog);
-        executor.RunElevatedChild(scriptId, configPath, resultPath, liveLogPath, includeOnlyPath);
+        return executor.RunElevatedChild(scriptId, configPath, resultPath, liveLogPath, includeOnlyPath);
     }
 
     /// <summary>Headless scheduled runner (Stage 2). No window, exits after.
@@ -231,10 +279,16 @@ public partial class App : Application
             if (id == null || unit == null || intervalStr == null || time == null) return 1;
             if (!int.TryParse(intervalStr, out int interval)) return 1;
             var entry = new ScheduleEntry { ScriptId = id, Unit = unit, Interval = interval, TimeOfDay = time, Enabled = true, CreatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") };
+            ScheduledTaskService.RequireSafeId(id);
             var store = new ScheduleStore(AppPaths.SchedulesPath);
             var catalog = new ManifestCatalog(AppPaths.ManifestsDir);
             var manifest = catalog.Find(id);
-            bool requiresAdmin = manifest?.RequiresAdmin ?? false;
+            if (manifest == null)
+            {
+                Console.Error.WriteLine($"Unknown script '{id}' for scheduled task.");
+                return 1;
+            }
+            bool requiresAdmin = manifest.RequiresAdmin;
             var (ok, err, needsElev) = ScheduledTaskService.Register(entry, requiresAdmin);
             if (!ok && needsElev) return 2;
             if (ok) { store.Set(entry); return 0; }

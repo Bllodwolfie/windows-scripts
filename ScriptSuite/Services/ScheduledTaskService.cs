@@ -18,13 +18,13 @@ public sealed class ScheduledTaskService
     // manifest/CLI-controlled ids and schedule fields cannot break out of the
     // generated -EncodedCommand scripts (was: raw string concatenation).
     private static string PsQuote(string s) => "'" + s.Replace("'", "''") + "'";
-    private static string RequireSafeId(string scriptId)
+    public static string RequireSafeId(string? scriptId)
     {
-        if (scriptId.Length == 0)
+        if (string.IsNullOrEmpty(scriptId))
             throw new ArgumentException("Empty ScriptId for scheduled task.", nameof(scriptId));
         foreach (char c in scriptId)
             if (!(char.IsLetterOrDigit(c) || c == '-' || c == '_'))
-                throw new ArgumentException($"Unsafe ScriptId for scheduled task: {scriptId}", nameof(scriptId));
+                throw new ArgumentException($"Unsafe ScriptId: {scriptId}", nameof(scriptId));
         return scriptId;
     }
     private static string RequireUnit(string unit) => unit switch

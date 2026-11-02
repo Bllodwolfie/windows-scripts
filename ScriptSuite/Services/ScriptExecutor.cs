@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Management.Automation;
@@ -344,6 +344,30 @@ public sealed class ScriptExecutor
     /// Target list from the preview.</summary>
     public int RunElevatedChild(string scriptId, string configPath, string resultPath, string? liveLogPath, string? includeOnlyPath)
     {
+        var manifest = _catalog.Find(scriptId);
+        if (manifest == null || !manifest.RequiresAdmin)
+        {
+            string failureReason = manifest == null
+                ? $"Unknown script '{scriptId}'; refusing elevated execution"
+                : $"{scriptId} is not an administrator script; refusing elevated execution";
+
+            var rejectPayload = new Dictionary<string, object?>
+            {
+                ["ScriptId"] = scriptId,
+                ["Outcome"] = "Failed",
+                ["Logs"] = new List<string> { failureReason },
+                ["ItemCounts"] = new Dictionary<string, int>(),
+                ["ExitCode"] = 1,
+            };
+            if (liveLogPath is not null)
+            {
+                try { File.AppendAllText(liveLogPath, "ERROR: " + failureReason + Environment.NewLine); } catch { }
+            }
+            Directory.CreateDirectory(Path.GetDirectoryName(resultPath)!);
+            File.WriteAllText(resultPath, JsonSerializer.Serialize(rejectPayload, new JsonSerializerOptions { WriteIndented = true }));
+            return 1;
+        }
+
         var payload = new Dictionary<string, object?>
         {
             ["ScriptId"] = scriptId,
@@ -376,7 +400,7 @@ public sealed class ScriptExecutor
             payload["Outcome"] = OutcomeToString(result.Outcome);
             payload["Logs"] = result.Logs;
             payload["ItemCounts"] = result.ItemCounts;
-            payload["ExitCode"] = 0;
+            payload["ExitCode"] = result.Outcome == RunOutcome.Failed ? 1 : 0;
         }
         catch (Exception ex)
         {
@@ -387,7 +411,7 @@ public sealed class ScriptExecutor
 
         Directory.CreateDirectory(Path.GetDirectoryName(resultPath)!);
         File.WriteAllText(resultPath, JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }));
-        return 0;
+        return (int)(payload["ExitCode"] ?? 1);
     }
 
     /// <summary>Appends the child's newly written live-log lines to onLine.
