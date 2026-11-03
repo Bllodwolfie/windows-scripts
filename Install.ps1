@@ -1,4 +1,4 @@
-<#Requires -Version 7.0>
+﻿<#Requires -Version 7.0>
 <#
 .SYNOPSIS
   Install for ScriptSuite — self-contained publish + Start Menu shortcut.
@@ -145,7 +145,21 @@ foreach ($t in $tasks) {
     }
 }
 
-# 6) Cleanup old per-user install and old shortcut ONLY after verifying no tasks point to the old copy
+# 6) SEC-04: Seed config-trust.json if missing for existing configs (migration)
+$trustFile = Join-Path $env:LOCALAPPDATA "ScriptSuite\config-trust.json"
+$configsFolder = Join-Path $env:LOCALAPPDATA "ScriptSuite\Configs"
+if (-not (Test-Path $trustFile) -and (Test-Path $configsFolder)) {
+    Write-Host "Seeding config-trust.json for existing configs (SEC-04 migration)..."
+    $trustMap = [ordered]@{}
+    Get-ChildItem -Path $configsFolder -Filter "*.json" | ForEach-Object {
+        $id = [System.IO.Path]::GetFileNameWithoutExtension($_.Name)
+        $h = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+        $trustMap[$id] = $h
+    }
+    $trustMap | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $trustFile -Encoding utf8
+}
+
+# 7) Cleanup old per-user install and old shortcut ONLY after verifying no tasks point to the old copy
 $tasksStillPointingToOld = Get-ScheduledTask -TaskPath "\ScriptSuite\" -ErrorAction SilentlyContinue |
     Where-Object { ($_.Actions | Select-Object -First 1).Execute -like "*Programs\ScriptSuite\ScriptSuite.exe*" }
 
@@ -164,7 +178,7 @@ if (-not $tasksStillPointingToOld) {
     Write-Warning "Skipped deleting old install dir because some tasks still point to it: $($tasksStillPointingToOld.TaskName -join ', ')"
 }
 
-# 7) Evidence
+# 8) Evidence
 Write-Host ""
 Write-Host "=== install dir ===" -ForegroundColor Cyan
 Get-ChildItem $InstallDir -File | Select-Object -First 10 Name, @{n='KB';e={[int]($_.Length/1KB)}} | Format-Table -AutoSize | Out-String | Write-Host
