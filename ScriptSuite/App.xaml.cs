@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Text.Json;
 using System.Windows;
 using ScriptSuite.Models;
@@ -196,8 +196,16 @@ public partial class App : Application
             return 1;
         }
 
-        var executor = new ScriptExecutor(catalog);
-        return executor.RunElevatedChild(scriptId, configPath, resultPath, liveLogPath, includeOnlyPath);
+        try
+        {
+            var executor = new ScriptExecutor(catalog);
+            return executor.RunElevatedChild(scriptId, configPath, resultPath, liveLogPath, includeOnlyPath);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("ELEVATED CHILD ERROR: " + ex.Message);
+            return 1;
+        }
     }
 
     /// <summary>Headless scheduled runner (Stage 2). No window, exits after.

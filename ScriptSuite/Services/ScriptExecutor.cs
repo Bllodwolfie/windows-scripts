@@ -406,7 +406,7 @@ public sealed class ScriptExecutor
         {
             payload["Outcome"] = "Failed";
             payload["Logs"] = new List<string> { "ELEVATED CHILD ERROR: " + ex.Message };
-            payload["ExitCode"] = -1;
+            payload["ExitCode"] = 1;
         }
 
         Directory.CreateDirectory(Path.GetDirectoryName(resultPath)!);
