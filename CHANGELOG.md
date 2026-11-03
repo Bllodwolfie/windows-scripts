@@ -2,6 +2,16 @@
 
 All notable changes to ScriptSuite are documented in this file.
 
+## [3.0.3] - 2026-11-03
+
+### Security
+- **Path Scope Denylist:** `Test-PathScope` across cleanup and report scripts (`DownloadsCleanup`, `EmptyFolderCleanup`, `ScreenshotsCleanup`, `TempCleanup`, `SystemHealthReport`, `SoftwareInventory`) hard-aborts with exit 1 regardless of elevation if any target path equals or is an ancestor of: a drive root, `%SystemRoot%`, `%ProgramFiles%`, `%ProgramFiles(x86)%`, `%ProgramData%`, `%USERPROFILE%`, `%APPDATA%`, `%LOCALAPPDATA%`, `%LOCALAPPDATA%\ScriptSuite`, or the application installation directory. Drive-root targets are now blocked.
+- **Trailing Separator Scope Boundary:** All path containment checks enforce trailing directory separators to prevent sibling-prefix directory escapes (e.g., `Downloads-evil` is strictly recognized as outside `Downloads`).
+- **ClearEventLogs BackupDir Scope Validation:** Added scope validation preventing `BackupDir` from equaling or being an ancestor of any denylisted target, and prohibiting backup directories inside `%SystemRoot%` or `%ProgramFiles%`.
+- **SoftwareInventory Output Validation:** Validates `OutputFile` parent directory against the path denylist, and refuses to overwrite existing files whose extension differs from the script's own output extension (`.txt`).
+- **Manifest ScriptPath Containment:** `ScriptManifest.AbsoluteScriptPath` enforces strict directory containment under `<BaseDirectory>\scripts\`; attempts to traverse outside throw `SecurityException`, which the UI and runner surface as a clear error without crashing the application.
+- **SEC-04 Notice:** Documented limitations regarding unauthenticated shared configuration files and the Authenticode signature design rationale in `README.md`.
+
 ## [3.0.2] - 2026-11-03
 
 ### Fixed
