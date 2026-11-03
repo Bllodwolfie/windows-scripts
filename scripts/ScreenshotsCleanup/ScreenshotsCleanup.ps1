@@ -71,11 +71,61 @@ function Test-PathScope([string]$Path, [string]$ExpectedRoot) {
     $clean = $Path.Trim().Trim('"', "'")
     $expanded = [Environment]::ExpandEnvironmentVariables($clean)
     if (-not [System.IO.Path]::IsPathRooted($expanded)) { Write-Error "Path must be absolute: $Path"; exit 1 }
+
+    try { $full = [System.IO.Path]::GetFullPath($expanded) } catch { $full = $expanded }
+    $norm = $full.TrimEnd('\')
+
+    # Denylist check: hard-abort with exit 1 regardless of elevation if path EQUALS or is an ancestor of:
+    # drive root, %SystemRoot%, %ProgramFiles%, %ProgramFiles(x86)%, %ProgramData%, %USERPROFILE%, %APPDATA%, %LOCALAPPDATA%, %LOCALAPPDATA%\ScriptSuite, install dir
+    $driveRoot = [System.IO.Path]::GetPathRoot($full)
+    if (-not [string]::IsNullOrEmpty($driveRoot) -and $norm.Equals($driveRoot.TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase)) {
+        Write-Error "Path '$clean' is a drive root — aborting."
+        exit 1
+    }
+
+    $deniedTargets = [System.Collections.Generic.List[string]]::new()
+    $envVars = @(
+        $env:SystemRoot,
+        $env:ProgramFiles,
+        ${env:ProgramFiles(x86)},
+        $env:ProgramData,
+        $env:USERPROFILE,
+        $env:APPDATA,
+        $env:LOCALAPPDATA
+    )
+    foreach ($ev in $envVars) {
+        if (-not [string]::IsNullOrWhiteSpace($ev)) {
+            try { $deniedTargets.Add([System.IO.Path]::GetFullPath($ev).TrimEnd('\')) } catch {}
+        }
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+        try { $deniedTargets.Add([System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA "ScriptSuite")).TrimEnd('\')) } catch {}
+    }
+    try {
+        $parentInstall = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\..")).TrimEnd('\')
+        if (-not $deniedTargets.Contains($parentInstall)) { $deniedTargets.Add($parentInstall) }
+    } catch {}
+    if (-not [string]::IsNullOrWhiteSpace($env:ProgramFiles)) {
+        try {
+            $pfInstall = [System.IO.Path]::GetFullPath((Join-Path $env:ProgramFiles "ScriptSuite")).TrimEnd('\')
+            if (-not $deniedTargets.Contains($pfInstall)) { $deniedTargets.Add($pfInstall) }
+        } catch {}
+    }
+
+    foreach ($d in $deniedTargets) {
+        if ($norm.Equals($d, [StringComparison]::OrdinalIgnoreCase) -or
+            $d.StartsWith($norm + [System.IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+            Write-Error "Path '$clean' is denylisted or an ancestor of protected path '$d' — aborting."
+            exit 1
+        }
+    }
+
     if ($ExpectedRoot) {
-        $exp = if ($ExpectedRoot) { [Environment]::ExpandEnvironmentVariables($ExpectedRoot.Trim().Trim('"', "'")) } else { "" }
-        try { $full = [System.IO.Path]::GetFullPath($expanded) } catch { $full = $expanded }
-        try { $root = [System.IO.Path]::GetFullPath($exp) } catch { $root = $exp }
-        if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
+        $exp = [Environment]::ExpandEnvironmentVariables($ExpectedRoot.Trim().Trim('"', "'"))
+        try { $root = [System.IO.Path]::GetFullPath($exp).TrimEnd('\') } catch { $root = $exp.TrimEnd('\') }
+        $isInside = $norm.Equals($root, [StringComparison]::OrdinalIgnoreCase) -or
+                    $norm.StartsWith($root + [System.IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)
+        if (-not $isInside) {
             $isElevated = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
             if ($isElevated) {
                 Write-Error "Path '$clean' is outside expected scope (expected under '$ExpectedRoot') — aborting (elevated execution)"
@@ -204,6 +254,7 @@ $logDir  = Expand-ConfigPath $Config.LogDir
 $logFile = Join-Path $logDir $Config.LogFile
 
 Test-PathScope $path "$env:USERPROFILE\Pictures\Screenshots"
+if ($logDir) { Test-PathScope $logDir "$env:USERPROFILE" }
 
 $null = New-Item -ItemType Directory -Path $logDir -Force -ErrorAction SilentlyContinue
 
