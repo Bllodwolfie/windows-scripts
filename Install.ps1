@@ -95,17 +95,53 @@ $sc.Save()
 [System.Runtime.InteropServices.Marshal]::ReleaseComObject($sc) | Out-Null
 [System.Runtime.InteropServices.Marshal]::ReleaseComObject($wsh) | Out-Null
 
-# 5) SEC-02 Migration: Re-point any existing \ScriptSuite\* scheduled tasks whose Command is the old per-user path
-Write-Host "Checking for existing \ScriptSuite scheduled tasks to re-point..."
+# 5) SEC-02 & DST Migration: Re-point existing \ScriptSuite\* tasks and convert legacy Z/offset StartBoundary to local no-Z
+Write-Host "Checking \ScriptSuite scheduled tasks for upgrade migration..."
 $tasks = Get-ScheduledTask -TaskPath "\ScriptSuite\" -ErrorAction SilentlyContinue
 $oldPerUserExe = Join-Path $env:LOCALAPPDATA "Programs\ScriptSuite\ScriptSuite.exe"
 
+$schedulesPath = Join-Path $env:LOCALAPPDATA "ScriptSuite\schedules.json"
+$schedules = if (Test-Path $schedulesPath) {
+    try { Get-Content $schedulesPath -Raw | ConvertFrom-Json } catch { $null }
+} else { $null }
+
 foreach ($t in $tasks) {
+    # 5a: Re-point Command if pointing to old per-user exe
     $action = $t.Actions | Select-Object -First 1
     if ($action -and ($action.Execute -like "*Programs\ScriptSuite\ScriptSuite.exe*" -or $action.Execute -eq $oldPerUserExe)) {
         Write-Host "  Re-pointing task $($t.TaskName) to $target ..."
         $newAction = New-ScheduledTaskAction -Execute $target -Argument $action.Arguments
         Set-ScheduledTask -TaskPath $t.TaskPath -TaskName $t.TaskName -Action $newAction -Principal $t.Principal | Out-Null
+    }
+
+    # 5b: Convert any trigger StartBoundary with Z or offset to local no-Z format (DST fix)
+    $triggersUpdated = $false
+    foreach ($tr in $t.Triggers) {
+        $sb = $tr.StartBoundary
+        if (-not [string]::IsNullOrEmpty($sb) -and ($sb -match 'Z$' -or $sb -match '[+-]\d{2}(:?\d{2})?$')) {
+            $parsedLocal = [DateTimeOffset]::Parse($sb).LocalDateTime
+            $localTimeStr = $parsedLocal.ToString("HH:mm")
+
+            # Cross-check against schedules.json timeOfDay if entry exists
+            if ($schedules -and ($schedules.PSObject.Properties.Name -contains $t.TaskName)) {
+                $schedEntry = $schedules.$($t.TaskName)
+                if ($schedEntry -and $schedEntry.timeOfDay) {
+                    $expectedTime = $schedEntry.timeOfDay.Trim()
+                    if ($expectedTime -ne $localTimeStr) {
+                        Write-Warning "Task $($t.TaskName) timeOfDay ($expectedTime) in schedules.json disagrees with converted local time ($localTimeStr) from StartBoundary '$sb' — skipping trigger update"
+                        continue
+                    }
+                }
+            }
+
+            $newSb = $parsedLocal.ToString("yyyy-MM-ddTHH:mm:ss")
+            Write-Host "  Updating task $($t.TaskName) StartBoundary '$sb' -> '$newSb' (local no-Z)"
+            $tr.StartBoundary = $newSb
+            $triggersUpdated = $true
+        }
+    }
+    if ($triggersUpdated) {
+        Set-ScheduledTask -TaskPath $t.TaskPath -TaskName $t.TaskName -Trigger $t.Triggers | Out-Null
     }
 }
 
