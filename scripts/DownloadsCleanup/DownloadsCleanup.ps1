@@ -316,8 +316,11 @@ if ($null -ne $Config.AdvancedRules) {
 # resolve inside the user profile — a hostile config must not redirect moves
 # to system locations. Abort on the first escape (Test-PathScope now fails
 # closed instead of warn-and-proceed).
-foreach ($dest in (@($extMap.Values) | Select-Object -Unique)) {
-    Test-PathScope ([string]$dest) "$env:USERPROFILE"
+$categoryDestinations = if ($categoriesRaw -is [hashtable]) { @($categoriesRaw.Keys) } else { @($categoriesRaw.PSObject.Properties | ForEach-Object { $_.Name }) }
+foreach ($rawDest in $categoryDestinations) {
+    if (-not [string]::IsNullOrWhiteSpace($rawDest)) {
+        Test-PathScope (Expand-ConfigPath ([string]$rawDest)) "$env:USERPROFILE"
+    }
 }
 foreach ($rule in @($advancedMap.Values)) {
     if ($rule.Destination) { Test-PathScope ([string]$rule.Destination) "$env:USERPROFILE" }

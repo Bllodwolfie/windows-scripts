@@ -124,7 +124,8 @@ try {
             if ($targetItem.PSIsContainer) {
                 throw "OutputFile is a folder, not a file: $outputFile"
             }
-            $scriptExt = ".txt"
+            $scriptExt = [System.IO.Path]::GetExtension($defaultConfig.OutputFile)
+            if ([string]::IsNullOrWhiteSpace($scriptExt)) { $scriptExt = ".txt" }
             $existingExt = [System.IO.Path]::GetExtension($targetItem.FullName)
             if (-not $existingExt.Equals($scriptExt, [StringComparison]::OrdinalIgnoreCase)) {
                 throw "Refusing to overwrite existing file with differing extension '$existingExt' (expected '$scriptExt')"
