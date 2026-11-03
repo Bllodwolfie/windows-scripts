@@ -2,6 +2,11 @@
 
 All notable changes to ScriptSuite are documented in this file.
 
+## [3.1.2] - 2026-11-03
+
+### Security & Hardening
+- **CLI Argument Containment:** Removed the `--config-path` CLI parameter completely from `App.xaml.cs` and `ScriptExecutor.RunElevated`. Elevated execution now unconditionally resolves configuration files through the canonical `%LOCALAPPDATA%\ScriptSuite\Configs\<scriptId>.json` path via `AppPaths.ConfigPathFor(scriptId)`, ensuring no CLI argument can supply or override the configuration path during elevated runs.
+
 ## [3.1.1] - 2026-11-03
 
 ### Security & Hardening

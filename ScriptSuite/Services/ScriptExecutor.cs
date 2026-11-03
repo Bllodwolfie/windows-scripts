@@ -301,8 +301,6 @@ public sealed class ScriptExecutor
         };
         psi.ArgumentList.Add("--elevated-run");
         psi.ArgumentList.Add(scriptId);
-        psi.ArgumentList.Add("--config-path");
-        psi.ArgumentList.Add(configPath);
         psi.ArgumentList.Add("--result-path");
         psi.ArgumentList.Add(resultPath);
         psi.ArgumentList.Add("--live-log");
@@ -372,7 +370,7 @@ public sealed class ScriptExecutor
     /// Output lines are appended to liveLogPath as they are produced (so the
     /// parent can stream them) and includeOnlyPath supplies the confirmed
     /// Target list from the preview.</summary>
-    public int RunElevatedChild(string scriptId, string configPath, string resultPath, string? liveLogPath, string? includeOnlyPath)
+    public int RunElevatedChild(string scriptId, string resultPath, string? liveLogPath, string? includeOnlyPath)
     {
         var manifest = _catalog.Find(scriptId);
         if (manifest == null || !manifest.RequiresAdmin)
@@ -447,6 +445,7 @@ public sealed class ScriptExecutor
                     catch { /* file deleted by parent mid-run; best effort */ }
                 };
 
+            string configPath = AppPaths.ConfigPathFor(scriptId);
             var result = ExecuteInProcess(scriptId, configPath, dryRun: false, includeOnly, onLine);
             payload["Outcome"] = OutcomeToString(result.Outcome);
             payload["Logs"] = result.Logs;

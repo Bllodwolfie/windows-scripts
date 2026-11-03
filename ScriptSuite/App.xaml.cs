@@ -13,7 +13,6 @@ namespace ScriptSuite;
 public partial class App : Application
 {
     private const string ElevatedRunFlag = "--elevated-run";
-    private const string ConfigPathFlag = "--config-path";
     private const string ResultPathFlag = "--result-path";
     private const string LiveLogFlag = "--live-log";
     private const string IncludeOnlyFlag = "--include-only";
@@ -32,7 +31,6 @@ public partial class App : Application
 
         var args = e.Args;
         string? elevatedScriptId = GetArg(args, ElevatedRunFlag);
-        string? configPath = GetArg(args, ConfigPathFlag);
         string? resultPath = GetArg(args, ResultPathFlag);
         string? liveLogPath = GetArg(args, LiveLogFlag);
         string? includeOnlyPath = GetArg(args, IncludeOnlyFlag);
@@ -46,7 +44,7 @@ public partial class App : Application
 
         if (elevatedScriptId is not null && resultPath is not null)
         {
-            int code = RunElevatedChildHeadless(elevatedScriptId, configPath ?? "", resultPath, liveLogPath, includeOnlyPath);
+            int code = RunElevatedChildHeadless(elevatedScriptId, resultPath, liveLogPath, includeOnlyPath);
             Environment.ExitCode = code;
             Shutdown(code);
             return;
@@ -147,7 +145,7 @@ public partial class App : Application
 
     /// <summary>Elevated child mode. No window is created; the result is
     /// written to --result-path and the process exits.</summary>
-    private int RunElevatedChildHeadless(string scriptId, string configPath, string resultPath, string? liveLogPath, string? includeOnlyPath)
+    private int RunElevatedChildHeadless(string scriptId, string resultPath, string? liveLogPath, string? includeOnlyPath)
     {
         string? failureReason = null;
         try
@@ -200,7 +198,7 @@ public partial class App : Application
         try
         {
             var executor = new ScriptExecutor(catalog);
-            return executor.RunElevatedChild(scriptId, configPath, resultPath, liveLogPath, includeOnlyPath);
+            return executor.RunElevatedChild(scriptId, resultPath, liveLogPath, includeOnlyPath);
         }
         catch (Exception ex)
         {
