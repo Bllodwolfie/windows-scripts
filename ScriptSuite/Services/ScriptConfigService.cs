@@ -13,6 +13,13 @@ namespace ScriptSuite.Services;
 /// suffer.</summary>
 public sealed class ScriptConfigService
 {
+    private readonly ConfigTrustStore _trustStore;
+
+    public ScriptConfigService(ConfigTrustStore? trustStore = null)
+    {
+        _trustStore = trustStore ?? new ConfigTrustStore();
+    }
+
     /// <summary>Loads the script's config as a JSON object, or an empty object
     /// when the file is missing or malformed.</summary>
     public JsonObject Load(string scriptId)
@@ -67,6 +74,7 @@ public sealed class ScriptConfigService
 
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, next);
+        _trustStore.Trust(scriptId);
     }
 
     // ------------------------------------------------------------ helpers
