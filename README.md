@@ -17,7 +17,7 @@ A Windows maintenance suite — a WPF dashboard (`ScriptSuite`) over nine self-c
 
 1. Download [`ScriptSuite-win-x64-self-contained.zip`](https://github.com/Bllodwolfie/windows-scripts/releases/download/v2.1.1/ScriptSuite-win-x64-self-contained.zip) (self-contained `win-x64`, no .NET runtime to install).
 2. Right-click the zip → `Extract All` → open the folder.
-3. Double-click `ScriptSuite.exe`. Optionally run `Install.ps1` from the repo to create a Start Menu shortcut (Windows Search → `ScriptSuite`).
+3. Double-click `ScriptSuite.exe`. Optionally run `Install.ps1` (included in the zip and repo) to install to `%ProgramFiles%\ScriptSuite\` with admin-only write ACLs (SEC-02) and create the Start Menu shortcut (Windows Search → `ScriptSuite`). One UAC elevation prompt is requested.
 
 > **First-run SmartScreen:** the exe is unsigned, so Windows SmartScreen / Microsoft Defender SmartScreen may show *Windows protected your PC* → click `More info` → `Run anyway`. The zip comes from GitHub via `Mark of the Web`; extracting with Explorer handles it. No admin needed to run the app itself.
 
@@ -31,15 +31,16 @@ A Windows maintenance suite — a WPF dashboard (`ScriptSuite`) over nine self-c
 git clone https://github.com/Bllodwolfie/windows-scripts.git
 cd windows-scripts
 
-# Per-user install (no admin): publish self-contained to %LOCALAPPDATA%\Programs\ScriptSuite
-# and create %APPDATA%\Microsoft\Windows\Start Menu\Programs\ScriptSuite.lnk
+# Secure system install: publishes self-contained to %ProgramFiles%\ScriptSuite
+# and creates %ProgramData%\Microsoft\Windows\Start Menu\Programs\ScriptSuite.lnk
+# Requests one UAC prompt so the installation directory inherits admin-only write ACLs (SEC-02).
 .\Install.ps1
 
 # Later
-.\Uninstall.ps1   # removes app + shortcut, keeps %LOCALAPPDATA%\ScriptSuite data (history.db, configs)
+.\Uninstall.ps1   # removes app, scheduled tasks, and shortcut; keeps %LOCALAPPDATA%\ScriptSuite data (history.db, configs)
 ```
 
-`Install.ps1` runs `dotnet publish -c Release -r win-x64 --self-contained true -o publish` (`publish` is not committed, `**/bin/`, `**/obj/` are gitignored) and copies to the stable per-user path (`AppPaths.cs:26` data stays at `%LOCALAPPDATA%\ScriptSuite`). Use `-NoBuild` to install from an already-downloaded Release zip, or `-InstallDir` / `-ShortcutPath` to override.
+`Install.ps1` runs `dotnet publish -c Release -r win-x64 --self-contained true -o publish` (`publish` is not committed, `**/bin/`, `**/obj/` are gitignored) and copies to the protected system install root `%ProgramFiles%\ScriptSuite\` (per-user data stays at `%LOCALAPPDATA%\ScriptSuite`). When run from an extracted Release zip, `Install.ps1` automatically detects the pre-built files (`-NoBuild`) and installs directly without needing the .NET SDK. Use `-InstallDir` / `-ShortcutPath` to override.
 
 **Run scripts directly (no dashboard):**
 

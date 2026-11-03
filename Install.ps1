@@ -1,25 +1,29 @@
 <#Requires -Version 7.0>
 <#
 .SYNOPSIS
-  Per-user install for ScriptSuite — self-contained publish + Start Menu shortcut.
+  Install for ScriptSuite — self-contained publish + Start Menu shortcut.
 
 .DESCRIPTION
   Runs `dotnet publish -c Release -r win-x64 --self-contained true` into a
-  staging folder, then copies to the stable per-user install root
-  %LOCALAPPDATA%\Programs\ScriptSuite\ and creates the Start Menu shortcut
+  staging folder, then copies to the secure system install root
+  %ProgramFiles%\ScriptSuite\ and creates the Start Menu shortcut
   that Windows Search indexes:
-    %APPDATA%\Microsoft\Windows\Start Menu\Programs\ScriptSuite.lnk
+    %ProgramData%\Microsoft\Windows\Start Menu\Programs\ScriptSuite.lnk
   TargetPath = <install>\ScriptSuite.exe
   WorkingDirectory = <install>\  (AppPaths uses AppContext.BaseDirectory, not CWD)
   IconLocation = TargetPath,0   (icon embedded via <ApplicationIcon>ScriptSuite.ico>)
   Description = ScriptSuite
 
-  Idempotent, no admin, no installer framework. Pair with Uninstall.ps1.
+  SEC-02: Installing to %ProgramFiles% ensures write access is restricted to
+  Administrators and SYSTEM. Standard users cannot tamper with executables or
+  PowerShell scripts invoked by elevated scheduled tasks. Requires one UAC prompt.
+  Re-points any existing \ScriptSuite\* scheduled tasks from old per-user paths.
+  Leaves per-user data (%LOCALAPPDATA%\ScriptSuite) untouched. Pair with Uninstall.ps1.
 #>
 [CmdletBinding()]
 param(
-    [string]$InstallDir = (Join-Path $env:LOCALAPPDATA "Programs\ScriptSuite"),
-    [string]$ShortcutPath = (Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\ScriptSuite.lnk"),
+    [string]$InstallDir = (Join-Path $env:ProgramFiles "ScriptSuite"),
+    [string]$ShortcutPath = (Join-Path $env:ProgramData "Microsoft\Windows\Start Menu\Programs\ScriptSuite.lnk"),
     [string]$ProjectPath = (Join-Path $PSScriptRoot "ScriptSuite\ScriptSuite.csproj"),
     [string]$PublishDir = (Join-Path $env:TEMP "ScriptSuite-publish"),
     [switch]$NoBuild
@@ -28,12 +32,37 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-if (-not (Test-Path $ProjectPath)) { throw "Project not found: $ProjectPath" }
+# 0) UAC self-elevation check (SEC-02: Program Files and task migration require admin)
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $isAdmin) {
+    Write-Host "Elevating Install.ps1 via UAC..." -ForegroundColor Yellow
+    $argList = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $PSCommandPath)
+    if ($PSBoundParameters.ContainsKey('InstallDir')) { $argList += @("-InstallDir", $InstallDir) }
+    if ($PSBoundParameters.ContainsKey('ShortcutPath')) { $argList += @("-ShortcutPath", $ShortcutPath) }
+    if ($PSBoundParameters.ContainsKey('ProjectPath')) { $argList += @("-ProjectPath", $ProjectPath) }
+    if ($PSBoundParameters.ContainsKey('PublishDir')) { $argList += @("-PublishDir", $PublishDir) }
+    if ($NoBuild) { $argList += "-NoBuild" }
+    $proc = Start-Process -FilePath (Get-Process -Id $PID).Path -ArgumentList $argList -Verb RunAs -PassThru -Wait
+    exit $proc.ExitCode
+}
 
-# 1) Publish self-contained win-x64 (non-technical users: no .NET runtime prerequisite)
-#    Size tradeoff measured 2026-08-28: FD 373f/49.5 MB vs SC 768f/188.7 MB (+139 MB).
-#    SC chosen for reliability — .NET 10 Desktop Runtime not yet broadly present via Windows Update;
-#    a missing runtime would break both launch and Phase-2 Task Scheduler silently.
+# Auto-detect pre-built release zip layout (Install.ps1 next to ScriptSuite.exe)
+if (-not (Test-Path $ProjectPath) -and (Test-Path (Join-Path $PSScriptRoot "ScriptSuite.exe"))) {
+    $PublishDir = $PSScriptRoot
+    $NoBuild = $true
+} elseif (-not (Test-Path $ProjectPath) -and -not $NoBuild) {
+    throw "Project not found: $ProjectPath"
+}
+
+# 1) Stop running instances so files are not locked
+$running = Get-Process -Name "ScriptSuite" -ErrorAction SilentlyContinue
+if ($running) {
+    Write-Warning "Stopping running ScriptSuite processes..."
+    $running | Stop-Process -Force
+    Start-Sleep -Milliseconds 500
+}
+
+# 2) Publish self-contained win-x64 (non-technical users: no .NET runtime prerequisite)
 if (-not $NoBuild) {
     Write-Host "Publishing self-contained win-x64..."
     Remove-Item $PublishDir -Recurse -Force -ErrorAction SilentlyContinue
@@ -44,13 +73,12 @@ if (-not $NoBuild) {
     if (-not (Test-Path (Join-Path $PublishDir "ScriptSuite.exe"))) { throw "NoBuild but no publish output at $PublishDir" }
 }
 
-# 2) Copy to stable install root (not bin/Debug which is volatile; not AppData\ScriptSuite which is data)
+# 3) Copy to protected install root (%ProgramFiles%\ScriptSuite)
 Write-Host "Installing to $InstallDir ..."
 New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
-# Robocopy-style copy: mirror publish into install dir, keep per-user data (%LOCALAPPDATA%\ScriptSuite) untouched
 Copy-Item -Path (Join-Path $PublishDir "*") -Destination $InstallDir -Recurse -Force
 
-# 3) Start Menu shortcut — what Windows Search actually indexes
+# 4) Start Menu shortcut — what Windows Search indexes
 Write-Host "Creating shortcut $ShortcutPath ..."
 New-Item -ItemType Directory -Path (Split-Path $ShortcutPath) -Force | Out-Null
 $target = Join-Path $InstallDir "ScriptSuite.exe"
@@ -63,20 +91,45 @@ $sc.WorkingDirectory = $InstallDir
 $sc.IconLocation = "$target,0"
 $sc.Description = "ScriptSuite"
 $sc.WindowStyle = 1
-# Optional: Arguments left empty — launch shows dashboard. Phase 2 Task Scheduler will add --run-all etc.
 $sc.Save()
-# Release COM
 [System.Runtime.InteropServices.Marshal]::ReleaseComObject($sc) | Out-Null
 [System.Runtime.InteropServices.Marshal]::ReleaseComObject($wsh) | Out-Null
 
-# 4) Evidence
-Write-Host ""
-Write-Host "=== publish output ===" -ForegroundColor Cyan
-Get-ChildItem $PublishDir -File -Recurse | Measure-Object | ForEach-Object { Write-Host ("  {0} files" -f $_.Count) }
-$pubSize = (Get-ChildItem $PublishDir -Recurse -File | Measure-Object Length -Sum).Sum
-Write-Host ("  {0:N0} bytes ({1:N1} MB)" -f $pubSize, ($pubSize/1MB))
-Get-ChildItem $PublishDir -File | Sort-Object Length -Descending | Select-Object -First 6 Name, @{n='KB';e={[int]($_.Length/1KB)}} | Format-Table -AutoSize | Out-String | Write-Host
+# 5) SEC-02 Migration: Re-point any existing \ScriptSuite\* scheduled tasks whose Command is the old per-user path
+Write-Host "Checking for existing \ScriptSuite scheduled tasks to re-point..."
+$tasks = Get-ScheduledTask -TaskPath "\ScriptSuite\" -ErrorAction SilentlyContinue
+$oldPerUserExe = Join-Path $env:LOCALAPPDATA "Programs\ScriptSuite\ScriptSuite.exe"
 
+foreach ($t in $tasks) {
+    $action = $t.Actions | Select-Object -First 1
+    if ($action -and ($action.Execute -like "*Programs\ScriptSuite\ScriptSuite.exe*" -or $action.Execute -eq $oldPerUserExe)) {
+        Write-Host "  Re-pointing task $($t.TaskName) to $target ..."
+        $newAction = New-ScheduledTaskAction -Execute $target -Argument $action.Arguments
+        Set-ScheduledTask -TaskPath $t.TaskPath -TaskName $t.TaskName -Action $newAction -Principal $t.Principal | Out-Null
+    }
+}
+
+# 6) Cleanup old per-user install and old shortcut ONLY after verifying no tasks point to the old copy
+$tasksStillPointingToOld = Get-ScheduledTask -TaskPath "\ScriptSuite\" -ErrorAction SilentlyContinue |
+    Where-Object { ($_.Actions | Select-Object -First 1).Execute -like "*Programs\ScriptSuite\ScriptSuite.exe*" }
+
+if (-not $tasksStillPointingToOld) {
+    $oldInstall = Join-Path $env:LOCALAPPDATA "Programs\ScriptSuite"
+    if (Test-Path $oldInstall) {
+        Write-Host "Removing old per-user install: $oldInstall ..."
+        Remove-Item -LiteralPath $oldInstall -Recurse -Force
+    }
+    $oldShortcut = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\ScriptSuite.lnk"
+    if (Test-Path $oldShortcut) {
+        Write-Host "Removing old per-user shortcut: $oldShortcut ..."
+        Remove-Item -LiteralPath $oldShortcut -Force
+    }
+} else {
+    Write-Warning "Skipped deleting old install dir because some tasks still point to it: $($tasksStillPointingToOld.TaskName -join ', ')"
+}
+
+# 7) Evidence
+Write-Host ""
 Write-Host "=== install dir ===" -ForegroundColor Cyan
 Get-ChildItem $InstallDir -File | Select-Object -First 10 Name, @{n='KB';e={[int]($_.Length/1KB)}} | Format-Table -AutoSize | Out-String | Write-Host
 Write-Host ("  exe: {0} ({1:N0} bytes)" -f $target, (Get-Item $target).Length)
@@ -93,22 +146,6 @@ Write-Host ("  Exists:          {0}" -f (Test-Path $ShortcutPath))
 [System.Runtime.InteropServices.Marshal]::ReleaseComObject($sc2) | Out-Null
 [System.Runtime.InteropServices.Marshal]::ReleaseComObject($wsh2) | Out-Null
 
-Write-Host "=== Start Menu search hit ===" -ForegroundColor Cyan
-$startApps = Get-StartApps | Where-Object { $_.Name -like "*ScriptSuite*" }
-if ($startApps) { $startApps | Format-Table Name, AppID -AutoSize | Out-String | Write-Host } else { Write-Host "  Get-StartApps: no ScriptSuite entry yet (crawler delay — .lnk exists, Shell:AppsFolder will show it)" -ForegroundColor Yellow }
-
-$appsFolder = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\ScriptSuite.lnk"
-Write-Host "  .lnk exists: $(Test-Path $appsFolder)  (Shell:AppsFolder indexes this path)"
-# Shell.Application check — enumerates AppsFolder namespace
-try {
-    $shell = New-Object -ComObject Shell.Application
-    $folder = $shell.Namespace("shell:AppsFolder")
-    $hit = $null
-    foreach ($item in $folder.Items()) { if ($item.Name -like "*ScriptSuite*") { $hit = $item; break } }
-    if ($hit) { Write-Host ("  Shell:AppsFolder hit: {0} -> {1}" -f $hit.Name, $hit.Path) } else { Write-Host "  Shell:AppsFolder: not yet enumerated (normal — .lnk is valid, Search will pick up on next index pass)" -ForegroundColor Yellow }
-    [System.Runtime.InteropServices.Marshal]::ReleaseComObject($shell) | Out-Null
-} catch { Write-Host "  Shell:AppsFolder check skipped: $($_.Exception.Message)" -ForegroundColor Yellow }
-
 Write-Host ""
 Write-Host "Done. Launch via Start Menu: type 'ScriptSuite'." -ForegroundColor Green
-Write-Host "Uninstall: .\Uninstall.ps1  (removes $InstallDir and the .lnk, leaves %LOCALAPPDATA%\ScriptSuite data)"
+Write-Host "Uninstall: .\Uninstall.ps1  (removes $InstallDir, tasks, and the .lnk, leaves %LOCALAPPDATA%\ScriptSuite data)"

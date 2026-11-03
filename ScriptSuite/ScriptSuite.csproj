@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -25,6 +25,8 @@
           Link="scripts\%(RecursiveDir)%(Filename)%(Extension)" />
     <None Include="..\assets\**\*" CopyToOutputDirectory="PreserveNewest"
           Link="assets\%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="..\Install.ps1" CopyToOutputDirectory="PreserveNewest" Link="Install.ps1" />
+    <None Include="..\Uninstall.ps1" CopyToOutputDirectory="PreserveNewest" Link="Uninstall.ps1" />
     <None Include="Manifests\*.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="DefaultConfigs\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
