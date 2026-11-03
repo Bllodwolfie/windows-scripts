@@ -2,6 +2,12 @@
 
 All notable changes to ScriptSuite are documented in this file.
 
+## [3.0.2] - 2026-11-03
+
+### Fixed
+- **Uninstaller Schedule Cleanup:** `Uninstall.ps1` removes only the unregistered script entries from `%LOCALAPPDATA%\ScriptSuite\schedules.json` upon unregistering tasks, leaving any non-ScriptSuite keys intact and backing up `schedules.json.bak` beforehand. Respects `-WhatIf` and gracefully handles missing/malformed schedule files (`3cd5e53`).
+- **Comprehensive Z-Strip Verification:** Added multi-scenario test coverage verifying `Install.ps1` Z-strip migration across Daily triggers, Hourly repetition triggers, S4U/Highest tasks, schedule mismatch skip/warning, and idempotency on already-local boundaries.
+
 ## [3.0.1] - 2026-11-03
 
 ### Fixed
