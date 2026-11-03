@@ -1,4 +1,4 @@
-﻿# Clears Windows event logs. Before clearing a log it is first exported to
+# Clears Windows event logs. Before clearing a log it is first exported to
 # Documents\Script_Logs\EventLogBackups\<LogName>_<timestamp>.evtx; if that
 # backup fails, the log is left untouched and reported as failed (never clear
 # a log you couldn't back up). Enumerates logs with Get-WinEvent -ListLog,
