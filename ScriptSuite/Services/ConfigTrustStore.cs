@@ -80,9 +80,9 @@ public sealed class ConfigTrustStore
         }
     }
 
-    public bool IsTrusted(string scriptId)
+    public bool IsTrusted(string scriptId, string? configPath = null)
     {
-        var configPath = AppPaths.ConfigPathFor(scriptId);
+        configPath ??= AppPaths.ConfigPathFor(scriptId);
         if (!File.Exists(configPath)) return true; // No config file -> trusted (uses fallback defaults)
         var currentHash = ComputeHash(configPath);
         if (string.IsNullOrEmpty(currentHash)) return false;
@@ -97,9 +97,9 @@ public sealed class ConfigTrustStore
         }
     }
 
-    public void Trust(string scriptId)
+    public void Trust(string scriptId, string? configPath = null)
     {
-        var configPath = AppPaths.ConfigPathFor(scriptId);
+        configPath ??= AppPaths.ConfigPathFor(scriptId);
         if (!File.Exists(configPath)) return;
         var hash = ComputeHash(configPath);
         if (string.IsNullOrEmpty(hash)) return;

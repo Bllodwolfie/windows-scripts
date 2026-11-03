@@ -74,7 +74,7 @@ public sealed class ScriptConfigService
 
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, next);
-        _trustStore.Trust(scriptId);
+        _trustStore.Trust(scriptId, path);
     }
 
     // ------------------------------------------------------------ helpers
