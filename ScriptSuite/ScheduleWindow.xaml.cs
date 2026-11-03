@@ -72,6 +72,10 @@ public partial class ScheduleWindow : Window
         { ErrorText.Text = "You must check 'I understand the risks' to schedule this admin script (per-script opt-in)."; return; }
         if (_manifest.RequiresAdmin && RiskCheck.IsChecked == true) _riskStore.SetConsent(_manifest.Id, true);
 
+        var trustStore = new ConfigTrustStore();
+        if (!ConfigReviewDialog.EnsureTrusted(this, _manifest, trustStore))
+            return;
+
         var entry = new ScheduleEntry { ScriptId = _manifest.Id, Unit = unit, Interval = interval, TimeOfDay = time, Enabled = true, CreatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") };
         var (ok, err, needsElev) = ScheduledTaskService.Register(entry, _manifest.RequiresAdmin);
         if (!ok && needsElev && _manifest.RequiresAdmin)

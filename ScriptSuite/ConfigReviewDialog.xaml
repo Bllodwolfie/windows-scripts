@@ -1,0 +1,69 @@
+<Window x:Class="ScriptSuite.ConfigReviewDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Review Untrusted Configuration"
+        Width="580" MaxHeight="620" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Brush.Background.Primary}" Foreground="{DynamicResource Brush.Foreground.Primary}"
+        ResizeMode="NoResize">
+    <Grid Margin="24,20,24,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock x:Name="TitleText" FontSize="18" FontWeight="SemiBold"
+                       Foreground="{DynamicResource Brush.Foreground.Primary}" Text="Review Untrusted Configuration"/>
+            <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" FontSize="12"
+                       Foreground="{DynamicResource Brush.Foreground.Secondary}"
+                       Text="This configuration file was modified outside ScriptSuite or has not been approved yet. Please review the planned actions and paths before proceeding."/>
+        </StackPanel>
+
+        <!-- Action Summary Box -->
+        <Border Grid.Row="1" Background="{DynamicResource Brush.Background.Secondary}"
+                BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1"
+                CornerRadius="6" Padding="14,10" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="Action Summary:" FontWeight="SemiBold" FontSize="12"
+                           Foreground="{DynamicResource Brush.Accent.Primary}" Margin="0,0,0,4"/>
+                <TextBlock x:Name="ActionSummaryText" TextWrapping="Wrap" FontSize="12"
+                           Foreground="{DynamicResource Brush.Foreground.Primary}"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Configuration Details Label -->
+        <TextBlock Grid.Row="2" Text="Configuration Details &amp; Paths:" FontWeight="SemiBold" FontSize="12"
+                   Foreground="{DynamicResource Brush.Foreground.Secondary}" Margin="0,0,0,6"/>
+
+        <!-- Details Scroll Area -->
+        <Border Grid.Row="3" Background="{DynamicResource Brush.Background.Secondary}"
+                BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1"
+                CornerRadius="6" Padding="12,8" Margin="0,0,0,18" MaxHeight="220">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <TextBlock x:Name="DetailsText" TextWrapping="Wrap" FontFamily="Consolas, monospace" FontSize="11"
+                           Foreground="{DynamicResource Brush.Foreground.Primary}"/>
+            </ScrollViewer>
+        </Border>
+
+        <!-- Action Buttons: Cancel is default -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="CancelButton" Content="Cancel" IsDefault="True" IsCancel="True"
+                    Width="100" Height="32" Margin="0,0,12,0"
+                    Background="{DynamicResource Brush.Background.Secondary}"
+                    Foreground="{DynamicResource Brush.Foreground.Primary}"
+                    BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1"
+                    Click="CancelButton_Click"/>
+            <Button x:Name="TrustButton" Content="Trust and continue"
+                    Padding="14,0" Height="32"
+                    Background="{DynamicResource Brush.Accent.Primary}"
+                    Foreground="{DynamicResource Brush.Background.Primary}"
+                    FontWeight="SemiBold" BorderThickness="0"
+                    Click="TrustButton_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

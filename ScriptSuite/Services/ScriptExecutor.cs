@@ -398,6 +398,27 @@ public sealed class ScriptExecutor
             return 1;
         }
 
+        var trustStore = new ConfigTrustStore();
+        if (!trustStore.IsTrusted(scriptId))
+        {
+            string failureReason = "Config not trusted; open ScriptSuite and review it";
+            var rejectPayload = new Dictionary<string, object?>
+            {
+                ["ScriptId"] = scriptId,
+                ["Outcome"] = "Failed",
+                ["Logs"] = new List<string> { failureReason },
+                ["ItemCounts"] = new Dictionary<string, int>(),
+                ["ExitCode"] = 1,
+            };
+            if (liveLogPath is not null)
+            {
+                try { File.AppendAllText(liveLogPath, "ERROR: " + failureReason + Environment.NewLine); } catch { }
+            }
+            Directory.CreateDirectory(Path.GetDirectoryName(resultPath)!);
+            File.WriteAllText(resultPath, JsonSerializer.Serialize(rejectPayload, new JsonSerializerOptions { WriteIndented = true }));
+            return 1;
+        }
+
         var payload = new Dictionary<string, object?>
         {
             ["ScriptId"] = scriptId,

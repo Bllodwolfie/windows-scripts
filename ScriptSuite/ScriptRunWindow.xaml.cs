@@ -1,3 +1,4 @@
+﻿using System.IO;
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Input;
@@ -73,7 +74,39 @@ public partial class ScriptRunWindow : Window
         else if (_manifest.SupportsDryRun)
             await LoadPreviewAsync();
         else
-            await RunAsync(includeOnly: null);
+            ShowNonDryRunPreview();
+    }
+
+    private void ShowNonDryRunPreview()
+    {
+        string configPath = AppPaths.ConfigPathFor(_manifest.Id);
+        string resolvedPath = "";
+        try
+        {
+            if (File.Exists(configPath))
+            {
+                var root = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(configPath)) as System.Text.Json.Nodes.JsonObject;
+                if (_manifest.Id == "SoftwareInventory")
+                    resolvedPath = Environment.ExpandEnvironmentVariables(root?["OutputFile"]?.ToString() ?? @"%USERPROFILE%\Documents\Script_Logs\Software_Inventory.txt");
+                else if (_manifest.Id == "SystemHealthReport")
+                    resolvedPath = Environment.ExpandEnvironmentVariables(root?["OutputDir"]?.ToString() ?? Environment.GetFolderPath(Environment.SpecialFolder.Desktop));
+            }
+        }
+        catch { }
+
+        if (string.IsNullOrEmpty(resolvedPath))
+        {
+            if (_manifest.Id == "SoftwareInventory")
+                resolvedPath = Environment.ExpandEnvironmentVariables(@"%USERPROFILE%\Documents\Script_Logs\Software_Inventory.txt");
+            else if (_manifest.Id == "SystemHealthReport")
+                resolvedPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+            else
+                resolvedPath = "default destination";
+        }
+
+        PreviewMessage.Text = $"Ready to run. Output will be saved to:{Environment.NewLine}{resolvedPath}";
+        ConfirmButton.Content = "Run";
+        ConfirmButton.IsEnabled = true;
     }
 
     // ---------------------------------------------------------------- preview
@@ -169,7 +202,13 @@ public partial class ScriptRunWindow : Window
 
     private async void ConfirmButton_Click(object sender, RoutedEventArgs e)
     {
-        var includeOnly = _selections.Where(s => s.IsChecked).Select(s => s.Target).ToList();
+        var trustStore = new ConfigTrustStore();
+        if (!ConfigReviewDialog.EnsureTrusted(this, _manifest, trustStore))
+            return;
+
+        var includeOnly = _manifest.SupportsDryRun
+            ? _selections.Where(s => s.IsChecked).Select(s => s.Target).ToList()
+            : null;
         await RunAsync(includeOnly);
     }
 

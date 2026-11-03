@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Text.Json;
 using System.Windows;
 using ScriptSuite.Models;
@@ -65,8 +65,9 @@ public partial class App : Application
         string? scheduledScriptId = GetArg(args, ScheduledRunFlag);
         if (scheduledScriptId is not null)
         {
-            RunScheduledHeadless(scheduledScriptId);
-            Shutdown();
+            int code = RunScheduledHeadless(scheduledScriptId);
+            Environment.ExitCode = code;
+            Shutdown(code);
             return;
         }
 
@@ -212,7 +213,7 @@ public partial class App : Application
     /// Checks single-instance mutex; if held, logs SkippedBusy and exits.
     /// Otherwise runs the script via ScriptExecutor (already elevated via
     /// Task Scheduler if RequiresAdmin) and inserts into ScheduledRuns.</summary>
-    private void RunScheduledHeadless(string scriptId)
+    private int RunScheduledHeadless(string scriptId)
     {
         var startedAt = DateTime.Now;
         try
@@ -246,13 +247,29 @@ public partial class App : Application
                     sStore.InsertScheduled(scriptId, startedAt, startedAt, startedAt, "SkippedBusy", "Skipped — app was busy", trig);
                 }
                 catch { }
-                return;
+                return 0;
             }
 
             AppPaths.EnsureConfigsSeeded();
             var catalog = new ManifestCatalog(AppPaths.ManifestsDir);
             var manifest = catalog.Find(scriptId);
-            if (manifest == null) return;
+            if (manifest == null) return 1;
+
+            var trustStore = new ConfigTrustStore();
+            if (!trustStore.IsTrusted(scriptId))
+            {
+                try
+                {
+                    var store = new RunHistoryStore(AppPaths.HistoryDbPath);
+                    var schedStore = new ScheduleStore(AppPaths.SchedulesPath);
+                    var entry = schedStore.Get(scriptId);
+                    string trigger = entry != null ? $"{entry.Interval} {entry.Unit} @ {entry.TimeOfDay}" : "scheduled";
+                    store.InsertScheduled(scriptId, startedAt, startedAt, DateTime.Now, "Failed", "Config not trusted; open ScriptSuite and review it", trigger);
+                }
+                catch { }
+                return 1;
+            }
+
             string configPath = AppPaths.ConfigPathFor(scriptId);
             var executor = new ScriptExecutor(catalog);
             var execStarted = DateTime.Now;
@@ -273,7 +290,9 @@ public partial class App : Application
         catch
         {
             try { var s = new RunHistoryStore(AppPaths.HistoryDbPath); s.InsertScheduled(scriptId, startedAt, startedAt, DateTime.Now, "Failed", "Scheduled run failed", "scheduled"); } catch { }
+            return 1;
         }
+        return 0;
     }
 
     private int RunRegisterTaskHeadless(string[] args)

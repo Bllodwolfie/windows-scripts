@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Input;
 using ScriptSuite.Models;
@@ -84,6 +84,16 @@ public partial class RunAllPreviewWindow : Window
 
     private async void ConfirmButton_Click(object sender, RoutedEventArgs e)
     {
+        var trustStore = new ConfigTrustStore();
+        foreach (var section in _sections)
+        {
+            if (!trustStore.IsTrusted(section.Manifest.Id))
+            {
+                if (!ConfigReviewDialog.EnsureTrusted(this, section.Manifest, trustStore))
+                    return;
+            }
+        }
+
         _running = true;
         ConfirmButton.IsEnabled = false;
         await Task.Run(() =>
