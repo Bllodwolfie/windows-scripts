@@ -41,13 +41,56 @@ if ($running) {
     Start-Sleep -Milliseconds 500
 }
 
-# 2) Unregister scheduled tasks
+# 2) Unregister scheduled tasks and clean matching entries from schedules.json
 $tasks = Get-ScheduledTask -TaskPath "\ScriptSuite\" -ErrorAction SilentlyContinue
+$unregisteredTaskNames = [System.Collections.Generic.List[string]]::new()
+
 foreach ($t in $tasks) {
     if ($PSCmdlet.ShouldProcess($t.TaskName, "Unregister scheduled task")) {
         Write-Host "  unregistered scheduled task $($t.TaskName)"
         Unregister-ScheduledTask -TaskPath $t.TaskPath -TaskName $t.TaskName -Confirm:$false
+        $unregisteredTaskNames.Add($t.TaskName)
     }
+}
+
+$schedulesPath = Join-Path $env:LOCALAPPDATA "ScriptSuite\schedules.json"
+if ($unregisteredTaskNames.Count -gt 0 -and (Test-Path -LiteralPath $schedulesPath)) {
+    try {
+        $rawJson = Get-Content -LiteralPath $schedulesPath -Raw
+        $schedObj = $rawJson | ConvertFrom-Json
+        if ($null -eq $schedObj -or $schedObj -isnot [System.Management.Automation.PSCustomObject]) {
+            Write-Warning "schedules.json is malformed or not an object; skipping schedule entry removal."
+        } else {
+            $modified = $false
+            foreach ($tName in $unregisteredTaskNames) {
+                $propToRemove = $null
+                foreach ($prop in $schedObj.PSObject.Properties) {
+                    if ($prop.Name -eq $tName -or ($prop.Value -and $prop.Value.scriptId -eq $tName)) {
+                        $propToRemove = $prop.Name
+                        break
+                    }
+                }
+                if ($propToRemove) {
+                    if ($PSCmdlet.ShouldProcess($propToRemove, "Remove schedule entry from schedules.json")) {
+                        $schedObj.PSObject.Properties.Remove($propToRemove)
+                        $modified = $true
+                        Write-Host "  removed schedule entry for $propToRemove from schedules.json"
+                    }
+                }
+            }
+
+            if ($modified) {
+                $bakPath = "$schedulesPath.bak"
+                Copy-Item -LiteralPath $schedulesPath -Destination $bakPath -Force
+                $newJson = $schedObj | ConvertTo-Json -Depth 10
+                Set-Content -LiteralPath $schedulesPath -Value $newJson -Encoding utf8
+            }
+        }
+    } catch {
+        Write-Warning "Failed to update schedules.json: $($_.Exception.Message)"
+    }
+} elseif (-not (Test-Path -LiteralPath $schedulesPath)) {
+    Write-Warning "schedules.json not found at $schedulesPath; skipping schedule entry removal."
 }
 
 # 3) Remove shortcuts
