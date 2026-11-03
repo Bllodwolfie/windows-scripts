@@ -2,6 +2,22 @@
 
 All notable changes to ScriptSuite are documented in this file.
 
+## [3.1.0] - 2026-11-03
+
+### Security (SEC-04)
+- **Configuration Trust System:** Config files in `%LOCALAPPDATA%\ScriptSuite\Configs` are protected by SHA-256 hashes stored in `%LOCALAPPDATA%\ScriptSuite\config-trust.json`. On upgrade/initial install, existing configs are automatically seeded into the trust store.
+- **Auto-Approval on Save:** Saving configuration changes through the application UI immediately updates the trusted hash.
+- **Untrusted Review Dialog:** If a configuration is modified outside the application (hand-edited or imported), interactive runs and schedule creation/edits display a modal review dialog summarizing planned actions, targeted directories, and file patterns. Users must explicitly choose "Trust and continue" (or Cancel, which is default) before the script can run or schedule. Dry-run previews remain exempt.
+- **Headless Enforcement:** Headless executions (`--scheduled-run` and `--elevated-run`) strictly reject untrusted configs without prompting, record a `Failed` entry in `ScheduledRuns` with summary `"Config not trusted; open ScriptSuite and review it"`, and exit with code 1.
+- **Independent Child Verification:** Elevated child processes independently verify configuration trust before executing any administrator action.
+- **Non-Dry-Run Explicit Execution:** Reporting scripts without dry-run support (`SoftwareInventory`, `SystemHealthReport`) no longer run automatically on window load; users must explicitly click "Run" after viewing the resolved destination path.
+
+### Fixed & Hardened
+- **Audit Hardening:** Removed production-reachable test elevation override (`$env:SCRIPTSUITE_FORCE_NONELEVATED`) from all shipped scripts.
+- **Encoding Integrity:** Restored original UTF-8 without BOM encoding on `ScriptSuite/Services/ScriptExecutor.cs` and `scripts/ClearEventLogs/ClearEventLogs.ps1`.
+- **Destination Validation:** Validated all declared category destination keys in `DownloadsCleanup.ps1` regardless of extension mapping.
+- **Dynamic Extension:** Derived expected output extension in `SoftwareInventory.ps1` dynamically from default configuration.
+
 ## [3.0.3] - 2026-11-03
 
 ### Security
