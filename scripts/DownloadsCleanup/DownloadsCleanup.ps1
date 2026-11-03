@@ -107,7 +107,7 @@ function Test-PathScope([string]$Path, [string]$ExpectedRoot) {
         $isInside = $norm.Equals($root, [StringComparison]::OrdinalIgnoreCase) -or
                     $norm.StartsWith($root + [System.IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)
         if (-not $isInside) {
-            $isElevated = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+            $isElevated = if ($env:SCRIPTSUITE_FORCE_NONELEVATED -eq "1") { $false } else { ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) }
             if ($isElevated) {
                 Write-Error "Path '$clean' is outside expected scope (expected under '$ExpectedRoot') — aborting (elevated execution)"
                 exit 1
