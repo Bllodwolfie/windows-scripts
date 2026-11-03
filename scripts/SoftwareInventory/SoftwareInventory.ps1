@@ -105,10 +105,13 @@ function Expand-ConfigPath([string]$Path) {
 $outputFile = Expand-ConfigPath $Config.OutputFile
 Test-PathScope $outputFile "$env:USERPROFILE"
 
-# B6: validate OutputFile — file-where-folder-expected and missing drive should fail clearly, not silently with exit 0
+# Validate OutputFile: denylist on parent dir, and refuse to overwrite existing file with different extension
 try {
     $outDir = Split-Path $outputFile -Parent
     if ([string]::IsNullOrWhiteSpace($outDir)) { $outDir = "." }
+    $outDirFull = [System.IO.Path]::GetFullPath($outDir)
+    Test-PathScope $outDirFull "$env:USERPROFILE"
+
     if (Test-Path -LiteralPath $outDir) {
         $item = Get-Item -LiteralPath $outDir -ErrorAction SilentlyContinue
         if ($null -ne $item -and -not $item.PSIsContainer) {
@@ -117,8 +120,15 @@ try {
     }
     if (Test-Path -LiteralPath $outputFile) {
         $targetItem = Get-Item -LiteralPath $outputFile -ErrorAction SilentlyContinue
-        if ($null -ne $targetItem -and $targetItem.PSIsContainer) {
-            throw "OutputFile is a folder, not a file: $outputFile"
+        if ($null -ne $targetItem) {
+            if ($targetItem.PSIsContainer) {
+                throw "OutputFile is a folder, not a file: $outputFile"
+            }
+            $scriptExt = ".txt"
+            $existingExt = [System.IO.Path]::GetExtension($targetItem.FullName)
+            if (-not $existingExt.Equals($scriptExt, [StringComparison]::OrdinalIgnoreCase)) {
+                throw "Refusing to overwrite existing file with differing extension '$existingExt' (expected '$scriptExt')"
+            }
         }
     }
     $null = New-Item -ItemType Directory -Path $outDir -Force -ErrorAction Stop

@@ -1,4 +1,4 @@
-# Clears Windows event logs. Before clearing a log it is first exported to
+﻿# Clears Windows event logs. Before clearing a log it is first exported to
 # Documents\Script_Logs\EventLogBackups\<LogName>_<timestamp>.evtx; if that
 # backup fails, the log is left untouched and reported as failed (never clear
 # a log you couldn't back up). Enumerates logs with Get-WinEvent -ListLog,
@@ -27,7 +27,80 @@ function Expand-ConfigPath([string]$Path) {
     [Environment]::ExpandEnvironmentVariables($Path)
 }
 
+function Test-BackupDirScope([string]$Path) {
+    if ([string]::IsNullOrWhiteSpace($Path)) { Write-Error "ClearEventLogs: BackupDir must not be empty"; exit 1 }
+    $clean = $Path.Trim().Trim('"', "'")
+    $expanded = [Environment]::ExpandEnvironmentVariables($clean)
+    if (-not [System.IO.Path]::IsPathRooted($expanded)) { Write-Error "ClearEventLogs: BackupDir must be an absolute path: $Path"; exit 1 }
+
+    try { $full = [System.IO.Path]::GetFullPath($expanded) } catch { $full = $expanded }
+    $norm = $full.TrimEnd('\')
+
+    $driveRoot = [System.IO.Path]::GetPathRoot($full)
+    if (-not [string]::IsNullOrEmpty($driveRoot) -and $norm.Equals($driveRoot.TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase)) {
+        Write-Error "ClearEventLogs: BackupDir '$clean' is a drive root — aborting."
+        exit 1
+    }
+
+    $deniedTargets = [System.Collections.Generic.List[string]]::new()
+    $envVars = @(
+        $env:SystemRoot,
+        $env:ProgramFiles,
+        ${env:ProgramFiles(x86)},
+        $env:ProgramData,
+        $env:USERPROFILE,
+        $env:APPDATA,
+        $env:LOCALAPPDATA
+    )
+    foreach ($ev in $envVars) {
+        if (-not [string]::IsNullOrWhiteSpace($ev)) {
+            try { $deniedTargets.Add([System.IO.Path]::GetFullPath($ev).TrimEnd('\')) } catch {}
+        }
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+        try { $deniedTargets.Add([System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA "ScriptSuite")).TrimEnd('\')) } catch {}
+    }
+    try {
+        $parentInstall = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\..")).TrimEnd('\')
+        if (-not $deniedTargets.Contains($parentInstall)) { $deniedTargets.Add($parentInstall) }
+    } catch {}
+    if (-not [string]::IsNullOrWhiteSpace($env:ProgramFiles)) {
+        try {
+            $pfInstall = [System.IO.Path]::GetFullPath((Join-Path $env:ProgramFiles "ScriptSuite")).TrimEnd('\')
+            if (-not $deniedTargets.Contains($pfInstall)) { $deniedTargets.Add($pfInstall) }
+        } catch {}
+    }
+
+    foreach ($d in $deniedTargets) {
+        if ($norm.Equals($d, [StringComparison]::OrdinalIgnoreCase) -or
+            $d.StartsWith($norm + [System.IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+            Write-Error "ClearEventLogs: BackupDir '$clean' is denylisted or an ancestor of protected path '$d' — aborting."
+            exit 1
+        }
+    }
+
+    $systemPrefixes = [System.Collections.Generic.List[string]]::new()
+    if (-not [string]::IsNullOrWhiteSpace($env:SystemRoot)) {
+        try { $systemPrefixes.Add([System.IO.Path]::GetFullPath($env:SystemRoot).TrimEnd('\')) } catch {}
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:ProgramFiles)) {
+        try { $systemPrefixes.Add([System.IO.Path]::GetFullPath($env:ProgramFiles).TrimEnd('\')) } catch {}
+    }
+    if (-not [string]::IsNullOrWhiteSpace(${env:ProgramFiles(x86)})) {
+        try { $systemPrefixes.Add([System.IO.Path]::GetFullPath(${env:ProgramFiles(x86)}).TrimEnd('\')) } catch {}
+    }
+
+    foreach ($sp in $systemPrefixes) {
+        if ($norm.Equals($sp, [StringComparison]::OrdinalIgnoreCase) -or
+            $norm.StartsWith($sp + [System.IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+            Write-Error "ClearEventLogs: BackupDir '$clean' must not be inside Program Files or Windows ('$sp') — aborting."
+            exit 1
+        }
+    }
+}
+
 $backupDir = Expand-ConfigPath $Config.BackupDir
+Test-BackupDirScope $backupDir
 $null = New-Item -ItemType Directory -Path $backupDir -Force -ErrorAction SilentlyContinue
 
 # CutoffDays (int, default 0): only clear logs whose NEWEST event is older than
