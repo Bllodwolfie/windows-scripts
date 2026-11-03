@@ -13,9 +13,9 @@ A Windows maintenance suite — a WPF dashboard (`ScriptSuite`) over nine self-c
 
 ## Download — for most users (no SDK needed)
 
-**Latest Release:** [`v3.1.0` — `ScriptSuite v3.1.0`](https://github.com/Bllodwolfie/windows-scripts/releases/tag/v3.1.0)
+**Latest Release:** [`v3.1.1` — `ScriptSuite v3.1.1`](https://github.com/Bllodwolfie/windows-scripts/releases/tag/v3.1.1)
 
-1. Download [`ScriptSuite-win-x64-self-contained.zip`](https://github.com/Bllodwolfie/windows-scripts/releases/download/v3.1.0/ScriptSuite-win-x64-self-contained.zip) (self-contained `win-x64`, no .NET runtime to install).
+1. Download [`ScriptSuite-win-x64-self-contained.zip`](https://github.com/Bllodwolfie/windows-scripts/releases/download/v3.1.1/ScriptSuite-win-x64-self-contained.zip) (self-contained `win-x64`, no .NET runtime to install).
 2. Right-click the zip → `Extract All` → open the folder.
 3. Double-click `ScriptSuite.exe`. Optionally run `Install.ps1` (included in the zip and repo) to install to `%ProgramFiles%\ScriptSuite\` with admin-only write ACLs (SEC-02) and create the Start Menu shortcut (Windows Search → `ScriptSuite`). One UAC elevation prompt is requested.
 
@@ -120,6 +120,7 @@ Contextual `?` buttons appear in the dashboard header (`Script Suite / Dashboard
   - **Interactive Execution & Scheduling:** Prompts with a modal review dialog displaying the planned action summary, targeted paths, and patterns before a live run or schedule creation/edit can proceed (Cancel is the default; dry-run preview is exempt).
   - **Headless & Elevated Execution:** Headless tasks (`--scheduled-run` and `--elevated-run`) strictly reject untrusted configs without prompting, record a `Failed` entry in `ScheduledRuns` with `"Config not trusted; open ScriptSuite and review it"`, and exit with code 1. Elevated child processes re-verify config trust independently.
   - **Scope Protection:** Combined with `Test-PathScope` path denylisting (blocking drive roots, system/program directories, user profile roots, and data roots), external or malicious config modifications cannot silently manipulate files. Scripts without dry-run (`SoftwareInventory`, `SystemHealthReport`) require an explicit "Run" click showing resolved output paths instead of executing automatically on window load.
+- **v3.1.1 vs v3.1.0:** Remove external configPath parameter from trust store, support LOCALAPPDATA redirection for test isolation, and auto-trust default configs upon fresh seeding.
 - **v3.1.0 vs v3.0.3:** SEC-04 (Configuration Trust System: SHA-256 trust store, interactive approval dialog, headless rejection with exit 1, child re-verification), audit hardening (removal of test elevation override, restoration of original file encodings, validation of all category destinations, and dynamic SoftwareInventory extension derivation), and non-dry-run explicit execution.
 - **v3.0.0 vs v2.1.1:** SEC-02 (install to %ProgramFiles% with admin write ACLs, task migration, one-time UAC prompt on install), SEC-01 (elevated run script ID validation), DST fix (local StartBoundary on triggers, eliminating 1-hour drift), and bug fixes BUG-01..09 (BUG-01 hourly scheduler, BUG-02 retention validation, BUG-04 extension dot normalization, BUG-05 pattern escaping, BUG-06 quote stripping, BUG-07 path scope decoupling, BUG-08 update metric relabel, BUG-09 restore point fast-fail). Full details in [CHANGELOG.md](CHANGELOG.md).
 - **v2.0.0 vs v1.1.0:** Dark palette unchanged (Phase 1). `v2.0.0` adds 3 UI fixes (Scheduled History rendering, collapsible Run All preview, log-routed history detail), Downloads Cleanup `Advanced Rules` (Ignore/Delete/MoveTo) + its `MoveTo`-empty-destination validation, EmptyRecycleBin `MinAgeDays` (0 = everything, filtered via `DateDeleted`), Light Mode Dark/Latte runtime switch (persisted), and Help/Guide P0+P1 contextual `?`.

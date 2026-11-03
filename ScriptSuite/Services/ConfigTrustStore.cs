@@ -2,6 +2,8 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
 
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("TestTrust")]
+
 namespace ScriptSuite.Services;
 
 /// <summary>SEC-04: Configuration Trust System.
@@ -11,16 +13,23 @@ namespace ScriptSuite.Services;
 public sealed class ConfigTrustStore
 {
     private readonly string _path;
+    private readonly string _configsDir;
     private readonly object _lock = new();
     private Dictionary<string, string> _map;
 
-    public ConfigTrustStore(string? path = null)
+    public ConfigTrustStore()
+        : this(AppPaths.ConfigTrustPath, AppPaths.ConfigsDir)
     {
-        _path = path ?? AppPaths.ConfigTrustPath;
-        _map = LoadOrSeed(_path);
     }
 
-    private static Dictionary<string, string> LoadOrSeed(string path)
+    internal ConfigTrustStore(string path, string configsDir)
+    {
+        _path = path;
+        _configsDir = configsDir;
+        _map = LoadOrSeed(_path, _configsDir);
+    }
+
+    private static Dictionary<string, string> LoadOrSeed(string path, string configsDir)
     {
         if (File.Exists(path))
         {
@@ -37,9 +46,9 @@ public sealed class ConfigTrustStore
 
         // On first start with no trust store, seed all existing configs as trusted (migration) and log once.
         var seeded = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (Directory.Exists(AppPaths.ConfigsDir))
+        if (Directory.Exists(configsDir))
         {
-            foreach (var file in Directory.GetFiles(AppPaths.ConfigsDir, "*.json"))
+            foreach (var file in Directory.GetFiles(configsDir, "*.json"))
             {
                 var scriptId = Path.GetFileNameWithoutExtension(file);
                 var hash = ComputeHash(file);
@@ -80,9 +89,11 @@ public sealed class ConfigTrustStore
         }
     }
 
-    public bool IsTrusted(string scriptId, string? configPath = null)
+    private string ConfigPathFor(string scriptId) => Path.Combine(_configsDir, scriptId + ".json");
+
+    public bool IsTrusted(string scriptId)
     {
-        configPath ??= AppPaths.ConfigPathFor(scriptId);
+        var configPath = ConfigPathFor(scriptId);
         if (!File.Exists(configPath)) return true; // No config file -> trusted (uses fallback defaults)
         var currentHash = ComputeHash(configPath);
         if (string.IsNullOrEmpty(currentHash)) return false;
@@ -97,9 +108,9 @@ public sealed class ConfigTrustStore
         }
     }
 
-    public void Trust(string scriptId, string? configPath = null)
+    public void Trust(string scriptId)
     {
-        configPath ??= AppPaths.ConfigPathFor(scriptId);
+        var configPath = ConfigPathFor(scriptId);
         if (!File.Exists(configPath)) return;
         var hash = ComputeHash(configPath);
         if (string.IsNullOrEmpty(hash)) return;

@@ -7,8 +7,17 @@ namespace ScriptSuite.Services;
 /// configs, scripts) live next to the exe.</summary>
 public static class AppPaths
 {
-    public static string AppDataRoot => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ScriptSuite");
+    public static string AppDataRoot
+    {
+        get
+        {
+            var env = Environment.GetEnvironmentVariable("LOCALAPPDATA");
+            var baseDir = !string.IsNullOrWhiteSpace(env)
+                ? env
+                : Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            return Path.Combine(baseDir, "ScriptSuite");
+        }
+    }
 
     public static string ConfigsDir => Path.Combine(AppDataRoot, "Configs");
 
@@ -38,17 +47,34 @@ public static class AppPaths
 
     /// <summary>Copies the shipped default config JSON for each script into
     /// AppData on first run, so every script has a config the app and a bare
-    /// terminal can both read. Existing files are never overwritten.</summary>
+    /// terminal can both read. Existing files are never overwritten. Newly
+    /// seeded default configs are automatically approved in the trust store.</summary>
     public static void EnsureConfigsSeeded()
     {
         Directory.CreateDirectory(ConfigsDir);
         if (!Directory.Exists(DefaultConfigsDir))
             return;
+        bool newlySeeded = false;
         foreach (var file in Directory.GetFiles(DefaultConfigsDir, "*.json"))
         {
             var dest = Path.Combine(ConfigsDir, Path.GetFileName(file));
             if (!File.Exists(dest))
+            {
                 File.Copy(file, dest);
+                newlySeeded = true;
+            }
+        }
+        if (newlySeeded)
+        {
+            var trustStore = new ConfigTrustStore();
+            foreach (var file in Directory.GetFiles(ConfigsDir, "*.json"))
+            {
+                var scriptId = Path.GetFileNameWithoutExtension(file);
+                if (!trustStore.IsTrusted(scriptId))
+                {
+                    trustStore.Trust(scriptId);
+                }
+            }
         }
     }
 }

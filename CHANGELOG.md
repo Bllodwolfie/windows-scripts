@@ -2,6 +2,13 @@
 
 All notable changes to ScriptSuite are documented in this file.
 
+## [3.1.1] - 2026-11-03
+
+### Security & Hardening
+- **Trust Store Parameter Removal:** Removed the `configPath` parameter from `ConfigTrustStore.IsTrusted` and `Trust` so trust verification always checks against the canonical `%LOCALAPPDATA%\ScriptSuite\Configs` location rather than caller-supplied CLI paths. Test harnesses use an internal constructor for isolated testing.
+- **AppData Redirection:** `AppPaths.AppDataRoot` now checks `%LOCALAPPDATA%` environment variable before querying the shell known folder, allowing test harnesses to redirect the runtime environment without polluting user data.
+- **Fresh Install Auto-Trust:** `AppPaths.EnsureConfigsSeeded()` automatically seeds `config-trust.json` whenever default configurations are copied on a fresh install.
+
 ## [3.1.0] - 2026-11-03
 
 ### Security (SEC-04)

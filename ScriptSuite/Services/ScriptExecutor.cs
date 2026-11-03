@@ -399,7 +399,7 @@ public sealed class ScriptExecutor
         }
 
         var trustStore = new ConfigTrustStore();
-        if (!trustStore.IsTrusted(scriptId, configPath))
+        if (!trustStore.IsTrusted(scriptId))
         {
             string failureReason = "Config not trusted; open ScriptSuite and review it";
             var rejectPayload = new Dictionary<string, object?>
