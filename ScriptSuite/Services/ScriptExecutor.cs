@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Management.Automation;
@@ -58,7 +58,23 @@ public sealed class ScriptExecutor
     {
         var manifest = _catalog.Find(scriptId)
             ?? throw new InvalidOperationException($"Manifest not found: {scriptId}");
-        string scriptPath = manifest.AbsoluteScriptPath;
+        string scriptPath;
+        try
+        {
+            scriptPath = manifest.AbsoluteScriptPath;
+        }
+        catch (System.Security.SecurityException ex)
+        {
+            var secResult = new ScriptRunResult
+            {
+                Outcome = RunOutcome.Failed,
+                ScriptId = scriptId,
+                Logs = new List<string> { "SECURITY ERROR: " + ex.Message },
+            };
+            onLogLine?.Invoke("SECURITY ERROR: " + ex.Message);
+            return (new List<DryRunItem>(), secResult);
+        }
+
         if (!File.Exists(scriptPath))
             throw new InvalidOperationException($"Script file not found: {scriptPath}");
 
@@ -253,6 +269,20 @@ public sealed class ScriptExecutor
             ?? throw new InvalidOperationException($"Manifest not found: {scriptId}");
         if (!manifest.RequiresAdmin)
             throw new InvalidOperationException($"RunElevated called for {scriptId}, which does not require admin.");
+
+        try
+        {
+            _ = manifest.AbsoluteScriptPath;
+        }
+        catch (System.Security.SecurityException ex)
+        {
+            return new ScriptRunResult
+            {
+                Outcome = RunOutcome.Failed,
+                ScriptId = scriptId,
+                Logs = new List<string> { "SECURITY ERROR: " + ex.Message },
+            };
+        }
 
         string resultPath = Path.Combine(Path.GetTempPath(), "scriptsuite_" + Guid.NewGuid().ToString("N") + ".json");
         string liveLog = resultPath + ".live.log";

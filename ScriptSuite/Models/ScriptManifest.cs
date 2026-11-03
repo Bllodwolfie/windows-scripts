@@ -20,8 +20,21 @@ public sealed class ScriptManifest
     [JsonPropertyName("scriptPath")] public string ScriptPath { get; set; } = "";
     [JsonPropertyName("fields")] public List<ScriptField> Fields { get; set; } = new();
 
-    public string AbsoluteScriptPath =>
-        Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, ScriptPath));
+    public string AbsoluteScriptPath
+    {
+        get
+        {
+            string scriptsRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "scripts"))
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            string fullPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, ScriptPath));
+            if (!fullPath.StartsWith(scriptsRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new System.Security.SecurityException(
+                    $"Script path '{ScriptPath}' is not contained within the scripts directory '{scriptsRoot}'.");
+            }
+            return fullPath;
+        }
+    }
 
     /// <summary>Always false for the built-in scripts; Phase 3 custom scripts
     /// set it so the dashboard shows the "Custom" badge.</summary>
