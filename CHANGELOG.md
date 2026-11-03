@@ -2,6 +2,13 @@
 
 All notable changes to ScriptSuite are documented in this file.
 
+## [3.0.1] - 2026-11-03
+
+### Fixed
+- **Installer Upgrade Z-Strip:** `Install.ps1` automatically detects existing `\ScriptSuite\*` triggers with legacy `Z` or UTC offset `StartBoundary` and converts them to local no-Z timestamps via `[DateTimeOffset]::Parse($sb).LocalDateTime`, cross-checking against `schedules.json` `timeOfDay` to prevent DST drift for upgrading users (`df35c3e`).
+- **Elevated Child Exit Code:** `ScriptExecutor` and `App.xaml.cs` return exit code 1 instead of -1 on elevated child exception paths (`71e89a5`).
+- **End-to-End Lifecycle Verification:** Full installation, uninstallation, task backup/restoration, and AppData integrity verified end-to-end.
+
 ## [3.0.0] - 2026-11-03
 
 ### Security
