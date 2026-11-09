@@ -13,9 +13,9 @@ A Windows maintenance suite — a WPF dashboard (`ScriptSuite`) over nine self-c
 
 ## Download — for most users (no SDK needed)
 
-**Latest Release:** [`v3.1.2` — `ScriptSuite v3.1.2`](https://github.com/Bllodwolfie/windows-scripts/releases/tag/v3.1.2)
+**Latest Release:** [`v3.2.0` — `ScriptSuite v3.2.0`](https://github.com/Bllodwolfie/windows-scripts/releases/tag/v3.2.0)
 
-1. Download [`ScriptSuite-win-x64-self-contained.zip`](https://github.com/Bllodwolfie/windows-scripts/releases/download/v3.1.2/ScriptSuite-win-x64-self-contained.zip) (self-contained `win-x64`, no .NET runtime to install).
+1. Download [`ScriptSuite-win-x64-self-contained.zip`](https://github.com/Bllodwolfie/windows-scripts/releases/download/v3.2.0/ScriptSuite-win-x64-self-contained.zip) (self-contained `win-x64`, no .NET runtime to install).
 2. Right-click the zip → `Extract All` → open the folder.
 3. Double-click `ScriptSuite.exe`. Optionally run `Install.ps1` (included in the zip and repo) to install to `%ProgramFiles%\ScriptSuite\` with admin-only write ACLs (SEC-02) and create the Start Menu shortcut (Windows Search → `ScriptSuite`). One UAC elevation prompt is requested.
 
@@ -95,9 +95,12 @@ Each script supports dry-run preview where `supportsDryRun: true` in its manifes
 
 ## Scheduling — unattended runs via Task Scheduler
 
-Every script (all 9, including the 2 admin ones) can be scheduled from its tile **Schedule** button. The dialog is `Every [N] [Days|Hours|Weeks] at [HH:mm]` — no cron. Example: `Every 1 Days at 09:00` creates `\ScriptSuite\<scriptId>` daily at 09:00.
-
-* **Two tiers under the hood, one UI:** 7 non-admin scripts register `InteractiveToken Limited` tasks; 2 admin scripts (`ClearEventLogs`, `RestorePoint`) register `S4U HighestAvailable` tasks. The UI presents scheduling uniformly, but the Task Scheduler entries differ (`schtasks /query \ScriptSuite\<id> /xml` shows `<LogonType>InteractiveToken</LogonType>` vs `<LogonType>S4U</LogonType><RunLevel>HighestAvailable</RunLevel>`).
+Every script (all 9, including the 2 admin ones) can be scheduled from its tile **Schedule** button. The dialog supports `Days`, `Hours`, and `Weeks` intervals:
+* **Weekly recurrence & weekday selection:** When `Weeks` is selected, Mon–Sun checkboxes allow choosing any combination of weekdays (at least one required). For multi-week schedules (`Interval > 1`), a start date picker anchors the recurrence week cycle.
+* **Daily and hourly start date:** For `Days` or `Hours`, specify an optional start date to anchor recurrence or delay the first execution.
+* **Live next run preview:** Displays `"Next run: Ddd dd.MM.yyyy HH:mm"` computed from the exact trigger calculation algorithm.
+* **Collision warnings:** Non-blocking warning banner notifies you if another enabled script is scheduled at the same time on overlapping days to avoid `Skipped — app was busy` single-instance mutex conflicts.
+* **Two tiers under the hood, one UI:** 7 non-admin scripts register `InteractiveToken Limited` tasks; 2 admin scripts (`ClearEventLogs`, `RestorePoint`) register `S4U HighestAvailable` tasks. If a task requires administrative rights to modify (such as an existing admin-owned task), the UI seamlessly prompts for UAC elevation to update the task cleanly.
 * **Per-script risk opt-in:** first time you schedule an admin script, check `I understand the risks` (stored in `%LOCALAPPDATA%\ScriptSuite\risk-consents.json` per-script, persists after unscheduling). This is separate from the **one-time UAC at Save** needed to register a `HighestAvailable` task — after that, runs are silent forever (no UAC at run time).
 * **Scheduled History is separate:** header `Scheduled` button opens `Scheduled History` (`Services/RunHistoryStore.cs` `ScheduledRuns` table, `INSERT` via headless `ScriptSuite.exe --scheduled-run <id>`). Manual `History` and scheduled history are distinct tabs. `Skipped — app was busy` is a distinct outcome (not silently dropped, not queued) when a trigger fires while the dashboard is open (single-instance `Global\ScriptSuite_SingleInstance_<SID>` mutex + file-lock fallback).
 * **App remains closed between runs:** Task Scheduler launches `ScriptSuite.exe --scheduled-run <id>` headlessly, it runs via `Services/ScriptExecutor.cs` `CreateDefault` (self-contained fix for `PSHOME`/`CimCmdlets` headless), inserts into `ScheduledRuns`, and exits — no tray/background process. Results only visible in `Scheduled` tab (no notifications).
@@ -120,6 +123,7 @@ Contextual `?` buttons appear in the dashboard header (`Script Suite / Dashboard
   - **Interactive Execution & Scheduling:** Prompts with a modal review dialog displaying the planned action summary, targeted paths, and patterns before a live run or schedule creation/edit can proceed (Cancel is the default; dry-run preview is exempt).
   - **Headless & Elevated Execution:** Headless tasks (`--scheduled-run` and `--elevated-run`) strictly reject untrusted configs without prompting, record a `Failed` entry in `ScheduledRuns` with `"Config not trusted; open ScriptSuite and review it"`, and exit with code 1. Elevated child processes re-verify config trust independently.
   - **Scope Protection:** Combined with `Test-PathScope` path denylisting (blocking drive roots, system/program directories, user profile roots, and data roots), external or malicious config modifications cannot silently manipulate files. Scripts without dry-run (`SoftwareInventory`, `SystemHealthReport`) require an explicit "Run" click showing resolved output paths instead of executing automatically on window load.
+- **v3.2.0 vs v3.1.2:** Schedule control (multi-weekday selector, multi-week anchor date, start date picker, live next-run preview, collision warnings, strict XML trigger verification, and seamless elevation fallback for admin-owned tasks).
 - **v3.1.2 vs v3.1.1:** Remove `--config-path` CLI parameter completely; elevated executions unconditionally resolve configuration files through canonical AppData paths.
 - **v3.1.1 vs v3.1.0:** Remove external configPath parameter from trust store, support LOCALAPPDATA redirection for test isolation, and auto-trust default configs upon fresh seeding.
 - **v3.1.0 vs v3.0.3:** SEC-04 (Configuration Trust System: SHA-256 trust store, interactive approval dialog, headless rejection with exit 1, child re-verification), audit hardening (removal of test elevation override, restoration of original file encodings, validation of all category destinations, and dynamic SoftwareInventory extension derivation), and non-dry-run explicit execution.

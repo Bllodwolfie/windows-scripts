@@ -2,6 +2,17 @@
 
 All notable changes to ScriptSuite are documented in this file.
 
+## [3.2.0] - 2026-11-09
+
+### Features & Scheduling Control
+- **Multi-Weekday Selection:** Weekly schedules now support selecting any combination of weekdays (Monday through Sunday) via checkboxes, with validation ensuring at least one day is selected.
+- **Anchor & Start Date Picker:** Users can specify a `startDate` for Days, Hours, and Weeks (with intervals > 1 week). In multi-week schedules, `startDate` anchors the recurrence week cycle in Windows Task Scheduler.
+- **Live Next Run Preview:** The schedule dialog calculates and displays an exact, deterministic `"Next run: Ddd dd.MM.yyyy HH:mm"` preview synchronized with Task Scheduler's `StartBoundary` calculation without guessing or UTC drift.
+- **Collision Warning:** Added non-blocking collision warnings when an enabled schedule conflicts with another task at the same time and overlapping days to prevent `Skipped — app was busy` mutex conflicts.
+- **Strict Registration Verification:** `ScheduledTaskService` now inspects the registered task XML (`StartBoundary`, `DaysOfWeek`, `WeeksInterval`) after registration to guarantee exact trigger matching, eliminating the false-positive fallback.
+- **Self-Elevating Save Over Admin-Owned Tasks:** If a standard-user save over an existing admin-owned task fails with Access Denied (`0x80070005`), the app seamlessly prompts for elevation via UAC to update the task while preserving user-mode execution credentials for non-admin scripts. Canceling UAC leaves the task and `schedules.json` untouched.
+- **In-Memory Legacy Migration:** Legacy schedule entries lacking `weekdays` or `startDate` are automatically populated in memory from Task Scheduler XML on load and persisted on explicit save without rewriting untouched configs on startup.
+
 ## [3.1.2] - 2026-11-03
 
 ### Security & Hardening
