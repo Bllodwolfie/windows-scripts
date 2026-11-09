@@ -35,6 +35,55 @@ public sealed class ScheduledTaskService
         _ => throw new ArgumentException($"Unsafe schedule Unit: {unit}", nameof(unit)),
     };
 
+    public static string CleanErrorMessage(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return "Operation failed.";
+
+        string s = raw.Trim();
+        if (s.StartsWith("#< CLIXML", StringComparison.OrdinalIgnoreCase) || s.Contains("<Objs", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var matches = System.Text.RegularExpressions.Regex.Matches(s, @"<S S=""Error"">(.*?)<\/S>", System.Text.RegularExpressions.RegexOptions.Singleline);
+                if (matches.Count > 0)
+                {
+                    foreach (System.Text.RegularExpressions.Match m in matches)
+                    {
+                        string val = m.Groups[1].Value;
+                        val = System.Text.RegularExpressions.Regex.Replace(val, @"_x([0-9A-Fa-f]{4})_", match =>
+                        {
+                            int code = int.Parse(match.Groups[1].Value, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                            return ((char)code).ToString();
+                        });
+                        val = System.Net.WebUtility.HtmlDecode(val).Trim();
+                        if (val.StartsWith("At line:", StringComparison.OrdinalIgnoreCase) ||
+                            val.StartsWith("+", StringComparison.OrdinalIgnoreCase) ||
+                            val.StartsWith("CategoryInfo", StringComparison.OrdinalIgnoreCase) ||
+                            val.StartsWith("FullyQualifiedErrorId", StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+                        if (!string.IsNullOrEmpty(val))
+                        {
+                            int colon = val.IndexOf(':');
+                            if (colon > 0 && colon < 30 && val.Substring(0, colon).Contains('-'))
+                            {
+                                val = val.Substring(colon + 1).Trim();
+                            }
+                            return val;
+                        }
+                    }
+                }
+            }
+            catch { }
+            return "Task operation failed (access denied or scheduled task error).";
+        }
+
+        var lines = s.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return lines.Length > 0 ? lines[0] : s;
+    }
+
     public static bool TaskExists(string scriptId)
     {
         try
@@ -217,7 +266,7 @@ public sealed class ScheduledTaskService
                                       stderr.Contains("PermissionDenied", StringComparison.OrdinalIgnoreCase) ||
                                       stderr.Contains("Access is denied", StringComparison.OrdinalIgnoreCase);
                 bool needsElev = isAccessDenied;
-                string err = !string.IsNullOrWhiteSpace(stderr) ? stderr.Trim() : $"powershell exit {exitCode}";
+                string err = CleanErrorMessage(!string.IsNullOrWhiteSpace(stderr) ? stderr : $"powershell exit {exitCode}");
                 return (false, err, needsElev);
             }
 

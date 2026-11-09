@@ -324,7 +324,7 @@ public partial class ScheduleWindow : Window
             var (eok, eerr) = ScheduledTaskService.RegisterElevated(entry);
             if (!eok)
             {
-                ErrorText.Text = eerr ?? "UAC registration failed (declined?)";
+                ErrorText.Text = ScheduledTaskService.CleanErrorMessage(eerr ?? "UAC registration failed (declined?)");
                 return; // Do NOT update scheduleStore
             }
             ok = true;
@@ -332,7 +332,7 @@ public partial class ScheduleWindow : Window
 
         if (!ok)
         {
-            ErrorText.Text = err ?? "Failed to register task";
+            ErrorText.Text = ScheduledTaskService.CleanErrorMessage(err ?? "Failed to register task");
             return;
         }
 

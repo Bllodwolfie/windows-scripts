@@ -52,6 +52,7 @@ public class Program
             Test8_ElevatedRegisterTimeout();
             Test9_ScheduleCalculationDSTAndAnchors();
             Test10_CollisionDetection();
+            Test11_CleanErrorMessageWithClixmlSample();
         }
         finally
         {
@@ -500,5 +501,26 @@ public class Program
 
         string? warn2 = ScheduleCalculation.DetectCollision(nonColliding, existing);
         Assert(string.IsNullOrEmpty(warn2), "No collision warning when times differ (18:02 vs 18:06)");
+    }
+
+    // 11. Human-Readable Error Extraction from CLIXML Sample
+    private static void Test11_CleanErrorMessageWithClixmlSample()
+    {
+        Console.WriteLine("\n--- Test 11: Human-Readable Error Extraction from CLIXML Sample ---");
+
+        // Real PowerShell Access-Denied CLIXML sample captured from scheduled task registration failure
+        string clixmlSample = "#< CLIXML\r\n<Objs Version=\"1.1.0.1\" xmlns=\"http://schemas.microsoft.com/powershell/2004/04\"><Obj S=\"progress\" RefId=\"0\"><TN RefId=\"0\"><T>System.Management.Automation.PSCustomObject</T><T>System.Object</T></TN><MS><I64 N=\"SourceId\">1</I64><PR N=\"Record\"><AV>Preparing modules for first use.</AV><AI>0</AI><Nil /><PI>-1</PI><PC>-1</PC><T>Completed</T><SR>-1</SR><SD> </SD></PR></MS></Obj><S S=\"Error\">Register-ScheduledTask : Access is denied._x000D__x000A_</S><S S=\"Error\">At line:1 char:601_x000D__x000A_</S><S S=\"Error\">+ ...  -Hours 2); Register-ScheduledTask -TaskName 'ScriptSuiteTest_Proof'  ..._x000D__x000A_</S><S S=\"Error\">+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~_x000D__x000A_</S><S S=\"Error\">    + CategoryInfo          : PermissionDenied: (PS_ScheduledTask:Root/Microsoft/...S_ScheduledTask) [Register-Schedul _x000D__x000A_</S><S S=\"Error\">   edTask], CimException_x000D__x000A_</S><S S=\"Error\">    + FullyQualifiedErrorId : HRESULT 0x80070005,Register-ScheduledTask_x000D__x000A_</S><S S=\"Error\"> _x000D__x000A_</S></Objs>";
+
+        string cleaned = ScheduledTaskService.CleanErrorMessage(clixmlSample);
+        Assert(!cleaned.StartsWith("#< CLIXML"), "Cleaned message does not start with '#< CLIXML'");
+        Assert(!cleaned.Contains("<Objs"), "Cleaned message does not contain XML tags");
+        Assert(!cleaned.Contains("<S S=\"Error\">"), "Cleaned message does not contain <S S='Error'>");
+        Assert(!cleaned.Contains("_x000D_"), "Hex entity _x000D_ decoded or stripped");
+        Assert(cleaned == "Access is denied.", $"Cleaned message extracted short error: '{cleaned}' (expected 'Access is denied.')");
+
+        // Second CLIXML sample (argument validation error)
+        string clixmlArgSample = "#< CLIXML\r\n<Objs Version=\"1.1.0.1\" xmlns=\"http://schemas.microsoft.com/powershell/2004/04\"><S S=\"Error\">Cannot validate argument on parameter 'At'. The string 'invalid' was not recognized as a valid DateTime._x000D__x000A_</S></Objs>";
+        string cleanedArg = ScheduledTaskService.CleanErrorMessage(clixmlArgSample);
+        Assert(cleanedArg == "Cannot validate argument on parameter 'At'. The string 'invalid' was not recognized as a valid DateTime.", "Cleaned argument validation message matches");
     }
 }
