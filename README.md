@@ -13,9 +13,9 @@ A Windows maintenance suite — a WPF dashboard (`ScriptSuite`) over nine self-c
 
 ## Download — for most users (no SDK needed)
 
-**Latest Release:** [`v3.2.0` — `ScriptSuite v3.2.0`](https://github.com/Bllodwolfie/windows-scripts/releases/tag/v3.2.0)
+**Latest Release:** [`v3.2.1` — `ScriptSuite v3.2.1`](https://github.com/Bllodwolfie/windows-scripts/releases/tag/v3.2.1)
 
-1. Download [`ScriptSuite-win-x64-self-contained.zip`](https://github.com/Bllodwolfie/windows-scripts/releases/download/v3.2.0/ScriptSuite-win-x64-self-contained.zip) (self-contained `win-x64`, no .NET runtime to install).
+1. Download [`ScriptSuite-win-x64-self-contained.zip`](https://github.com/Bllodwolfie/windows-scripts/releases/download/v3.2.1/ScriptSuite-win-x64-self-contained.zip) (self-contained `win-x64`, no .NET runtime to install).
 2. Right-click the zip → `Extract All` → open the folder.
 3. Double-click `ScriptSuite.exe`. Optionally run `Install.ps1` (included in the zip and repo) to install to `%ProgramFiles%\ScriptSuite\` with admin-only write ACLs (SEC-02) and create the Start Menu shortcut (Windows Search → `ScriptSuite`). One UAC elevation prompt is requested.
 
@@ -123,6 +123,8 @@ Contextual `?` buttons appear in the dashboard header (`Script Suite / Dashboard
   - **Interactive Execution & Scheduling:** Prompts with a modal review dialog displaying the planned action summary, targeted paths, and patterns before a live run or schedule creation/edit can proceed (Cancel is the default; dry-run preview is exempt).
   - **Headless & Elevated Execution:** Headless tasks (`--scheduled-run` and `--elevated-run`) strictly reject untrusted configs without prompting, record a `Failed` entry in `ScheduledRuns` with `"Config not trusted; open ScriptSuite and review it"`, and exit with code 1. Elevated child processes re-verify config trust independently.
   - **Scope Protection:** Combined with `Test-PathScope` path denylisting (blocking drive roots, system/program directories, user profile roots, and data roots), external or malicious config modifications cannot silently manipulate files. Scripts without dry-run (`SoftwareInventory`, `SystemHealthReport`) require an explicit "Run" click showing resolved output paths instead of executing automatically on window load.
+- **UAC save flow testing:** The interactive UAC elevation prompt during schedule saving is hand-tested only; automated regression suites simulate the elevation helper return codes and Win32 cancellation via internal seams.
+- **v3.2.1 vs v3.2.0:** Stricter task registration, elevation escalation restricted strictly to proven access denied (eliminating false-positive elevation), elimination of unregister-before-register in favor of atomic replacement via `Register-ScheduledTask -Force`, UI CLIXML error sanitization, extended 120s elevated timeout with read-back verification, and expanded test coverage.
 - **v3.2.0 vs v3.1.2:** Schedule control (multi-weekday selector, multi-week anchor date, start date picker, live next-run preview, collision warnings, strict XML trigger verification, and seamless elevation fallback for admin-owned tasks).
 - **v3.1.2 vs v3.1.1:** Remove `--config-path` CLI parameter completely; elevated executions unconditionally resolve configuration files through canonical AppData paths.
 - **v3.1.1 vs v3.1.0:** Remove external configPath parameter from trust store, support LOCALAPPDATA redirection for test isolation, and auto-trust default configs upon fresh seeding.

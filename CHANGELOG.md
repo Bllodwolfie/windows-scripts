@@ -2,6 +2,15 @@
 
 All notable changes to ScriptSuite are documented in this file.
 
+## [3.2.1] - 2026-11-09
+
+### Scheduler Hardening & Fixes
+- **Access-Denied Only Elevation:** Restricted elevation escalation in `ScheduledTaskService.Register` strictly to proven access denied signals (`0x80070005`, `PermissionDenied`, `Access is denied`). Removed fallback checks on `requiresAdmin` so argument/syntax errors, timeouts, and exceptions report their own errors without triggering UAC.
+- **Eliminated Unregister-Before-Register:** Replaced the unregister-then-register sequence with atomic `Register-ScheduledTask -Force` alone. If registration fails or is rejected, the existing task and its schedule remain intact.
+- **Elevated Helper Timeout & Read-Back Verification:** Extended `RegisterElevated` timeout from 20 seconds to 120 seconds to accommodate slower UAC prompt interactions. Elevated registrations are now verified by read-back against Task Scheduler before reporting success.
+- **CLIXML Error Sanitization:** Added `CleanErrorMessage` to strip PowerShell `#< CLIXML` formatting, decode hex entities, and remove cmdlet and stack traces so the UI only displays clean, human-readable error messages.
+- **Automated Regression Suite:** Added a dedicated test harness (`tests/ScheduleTests`) covering access-denied detection, non-access-denied failures, read-back trigger mismatches, UAC cancellation atomicity, independent task XML preservation, and CLIXML parsing.
+
 ## [3.2.0] - 2026-11-09
 
 ### Features & Scheduling Control
