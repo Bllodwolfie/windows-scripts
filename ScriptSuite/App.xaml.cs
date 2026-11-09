@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System.Globalization;
+using System.IO;
 using System.Text.Json;
 using System.Windows;
 using ScriptSuite.Models;
@@ -301,11 +302,51 @@ public partial class App : Application
             string? unit = GetArg(args, "--unit");
             string? intervalStr = GetArg(args, "--interval");
             string? time = GetArg(args, "--time");
+            string? weekdaysStr = GetArg(args, "--weekdays");
+            string? startDateStr = GetArg(args, "--start-date");
             if (id == null || unit == null || intervalStr == null || time == null) return 1;
             if (!int.TryParse(intervalStr, out int interval)) return 1;
-            var entry = new ScheduleEntry { ScriptId = id, Unit = unit, Interval = interval, TimeOfDay = time, Enabled = true, CreatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") };
+
             ScheduledTaskService.RequireSafeId(id);
-            var store = new ScheduleStore(AppPaths.SchedulesPath);
+
+            string[]? weekdays = null;
+            if (!string.IsNullOrWhiteSpace(weekdaysStr))
+            {
+                var rawDays = weekdaysStr.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                foreach (var d in rawDays)
+                {
+                    if (!ScheduleCalculation.IsValidDayOfWeekName(d))
+                    {
+                        Console.Error.WriteLine($"Invalid weekday name: {d}");
+                        return 1;
+                    }
+                }
+                weekdays = rawDays;
+            }
+
+            string? startDate = null;
+            if (!string.IsNullOrWhiteSpace(startDateStr))
+            {
+                if (!DateTime.TryParseExact(startDateStr.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+                {
+                    Console.Error.WriteLine($"Invalid start date: {startDateStr}");
+                    return 1;
+                }
+                startDate = startDateStr.Trim();
+            }
+
+            var entry = new ScheduleEntry
+            {
+                ScriptId = id,
+                Unit = unit,
+                Interval = interval,
+                TimeOfDay = time,
+                Weekdays = weekdays,
+                StartDate = startDate,
+                Enabled = true,
+                CreatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+            };
+
             var catalog = new ManifestCatalog(AppPaths.ManifestsDir);
             var manifest = catalog.Find(id);
             if (manifest == null)
@@ -313,10 +354,16 @@ public partial class App : Application
                 Console.Error.WriteLine($"Unknown script '{id}' for scheduled task.");
                 return 1;
             }
+
             bool requiresAdmin = manifest.RequiresAdmin;
             var (ok, err, needsElev) = ScheduledTaskService.Register(entry, requiresAdmin);
             if (!ok && needsElev) return 2;
-            if (ok) { store.Set(entry); return 0; }
+            if (ok)
+            {
+                var store = new ScheduleStore(AppPaths.SchedulesPath);
+                store.Set(entry);
+                return 0;
+            }
             Console.Error.WriteLine(err);
             return 1;
         }
