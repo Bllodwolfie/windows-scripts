@@ -53,6 +53,7 @@ public class Program
             Test9_ScheduleCalculationDSTAndAnchors();
             Test10_CollisionDetection();
             Test11_CleanErrorMessageWithClixmlSample();
+            Test12_ExactCapturedStderrProof();
         }
         finally
         {
@@ -218,10 +219,10 @@ public class Program
         CleanScratchTask(taskName);
     }
 
-    // 4. fake launcher returning 1223 => task XML and schedules.json hash unchanged
+    // 4. launcher exit code 1223 => task XML and schedules.json hash unchanged
     private static void Test4_CancelledElevationPreservesState(string testRoot)
     {
-        Console.WriteLine("\n--- Test 4: Fake launcher returning 1223 (UAC cancel) preserves task XML and schedules.json ---");
+        Console.WriteLine("\n--- Test 4: Launcher exit code 1223 (UAC cancel) preserves task XML and schedules.json ---");
         string taskName = "ScriptSuiteTest_CancelUAC";
         CleanScratchTask(taskName);
 
@@ -393,10 +394,10 @@ public class Program
         CleanScratchTask(taskName);
     }
 
-    // 7. Timeout and Exception Handling
+    // 7. Exception handling (timeout not covered)
     private static void Test7_TimeoutAndExceptionHandling()
     {
-        Console.WriteLine("\n--- Test 7: Timeout and Exception handling ---");
+        Console.WriteLine("\n--- Test 7: Exception handling (timeout not covered) ---");
         var entry = new ScheduleEntry
         {
             ScriptId = "ScriptSuiteTest_Timeout",
@@ -522,5 +523,29 @@ public class Program
         string clixmlArgSample = "#< CLIXML\r\n<Objs Version=\"1.1.0.1\" xmlns=\"http://schemas.microsoft.com/powershell/2004/04\"><S S=\"Error\">Cannot validate argument on parameter 'At'. The string 'invalid' was not recognized as a valid DateTime._x000D__x000A_</S></Objs>";
         string cleanedArg = ScheduledTaskService.CleanErrorMessage(clixmlArgSample);
         Assert(cleanedArg == "Cannot validate argument on parameter 'At'. The string 'invalid' was not recognized as a valid DateTime.", "Cleaned argument validation message matches");
+    }
+
+    // 12. Feeding exact captured stderr from access-denied proof
+    private static void Test12_ExactCapturedStderrProof()
+    {
+        Console.WriteLine("\n--- Test 12: Exact captured stderr from proof => cleaned text and needsElevation=true ---");
+        string proofStderr = "#< CLIXML\r\n<Objs Version=\"1.1.0.1\" xmlns=\"http://schemas.microsoft.com/powershell/2004/04\"><S S=\"Error\">Register-ScheduledTask : Access is denied._x000D__x000A_</S><S S=\"Error\">At line:1 char:601_x000D__x000A_</S><S S=\"Error\">+ ...  -Hours 2); Register-ScheduledTask -TaskName 'ScriptSuiteTest_Proof'  ..._x000D__x000A_</S><S S=\"Error\">+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~_x000D__x000A_</S><S S=\"Error\">    + CategoryInfo          : PermissionDenied: (PS_ScheduledTask:Root/Microsoft/...S_ScheduledTask) [Register-Schedul _x000D__x000A_</S><S S=\"Error\">   edTask], CimException_x000D__x000A_</S><S S=\"Error\">    + FullyQualifiedErrorId : HRESULT 0x80070005,Register-ScheduledTask_x000D__x000A_</S><S S=\"Error\"> _x000D__x000A_</S></Objs>";
+
+        var entry = new ScheduleEntry
+        {
+            ScriptId = "ScriptSuiteTest_ProofStderr",
+            Unit = "Weeks",
+            Interval = 1,
+            TimeOfDay = "18:02",
+            Weekdays = new[] { "Sunday" }
+        };
+
+        ScheduledTaskService.ProcessRunner = (psi) => (1, "", proofStderr);
+
+        var (ok, err, needsElev) = ScheduledTaskService.Register(entry, requiresAdmin: false);
+
+        Assert(!ok, "Register returns ok=false on captured proof stderr");
+        Assert(needsElev, "Register returns needsElevation=true on captured proof stderr");
+        Assert(err == "Access is denied.", $"Cleaned error text is strictly 'Access is denied.' (actual: '{err}')");
     }
 }
