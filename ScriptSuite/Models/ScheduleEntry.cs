@@ -15,4 +15,16 @@ public sealed class ScheduleEntry
     [JsonPropertyName("timeOfDay")] public string TimeOfDay { get; set; } = "09:00";
     [JsonPropertyName("createdAt")] public string CreatedAt { get; set; } = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
     [JsonPropertyName("nextRun")] public string? NextRun { get; set; }
+
+    /// <summary>Selected days of week for Weeks schedule (e.g. ["Monday", "Wednesday"]).
+    /// Null/omitted for Days and Hours schedules.</summary>
+    [JsonPropertyName("weekdays")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? Weekdays { get; set; }
+
+    /// <summary>Start date anchor (yyyy-MM-dd). For Days/Hours: first run date.
+    /// For Weeks with interval > 1: week anchor.</summary>
+    [JsonPropertyName("startDate")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? StartDate { get; set; }
 }
