@@ -2,6 +2,17 @@
 
 All notable changes to ScriptSuite are documented in this file.
 
+## [3.2.2] - 2026-11-10
+
+### Reliable Installation & Packaging
+- **Install.cmd Launcher:** Added `Install.cmd` to the release zip and repository root to serve as the zero-setup primary installation method. Double-clicking automatically removes Mark of the Web (`Unblock-File`), applies `-ExecutionPolicy Bypass`, and initiates `Install.ps1` under Windows PowerShell 5.1 with no extra setup.
+- **PowerShell 5.1 Compatibility:** Eliminated `$PSScriptRoot` evaluation from parameter defaults in `Install.ps1` and `Uninstall.ps1`, resolving a runtime crash (`Cannot bind argument to parameter 'Path' because it is an empty string`). Script directory and path resolution now occur dynamically inside the script body with `$MyInvocation.MyCommand.Path` fallback.
+- **Prebuilt Layout Decoupling:** Prebuilt-exe mode (extracted zip) operates completely independently of `ProjectPath` and the .NET SDK, deploying packaged assets directly.
+- **UAC Waiting & Output Synchronization:** Unelevated launchers now block until the elevated installer finishes via `Start-Process ... -Verb RunAs -PassThru -Wait`, catching user cancellation (Win32Exception 1223) without throwing unhandled exceptions and reporting consistent PASS/FAIL exit status.
+- **Persistent Logging:** Elevated operations write step-by-step audit logs to `%ProgramData%\ScriptSuite\install.log` and `uninstall.log`, and interactive execution pauses at completion so summaries remain readable.
+- **Strict Read-Back Verification:** The installer validates that the target executable exists, reads back its `ProductVersion` against expected project/staging manifests, and confirms the shortcut `TargetPath` before concluding.
+- **Automated Regression Suite:** Added `tests/install-tests.ps1` testing isolated installations under Windows PowerShell 5.1, PowerShell 7, `Install.cmd`, 3.1.2 task upgrade migration, running exe termination, locked-file error handling, UAC decline handling, version mismatch detection, and clean uninstallation.
+
 ## [3.2.1] - 2026-11-09
 
 ### Scheduler Hardening & Fixes

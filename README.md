@@ -13,13 +13,14 @@ A Windows maintenance suite — a WPF dashboard (`ScriptSuite`) over nine self-c
 
 ## Download — for most users (no SDK needed)
 
-**Latest Release:** [`v3.2.1` — `ScriptSuite v3.2.1`](https://github.com/Bllodwolfie/windows-scripts/releases/tag/v3.2.1)
+**Latest Release:** [`v3.2.2` — `ScriptSuite v3.2.2`](https://github.com/Bllodwolfie/windows-scripts/releases/tag/v3.2.2)
 
-1. Download [`ScriptSuite-win-x64-self-contained.zip`](https://github.com/Bllodwolfie/windows-scripts/releases/download/v3.2.1/ScriptSuite-win-x64-self-contained.zip) (self-contained `win-x64`, no .NET runtime to install).
+1. Download [`ScriptSuite-win-x64-self-contained.zip`](https://github.com/Bllodwolfie/windows-scripts/releases/download/v3.2.2/ScriptSuite-win-x64-self-contained.zip) (self-contained `win-x64`, no .NET runtime to install).
 2. Right-click the zip → `Extract All` → open the folder.
-3. Double-click `ScriptSuite.exe`. Optionally run `Install.ps1` (included in the zip and repo) to install to `%ProgramFiles%\ScriptSuite\` with admin-only write ACLs (SEC-02) and create the Start Menu shortcut (Windows Search → `ScriptSuite`). One UAC elevation prompt is requested.
+3. **Primary install method:** Double-click `Install.cmd`. It automatically unblocks downloaded files, bypasses restrictive execution policies, prompts for UAC elevation to install to `%ProgramFiles%\ScriptSuite\` with admin-only write ACLs (SEC-02), creates the Start Menu shortcut (Windows Search → `ScriptSuite`), and verifies the installation.
+   - **Manual fallback:** Open PowerShell and run `powershell -ExecutionPolicy Bypass -File .\Install.ps1`, or run `ScriptSuite.exe` directly as a portable app without installing.
 
-> **First-run SmartScreen:** the exe is unsigned, so Windows SmartScreen / Microsoft Defender SmartScreen may show *Windows protected your PC* → click `More info` → `Run anyway`. The zip comes from GitHub via `Mark of the Web`; extracting with Explorer handles it. No admin needed to run the app itself.
+> **First-run SmartScreen:** the exe is unsigned, so Windows SmartScreen / Microsoft Defender SmartScreen may show *Windows protected your PC* → click `More info` → `Run anyway`. The zip comes from GitHub via `Mark of the Web`; double-clicking `Install.cmd` automatically applies `Unblock-File`. No admin needed to run the app itself.
 
 *Requires Windows 10 / 11 (x64). No PowerShell version check — the shipped `scripts\` are bundled with the publish output.*
 
@@ -124,6 +125,7 @@ Contextual `?` buttons appear in the dashboard header (`Script Suite / Dashboard
   - **Headless & Elevated Execution:** Headless tasks (`--scheduled-run` and `--elevated-run`) strictly reject untrusted configs without prompting, record a `Failed` entry in `ScheduledRuns` with `"Config not trusted; open ScriptSuite and review it"`, and exit with code 1. Elevated child processes re-verify config trust independently.
   - **Scope Protection:** Combined with `Test-PathScope` path denylisting (blocking drive roots, system/program directories, user profile roots, and data roots), external or malicious config modifications cannot silently manipulate files. Scripts without dry-run (`SoftwareInventory`, `SystemHealthReport`) require an explicit "Run" click showing resolved output paths instead of executing automatically on window load.
 - **UAC save flow testing:** The interactive UAC elevation prompt during schedule saving is hand-tested only; automated regression suites simulate the elevation helper return codes and Win32 cancellation via internal seams.
+- **v3.2.2 vs v3.2.1:** Reliable installation experience: added `Install.cmd` for zero-setup execution policy bypass and Mark-of-the-Web unblocking; fixed Windows PowerShell 5.1 parameter initialization crash by resolving script paths in script body; prebuilt-exe mode operates without project or .NET SDK dependencies; persistent installation and uninstallation logs written to `%ProgramData%\ScriptSuite\install.log` and `uninstall.log`; launcher waits for elevated installer and reports unified PASS/FAIL status; and comprehensive isolated regression test suite.
 - **v3.2.1 vs v3.2.0:** Stricter task registration, elevation escalation restricted strictly to proven access denied (eliminating false-positive elevation), elimination of unregister-before-register in favor of atomic replacement via `Register-ScheduledTask -Force`, UI CLIXML error sanitization, extended 120s elevated timeout with read-back verification, and expanded test coverage.
 - **v3.2.0 vs v3.1.2:** Schedule control (multi-weekday selector, multi-week anchor date, start date picker, live next-run preview, collision warnings, strict XML trigger verification, and seamless elevation fallback for admin-owned tasks).
 - **v3.1.2 vs v3.1.1:** Remove `--config-path` CLI parameter completely; elevated executions unconditionally resolve configuration files through canonical AppData paths.
