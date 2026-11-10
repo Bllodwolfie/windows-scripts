@@ -25,6 +25,7 @@
           Link="scripts\%(RecursiveDir)%(Filename)%(Extension)" />
     <None Include="..\assets\**\*" CopyToOutputDirectory="PreserveNewest"
           Link="assets\%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="..\Install.cmd" CopyToOutputDirectory="PreserveNewest" Link="Install.cmd" />
     <None Include="..\Install.ps1" CopyToOutputDirectory="PreserveNewest" Link="Install.ps1" />
     <None Include="..\Uninstall.ps1" CopyToOutputDirectory="PreserveNewest" Link="Uninstall.ps1" />
     <None Include="Manifests\*.json" CopyToOutputDirectory="PreserveNewest" />
