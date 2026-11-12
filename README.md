@@ -13,9 +13,9 @@ A Windows maintenance suite — a WPF dashboard (`ScriptSuite`) over nine self-c
 
 ## Download — for most users (no SDK needed)
 
-**Latest Release:** [`v3.2.2` — `ScriptSuite v3.2.2`](https://github.com/Bllodwolfie/windows-scripts/releases/tag/v3.2.2)
+**Latest Release:** [`v3.2.3` — `ScriptSuite v3.2.3`](https://github.com/Bllodwolfie/windows-scripts/releases/tag/v3.2.3)
 
-1. Download [`ScriptSuite-win-x64-self-contained.zip`](https://github.com/Bllodwolfie/windows-scripts/releases/download/v3.2.2/ScriptSuite-win-x64-self-contained.zip) (self-contained `win-x64`, no .NET runtime to install).
+1. Download [`ScriptSuite-win-x64-self-contained.zip`](https://github.com/Bllodwolfie/windows-scripts/releases/download/v3.2.3/ScriptSuite-win-x64-self-contained.zip) (self-contained `win-x64`, no .NET runtime to install).
 2. Right-click the zip → `Extract All` → open the folder.
 3. **Primary install method:** Double-click `Install.cmd`. It automatically unblocks downloaded files, bypasses restrictive execution policies, prompts for UAC elevation to install to `%ProgramFiles%\ScriptSuite\` with admin-only write ACLs (SEC-02), creates the Start Menu shortcut (Windows Search → `ScriptSuite`), and verifies the installation.
    - **Manual fallback:** Open PowerShell and run `powershell -ExecutionPolicy Bypass -File .\Install.ps1`, or run `ScriptSuite.exe` directly as a portable app without installing.

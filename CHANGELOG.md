@@ -2,6 +2,11 @@
 
 All notable changes to ScriptSuite are documented in this file.
 
+## [3.2.3] - 2026-11-13
+
+### Fixed
+- TextBox, ComboBox and ComboBoxItem now use full custom templates bound to theme tokens, so they render correctly when third-party theming tools (e.g. Windhawk) are active; History search box text no longer clips.
+
 ## [3.2.2] - 2026-11-10
 
 ### Reliable Installation & Packaging
