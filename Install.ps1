@@ -117,19 +117,19 @@ if (-not $Child) {
         if (Test-Path -LiteralPath $logPath) {
             $logItem = Get-Item -LiteralPath $logPath -ErrorAction SilentlyContinue
             if ($logItem -and $logItem.Length -gt 256KB) {
-                $tailLines = Get-Content -LiteralPath $logPath -Tail 100 -ErrorAction SilentlyContinue
+                $tailLines = Get-Content -LiteralPath $logPath -Tail 100 -Encoding utf8 -ErrorAction SilentlyContinue
                 if ($tailLines) {
                     $trimNote = "[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] === Log capped (log trimmed, previous size: $([math]::Round($logItem.Length / 1KB)) KB) ==="
                     $tailText = ($tailLines -join "`r`n")
                     $utf8 = [System.Text.Encoding]::UTF8
-                    $maxTailBytes = [int](256KB - $utf8.GetByteCount($trimNote) - 512)
-                    if ($utf8.GetByteCount($tailText) -gt $maxTailBytes) {
-                        if ($tailText.Length -gt $maxTailBytes) {
-                            $tailText = $tailText.Substring($tailText.Length - $maxTailBytes)
+                    $maxTailBytes = [int](256KB - $utf8.GetByteCount($trimNote) - 8192)
+                    $tailBytes = $utf8.GetBytes($tailText)
+                    if ($tailBytes.Length -gt $maxTailBytes) {
+                        $startIndex = $tailBytes.Length - $maxTailBytes
+                        while ($startIndex -lt $tailBytes.Length -and ($tailBytes[$startIndex] -ge 0x80 -and $tailBytes[$startIndex] -le 0xBF)) {
+                            $startIndex++
                         }
-                        while ($utf8.GetByteCount($tailText) -gt $maxTailBytes -and $tailText.Length -gt 0) {
-                            $tailText = $tailText.Substring(1)
-                        }
+                        $tailText = $utf8.GetString($tailBytes, $startIndex, $tailBytes.Length - $startIndex)
                     }
                     $trimmedContent = "$trimNote`r`n$tailText"
                     Set-Content -LiteralPath $logPath -Value $trimmedContent -Encoding utf8 -Force -ErrorAction SilentlyContinue

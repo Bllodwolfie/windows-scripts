@@ -508,10 +508,40 @@ try {
 
         $longLineTrimmedLength = (Get-Item -LiteralPath $longLineLog).Length
         Assert-Test ($longLineTrimmedLength -lt $longLineInitialLength) "[$engine] Long-line log size was reduced ($longLineTrimmedLength bytes < $longLineInitialLength bytes)"
-        Assert-Test ($longLineTrimmedLength -le (256KB + 16KB)) "[$engine] Long-line log capped near 256 KB ($longLineTrimmedLength bytes)"
+        Assert-Test ($longLineTrimmedLength -le 256KB) "[$engine] Long-line log capped to <= 256 KB ($longLineTrimmedLength bytes)"
         $longLineContentAfter = Get-Content -LiteralPath $longLineLog
         $longLineTrimMatches = @($longLineContentAfter | Where-Object { $_ -match "log trimmed" })
         Assert-Test ($longLineTrimMatches.Count -ge 1) "[$engine] Long-line log contains note 'log trimmed'"
+
+        # Subtest B2: Oversized log with multi-byte characters is trimmed without splitting characters
+        $pdB2 = Join-Path $subtestRoot "PDB2_MultiByte"
+        $pdLogDirB2 = Join-Path $pdB2 "ScriptSuite"
+        New-Item -ItemType Directory -Path $pdLogDirB2 -Force | Out-Null
+        $mbLog = Join-Path $pdLogDirB2 "install.log"
+        $mbChar = [char]0x20AC # Euro sign € (3 bytes in UTF-8)
+        $mbLongLine = [string]::new($mbChar, 200000) # 200,000 repetitions of 3-byte character = 600,000 bytes
+        Set-Content -LiteralPath $mbLog -Value $mbLongLine -Encoding utf8
+        $mbInitialLength = (Get-Item -LiteralPath $mbLog).Length
+        Assert-Test ($mbInitialLength -gt 256KB) "[$engine] Multi-byte log is initially > 256 KB ($mbInitialLength bytes)"
+
+        $dir17b2 = Join-Path $subtestRoot "InstallB2"
+        $lnk17b2 = Join-Path $subtestRoot "ShortcutsB2\ScriptSuite.lnk"
+        $reg17b2 = "$testRegBase\Test17B2_$engineTag"
+
+        $cmd17b2 = "`$env:ProgramData = '$pdB2'; & '$installScript' -InstallDir '$dir17b2' -ShortcutPath '$lnk17b2' -TaskPath '\ScriptSuiteTest' -RegistryRoot '$reg17b2' -PublishDir '$PublishDir' -NoBuild -NonInteractive"
+        $out17b2 = & $engine -NoProfile -ExecutionPolicy Bypass -Command $cmd17b2
+        Assert-Test ($LASTEXITCODE -eq 0) "[$engine] Install with multi-byte log succeeded"
+
+        $mbTrimmedLength = (Get-Item -LiteralPath $mbLog).Length
+        Assert-Test ($mbTrimmedLength -le 256KB) "[$engine] Multi-byte log capped to <= 256 KB ($mbTrimmedLength bytes)"
+        $mbContentAfter = Get-Content -LiteralPath $mbLog -Encoding utf8
+        $mbTrimMatches = @($mbContentAfter | Where-Object { $_ -match "log trimmed" })
+        Assert-Test ($mbTrimMatches.Count -ge 1) "[$engine] Multi-byte log contains note 'log trimmed'"
+
+        $firstCharAfterNote = $mbContentAfter[1][0]
+        Assert-Test ($firstCharAfterNote -eq $mbChar) "[$engine] First character after note line is a complete character ($firstCharAfterNote)"
+        Assert-Test ($firstCharAfterNote -ne [char]0xFFFD) "[$engine] First character after note line is not replacement character U+FFFD"
+        Assert-Test (-not $mbContentAfter[1].Contains([char]0xFFFD)) "[$engine] Trimmed line contains no replacement characters (U+FFFD)"
 
         # Subtest C: A -FromTemp child does not trim
         $pdC = Join-Path $subtestRoot "PDC_FromTemp"
