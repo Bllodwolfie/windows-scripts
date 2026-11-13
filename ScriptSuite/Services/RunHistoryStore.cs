@@ -43,16 +43,56 @@ public sealed class RunHistoryStore
             );
             """;
         cmd.ExecuteNonQuery();
+
+        EnsureColumn(conn, "RunHistory", "TriggerType", "TEXT NOT NULL DEFAULT 'Manual'");
+        EnsureColumn(conn, "RunHistory", "TriggerDetail", "TEXT");
+        EnsureColumn(conn, "RunHistory", "ScheduledFor", "TEXT");
+    }
+
+    private static void EnsureColumn(SqliteConnection conn, string table, string column, string definition)
+    {
+        using var checkCmd = conn.CreateCommand();
+        checkCmd.CommandText = $"PRAGMA table_info({table});";
+        using var reader = checkCmd.ExecuteReader();
+        while (reader.Read())
+        {
+            if (string.Equals(reader.GetString(1), column, StringComparison.OrdinalIgnoreCase))
+                return;
+        }
+        reader.Close();
+        using var addCmd = conn.CreateCommand();
+        addCmd.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {definition};";
+        addCmd.ExecuteNonQuery();
+    }
+
+    /// <summary>Prunes runs older than the retention period (default 28 days / 4 weeks)
+    /// to avoid stale clutter and keep history lean.</summary>
+    public int PruneStale(int days = 28)
+    {
+        try
+        {
+            var cutoff = DateTime.Now.AddDays(-days).ToString("yyyy-MM-dd HH:mm:ss");
+            using var conn = Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM RunHistory WHERE StartedAt < $cutoff;";
+            cmd.Parameters.AddWithValue("$cutoff", cutoff);
+            return cmd.ExecuteNonQuery();
+        }
+        catch
+        {
+            return 0;
+        }
     }
 
     /// <summary>Records one completed run. Returns the new row's Id.</summary>
     public long Insert(string scriptId, DateTime startedAt, DateTime finishedAt, RunOutcome outcome, string? summary)
     {
+        PruneStale(28);
         using var conn = Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO RunHistory (ScriptId, StartedAt, FinishedAt, Outcome, Summary)
-            VALUES ($scriptId, $startedAt, $finishedAt, $outcome, $summary);
+            INSERT INTO RunHistory (ScriptId, TriggerType, TriggerDetail, ScheduledFor, StartedAt, FinishedAt, Outcome, Summary)
+            VALUES ($scriptId, 'Manual', 'manual', NULL, $startedAt, $finishedAt, $outcome, $summary);
             SELECT last_insert_rowid();
             """;
         cmd.Parameters.AddWithValue("$scriptId", scriptId);
@@ -63,13 +103,32 @@ public sealed class RunHistoryStore
         return (long)cmd.ExecuteScalar()!;
     }
 
-    /// <summary>Most recent runs first. Used by the Milestone 10 history list.</summary>
-    public List<RunHistoryEntry> GetRecent(int limit = 200)
+    /// <summary>Most recent runs first, optionally filtered by trigger type ("All", "Manual", "Scheduled").</summary>
+    public List<RunHistoryEntry> GetRecent(int limit = 200, string? triggerType = "All")
     {
         var rows = new List<RunHistoryEntry>();
         using var conn = Open();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT Id, ScriptId, StartedAt, FinishedAt, Outcome, Summary FROM RunHistory ORDER BY Id DESC LIMIT $limit;";
+        if (string.IsNullOrEmpty(triggerType) || string.Equals(triggerType, "All", StringComparison.OrdinalIgnoreCase))
+        {
+            cmd.CommandText = """
+                SELECT Id, ScriptId, coalesce(TriggerType, 'Manual'), TriggerDetail, ScheduledFor, StartedAt, FinishedAt, Outcome, Summary
+                FROM RunHistory
+                ORDER BY StartedAt DESC, Id DESC
+                LIMIT $limit;
+                """;
+        }
+        else
+        {
+            cmd.CommandText = """
+                SELECT Id, ScriptId, coalesce(TriggerType, 'Manual'), TriggerDetail, ScheduledFor, StartedAt, FinishedAt, Outcome, Summary
+                FROM RunHistory
+                WHERE TriggerType = $type
+                ORDER BY StartedAt DESC, Id DESC
+                LIMIT $limit;
+                """;
+            cmd.Parameters.AddWithValue("$type", triggerType);
+        }
         cmd.Parameters.AddWithValue("$limit", limit);
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
@@ -78,10 +137,13 @@ public sealed class RunHistoryStore
             {
                 Id = reader.GetInt64(0),
                 ScriptId = reader.GetString(1),
-                StartedAt = reader.IsDBNull(2) ? null : reader.GetString(2),
-                FinishedAt = reader.IsDBNull(3) ? null : reader.GetString(3),
-                Outcome = reader.GetString(4),
-                Summary = reader.IsDBNull(5) ? null : reader.GetString(5),
+                TriggerType = reader.GetString(2),
+                TriggerDetail = reader.IsDBNull(3) ? null : reader.GetString(3),
+                ScheduledFor = reader.IsDBNull(4) ? null : reader.GetString(4),
+                StartedAt = reader.IsDBNull(5) ? null : reader.GetString(5),
+                FinishedAt = reader.IsDBNull(6) ? null : reader.GetString(6),
+                Outcome = reader.GetString(7),
+                Summary = reader.IsDBNull(8) ? null : reader.GetString(8),
             });
         }
         return rows;
@@ -95,7 +157,8 @@ public sealed class RunHistoryStore
         using var conn = Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            SELECT Id, ScriptId, StartedAt, FinishedAt, Outcome, Summary FROM RunHistory
+            SELECT Id, ScriptId, coalesce(TriggerType, 'Manual'), TriggerDetail, ScheduledFor, StartedAt, FinishedAt, Outcome, Summary
+            FROM RunHistory
             WHERE Id IN (SELECT MAX(Id) FROM RunHistory GROUP BY ScriptId);
             """;
         using var reader = cmd.ExecuteReader();
@@ -105,10 +168,13 @@ public sealed class RunHistoryStore
             {
                 Id = reader.GetInt64(0),
                 ScriptId = reader.GetString(1),
-                StartedAt = reader.IsDBNull(2) ? null : reader.GetString(2),
-                FinishedAt = reader.IsDBNull(3) ? null : reader.GetString(3),
-                Outcome = reader.GetString(4),
-                Summary = reader.IsDBNull(5) ? null : reader.GetString(5),
+                TriggerType = reader.GetString(2),
+                TriggerDetail = reader.IsDBNull(3) ? null : reader.GetString(3),
+                ScheduledFor = reader.IsDBNull(4) ? null : reader.GetString(4),
+                StartedAt = reader.IsDBNull(5) ? null : reader.GetString(5),
+                FinishedAt = reader.IsDBNull(6) ? null : reader.GetString(6),
+                Outcome = reader.GetString(7),
+                Summary = reader.IsDBNull(8) ? null : reader.GetString(8),
             };
             map[entry.ScriptId] = entry;
         }
@@ -157,9 +223,12 @@ public sealed class RunHistoryStore
     // Scheduled history (Stage 2): separate tab/section from manual RunHistory.
     public long InsertScheduled(string scriptId, DateTime scheduledFor, DateTime startedAt, DateTime finishedAt, string outcome, string? summary, string trigger)
     {
+        PruneStale(28);
         using var conn = Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
+            INSERT INTO RunHistory (ScriptId, TriggerType, TriggerDetail, ScheduledFor, StartedAt, FinishedAt, Outcome, Summary)
+            VALUES ($scriptId, 'Scheduled', $trigger, $scheduledFor, $startedAt, $finishedAt, $outcome, $summary);
             INSERT INTO ScheduledRuns (ScriptId, ScheduledFor, StartedAt, FinishedAt, Outcome, Summary, Trigger)
             VALUES ($scriptId, $scheduledFor, $startedAt, $finishedAt, $outcome, $summary, $trigger);
             SELECT last_insert_rowid();
@@ -214,6 +283,9 @@ public sealed class RunHistoryEntry
 {
     public long Id { get; set; }
     public string ScriptId { get; set; } = "";
+    public string TriggerType { get; set; } = "Manual";
+    public string? TriggerDetail { get; set; }
+    public string? ScheduledFor { get; set; }
     public string? StartedAt { get; set; }
     public string? FinishedAt { get; set; }
     public string Outcome { get; set; } = "";

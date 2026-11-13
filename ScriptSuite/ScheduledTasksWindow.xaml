@@ -1,0 +1,105 @@
+<Window x:Class="ScriptSuite.ScheduledTasksWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:ScriptSuite.ViewModels"
+        xmlns:conv="clr-namespace:ScriptSuite.Converters"
+        Title="Scheduled Tasks" Height="580" Width="860"
+        MinHeight="380" MinWidth="580"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Brush.Background.Primary}" Foreground="{DynamicResource Brush.Foreground.Primary}">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <conv:OutcomeToBrushConverter x:Key="OutcomeToBrush" />
+
+        <Style x:Key="TaskTitleText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Foreground.Primary}" />
+        </Style>
+
+        <Style x:Key="TaskSubtext" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Foreground.Secondary}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+        </Style>
+
+        <DataTemplate DataType="{x:Type vm:ScheduledTaskRowViewModel}">
+            <Border Background="{DynamicResource Brush.Background.Card}" BorderBrush="{DynamicResource Brush.Background.Card.Hover}"
+                    BorderThickness="1" CornerRadius="8" Margin="0,0,0,10" Padding="16,12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Left: Name, Badge, Description, Last ran at -->
+                    <StackPanel Grid.Column="0" Margin="0,0,16,0" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding DisplayName}" Style="{StaticResource TaskTitleText}" VerticalAlignment="Center" />
+                            <Border Background="{DynamicResource Brush.Background.Card.Hover}" CornerRadius="4" Padding="6,2" Margin="8,0,0,0"
+                                    VerticalAlignment="Center" Visibility="{Binding HasSchedule, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="Active Schedule" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource Brush.Accent.Primary}" />
+                            </Border>
+                        </StackPanel>
+                        <TextBlock Text="{Binding Description}" Style="{StaticResource TaskSubtext}" />
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <TextBlock Text="Last ran: " FontSize="11" Foreground="{DynamicResource Brush.Foreground.Tertiary}" />
+                            <TextBlock Text="{Binding LastRanAt}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Foreground.Secondary}" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Middle: Schedule summary block -->
+                    <Border Grid.Column="1" Background="{DynamicResource Brush.Background.Card.Hover}" CornerRadius="6"
+                            Padding="12,8" Margin="0,0,16,0" VerticalAlignment="Center">
+                        <StackPanel>
+                            <TextBlock Text="Schedule" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource Brush.Foreground.Tertiary}" />
+                            <TextBlock Text="{Binding ScheduleSummary}" FontSize="13" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource Brush.Accent.Primary}" Margin="0,2,0,0" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Right: Configure button -->
+                    <Button Grid.Column="2" Content="Configure" Click="ConfigureButton_Click" Tag="{Binding}"
+                            Padding="14,8" VerticalAlignment="Center" />
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid Margin="24,18,24,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Scheduled Tasks" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource Brush.Foreground.Primary}" />
+                    <TextBlock x:Name="CountText" FontSize="14" Foreground="{DynamicResource Brush.Foreground.Tertiary}"
+                               VerticalAlignment="Center" Margin="12,0,0,0" />
+                </StackPanel>
+                <TextBlock Text="Overview of automated runs configured via Windows Task Scheduler. Tasks execute in the background according to their schedule."
+                           FontSize="12" Foreground="{DynamicResource Brush.Foreground.Secondary}" Margin="0,4,0,0" TextWrapping="Wrap" />
+            </StackPanel>
+            <Button Grid.Column="1" Content="Close" Click="CloseButton_Click" Padding="18,8" VerticalAlignment="Center" />
+        </Grid>
+
+        <!-- Empty state message -->
+        <TextBlock x:Name="EmptyMessage" Grid.Row="1" Text="No automated schedules configured yet. Click 'Configure' on any script below to set up a scheduled task."
+                   Foreground="{DynamicResource Brush.Foreground.Tertiary}" Margin="0,14,0,6" Visibility="Collapsed" />
+
+        <!-- Tasks list -->
+        <ScrollViewer Grid.Row="2" Margin="0,12,0,0" VerticalScrollBarVisibility="Auto">
+            <ItemsControl x:Name="TasksList" />
+        </ScrollViewer>
+    </Grid>
+</Window>

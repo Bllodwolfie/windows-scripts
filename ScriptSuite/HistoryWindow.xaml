@@ -46,6 +46,7 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="158" />
                             <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="92" />
                         </Grid.ColumnDefinitions>
 
@@ -58,7 +59,13 @@
                                        Visibility="{Binding HasSummary, Converter={StaticResource BoolToVis}}" />
                         </StackPanel>
 
-                        <Border Grid.Column="2" Background="{Binding Outcome, Converter={StaticResource OutcomeToBrush}}" CornerRadius="4"
+                        <Border Grid.Column="2" Background="{DynamicResource Brush.Background.Card.Hover}" CornerRadius="4"
+                                Padding="8,2" Margin="0,0,8,0" VerticalAlignment="Center" HorizontalAlignment="Right">
+                            <TextBlock Text="{Binding TriggerLabel}" FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource Brush.Accent.Primary}" HorizontalAlignment="Center" />
+                        </Border>
+
+                        <Border Grid.Column="3" Background="{Binding Outcome, Converter={StaticResource OutcomeToBrush}}" CornerRadius="4"
                                 Padding="8,2" VerticalAlignment="Center" HorizontalAlignment="Right">
                             <TextBlock Text="{Binding Outcome}" FontSize="12" FontWeight="SemiBold"
                                        Foreground="{DynamicResource Brush.Status.Success.Foreground}" HorizontalAlignment="Center" />
@@ -97,7 +104,9 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Header -->
@@ -116,15 +125,40 @@
             </StackPanel>
         </Grid>
 
-        <!-- Empty state -->
-        <TextBlock x:Name="EmptyMessage" Grid.Row="1" Text="No runs recorded yet — run a script to see its history here."
-                   Foreground="{DynamicResource Brush.Foreground.Tertiary}" Margin="0,18,0,6" />
+        <!-- Filters (Search, Trigger, Outcome) -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,12,0,4">
+            <TextBox x:Name="SearchBox" Width="260" Height="28" VerticalContentAlignment="Center"
+                     ToolTip="Search script, summary, outcome, trigger…" TextChanged="Filter_Changed" />
+            <ComboBox x:Name="TriggerFilterBox" Width="130" Height="28" Margin="8,0,0,0" SelectionChanged="Filter_Changed">
+                <ComboBoxItem Content="All" IsSelected="True" />
+                <ComboBoxItem Content="Manual" />
+                <ComboBoxItem Content="Scheduled" />
+            </ComboBox>
+            <ComboBox x:Name="OutcomeFilterBox" Width="130" Height="28" Margin="8,0,0,0" SelectionChanged="Filter_Changed">
+                <ComboBoxItem Content="All" IsSelected="True" />
+                <ComboBoxItem Content="Success" />
+                <ComboBoxItem Content="Warning" />
+                <ComboBoxItem Content="Failed" />
+                <ComboBoxItem Content="Cancelled" />
+            </ComboBox>
+        </StackPanel>
 
-        <!-- Basic list: most recent first (Milestone 10). No search/filter yet -
-             Phase 4 adds that on top of this same data. -->
-        <ScrollViewer Grid.Row="2" Margin="0,12,0,0" VerticalScrollBarVisibility="Auto">
+        <!-- Empty state -->
+        <TextBlock x:Name="EmptyMessage" Grid.Row="2" Text="No runs recorded yet — run a script to see its history here."
+                   Foreground="{DynamicResource Brush.Foreground.Tertiary}" Margin="0,14,0,6" />
+
+        <!-- History list -->
+        <ScrollViewer Grid.Row="3" Margin="0,8,0,0" VerticalScrollBarVisibility="Auto">
             <ItemsControl x:Name="HistoryList" />
         </ScrollViewer>
+
+        <!-- Pagination -->
+        <DockPanel x:Name="PaginationPanel" Grid.Row="4" Margin="0,12,0,0" Visibility="Collapsed">
+            <Button x:Name="PrevPageButton" Content="Previous" Click="PrevPage_Click" DockPanel.Dock="Left" Padding="14,6" />
+            <Button x:Name="NextPageButton" Content="Next" Click="NextPage_Click" DockPanel.Dock="Right" Padding="14,6" />
+            <TextBlock x:Name="PageInfoText" Text="Page 1 of 1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Foreground="{DynamicResource Brush.Foreground.Secondary}" FontSize="12" />
+        </DockPanel>
     </Grid>
 </Window>
 

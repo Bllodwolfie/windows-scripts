@@ -19,7 +19,11 @@ public partial class HistoryWindow : Window
 {
     private readonly RunHistoryStore _history;
     private readonly ManifestCatalog _catalog;
+    private readonly List<HistoryRowViewModel> _all = new();
+    private readonly List<HistoryRowViewModel> _filtered = new();
     private readonly ObservableCollection<HistoryRowViewModel> _rows = new();
+    private int _currentPage = 1;
+    private const int PageSize = 100;
 
     public HistoryWindow(RunHistoryStore history, ManifestCatalog catalog)
     {
@@ -32,26 +36,103 @@ public partial class HistoryWindow : Window
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        var entries = _history.GetRecent(200);
+        _all.Clear();
+        var entries = _history.GetRecent(200, "All");
         foreach (var entry in entries)
         {
             var manifest = _catalog.Find(entry.ScriptId);
             var (logPath, logDir, detail, hint) = BuildDetail(entry.ScriptId, entry.Summary, entry.Outcome);
-            _rows.Add(new HistoryRowViewModel
+            _all.Add(new HistoryRowViewModel
             {
                 ScriptId = entry.ScriptId,
                 When = entry.StartedAt ?? "",
                 DisplayName = manifest?.DisplayName ?? entry.ScriptId,
+                TriggerType = entry.TriggerType,
+                TriggerDetail = entry.TriggerDetail,
                 Outcome = entry.Outcome,
-                Summary = entry.Summary,
+                Summary = entry.Summary ?? (entry.TriggerType == "Scheduled" && !string.IsNullOrEmpty(entry.ScheduledFor) ? $"Scheduled for {entry.ScheduledFor}" : null),
                 LogFilePath = logPath,
                 LogFileDirectory = logDir,
                 ExpandedDetail = detail,
                 LogFileHint = hint,
             });
         }
-        CountText.Text = $"{entries.Count} run(s) recorded";
-        EmptyMessage.Visibility = entries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        ApplyFilter();
+    }
+
+    private void Filter_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!IsLoaded) return;
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
+    {
+        _filtered.Clear();
+        string q = SearchBox.Text?.Trim() ?? "";
+        string triggerFilter = (TriggerFilterBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Content?.ToString() ?? "All";
+        string outcomeFilter = (OutcomeFilterBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Content?.ToString() ?? "All";
+
+        foreach (var r in _all)
+        {
+            if (triggerFilter != "All" && !string.Equals(r.TriggerType, triggerFilter, StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (outcomeFilter != "All" && !string.Equals(r.Outcome, outcomeFilter, StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (q.Length > 0
+                && !r.DisplayName.Contains(q, StringComparison.OrdinalIgnoreCase)
+                && !r.ScriptId.Contains(q, StringComparison.OrdinalIgnoreCase)
+                && !(r.Summary ?? "").Contains(q, StringComparison.OrdinalIgnoreCase)
+                && !r.Outcome.Contains(q, StringComparison.OrdinalIgnoreCase)
+                && !r.TriggerType.Contains(q, StringComparison.OrdinalIgnoreCase))
+                continue;
+            _filtered.Add(r);
+        }
+        _currentPage = 1;
+        RefreshPage();
+    }
+
+    private void RefreshPage()
+    {
+        int totalPages = Math.Max(1, (int)Math.Ceiling((double)_filtered.Count / PageSize));
+        if (_currentPage > totalPages) _currentPage = totalPages;
+        if (_currentPage < 1) _currentPage = 1;
+
+        _rows.Clear();
+        var pageItems = _filtered.Skip((_currentPage - 1) * PageSize).Take(PageSize);
+        foreach (var item in pageItems)
+        {
+            _rows.Add(item);
+        }
+
+        PageInfoText.Text = $"Page {_currentPage} of {totalPages}";
+        PrevPageButton.IsEnabled = _currentPage > 1;
+        NextPageButton.IsEnabled = _currentPage < totalPages;
+        PaginationPanel.Visibility = totalPages > 1 ? Visibility.Visible : Visibility.Collapsed;
+
+        CountText.Text = _filtered.Count == _all.Count
+            ? $"{_all.Count} run(s) recorded"
+            : $"{_filtered.Count} of {_all.Count} run(s) matched";
+        EmptyMessage.Visibility = _rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void PrevPage_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentPage > 1)
+        {
+            _currentPage--;
+            RefreshPage();
+        }
+    }
+
+    private void NextPage_Click(object sender, RoutedEventArgs e)
+    {
+        int totalPages = Math.Max(1, (int)Math.Ceiling((double)_filtered.Count / PageSize));
+        if (_currentPage < totalPages)
+        {
+            _currentPage++;
+            RefreshPage();
+        }
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();

@@ -231,8 +231,8 @@
                 </Button>
                 <Button Content="History" Click="HistoryButton_Click" Padding="16,8" Margin="0,0,8,0"
                         AutomationProperties.Name="Open run history" />
-                <Button Content="Scheduled" Click="ScheduledHistoryButton_Click" Padding="16,8" Margin="0,0,8,0"
-                        AutomationProperties.Name="Open scheduled history" />
+                <Button Content="Scheduled" Click="ScheduledTasksButton_Click" Padding="16,8" Margin="0,0,8,0"
+                        AutomationProperties.Name="Open scheduled tasks" />
                 <Button x:Name="RunAllButton" Content="Run All" Click="RunAllButton_Click"
                         IsEnabled="{Binding RunAllEnabled}"
                         FontWeight="SemiBold" Padding="20,8" />

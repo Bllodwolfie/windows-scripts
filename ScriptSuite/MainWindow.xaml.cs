@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using ScriptSuite.Services;
 using ScriptSuite.ViewModels;
@@ -87,10 +87,11 @@ public partial class MainWindow : Window
         window.ShowDialog();
     }
 
-    private void ScheduledHistoryButton_Click(object sender, RoutedEventArgs e)
+    private void ScheduledTasksButton_Click(object sender, RoutedEventArgs e)
     {
-        var window = new ScheduledHistoryWindow(_historyStore, _catalog) { Owner = this };
+        var window = new ScheduledTasksWindow(_catalog, _scheduleStore, _historyStore, _riskStore) { Owner = this };
         window.ShowDialog();
+        RefreshView();
     }
 
     private void ScheduleButton_Click(object sender, RoutedEventArgs e)
