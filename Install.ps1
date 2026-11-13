@@ -73,6 +73,83 @@ $uninstallKey = if ($RegistryRoot -match '\\ScriptSuite$') {
     Join-Path $RegistryRoot "ScriptSuite"
 }
 
+function Format-QuotedArgument {
+    param([string]$ArgValue)
+    if ([string]::IsNullOrEmpty($ArgValue)) { return '""' }
+    if ($ArgValue.EndsWith('\')) {
+        return "`"$($ArgValue)\`""
+    }
+    return "`"$ArgValue`""
+}
+
+# 0) Setup log path early and write initial log line so early failures leave evidence
+$logDir = Join-Path $env:ProgramData "ScriptSuite"
+if (-not (Test-Path -LiteralPath $logDir)) {
+    try { New-Item -ItemType Directory -Path $logDir -Force | Out-Null } catch { }
+}
+if (-not (Test-Path -LiteralPath $logDir) -and $env:LOCALAPPDATA) {
+    $logDir = Join-Path $env:LOCALAPPDATA "ScriptSuite"
+    if (-not (Test-Path -LiteralPath $logDir)) {
+        try { New-Item -ItemType Directory -Path $logDir -Force | Out-Null } catch { }
+    }
+}
+$logPath = Join-Path $logDir "install.log"
+
+$canWriteLog = $false
+try {
+    [System.IO.File]::AppendAllText($logPath, "")
+    $canWriteLog = $true
+} catch {
+    $canWriteLog = $false
+}
+if (-not $canWriteLog -and $env:LOCALAPPDATA) {
+    $userLogDir = Join-Path $env:LOCALAPPDATA "ScriptSuite"
+    if (-not (Test-Path -LiteralPath $userLogDir)) {
+        try { New-Item -ItemType Directory -Path $userLogDir -Force | Out-Null } catch { }
+    }
+    $logPath = Join-Path $userLogDir "install.log"
+}
+
+function Write-InstallLog {
+    param(
+        [string]$Message,
+        [string]$ForegroundColor,
+        [switch]$Warning,
+        [switch]$Error
+    )
+    $timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+    $logLine = "[$timestamp] $Message"
+    try {
+        Add-Content -LiteralPath $logPath -Value $logLine -Encoding utf8 -ErrorAction SilentlyContinue
+    } catch { }
+
+    if ($Warning) {
+        Write-Warning $Message
+    } elseif ($Error) {
+        Write-Host $Message -ForegroundColor Red
+    } elseif ($ForegroundColor) {
+        Write-Host $Message -ForegroundColor $ForegroundColor
+    } else {
+        Write-Host $Message
+    }
+}
+
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+Write-InstallLog "=== ScriptSuite Install started (PID $PID, Admin: $isAdmin, Interactive: $(-not $NonInteractive)) ==="
+
+trap {
+    $err = $_.Exception.Message
+    try {
+        Write-InstallLog "FATAL: $err" -Error
+        Write-InstallLog "=== ScriptSuite Installation Summary ==="
+        Write-InstallLog "  Result:            FAIL"
+        Write-InstallLog "  Error:             $err"
+        Write-InstallLog "  Log:               $logPath"
+    } catch { }
+    Write-Host "Install error: $err" -ForegroundColor Red
+    exit 1
+}
+
 # Prebuilt-exe mode detection: if ScriptSuite.exe exists next to Install.ps1,
 # we do not need ProjectPath or dotnet at all.
 $prebuiltExe = Join-Path $scriptDir "ScriptSuite.exe"
@@ -95,19 +172,7 @@ if ($isPrebuilt) {
     }
 }
 
-# 0) UAC self-elevation check (SEC-02: Program Files and task migration require admin)
-$logDir = Join-Path $env:ProgramData "ScriptSuite"
-if (-not (Test-Path -LiteralPath $logDir)) {
-    try { New-Item -ItemType Directory -Path $logDir -Force | Out-Null } catch { }
-}
-if (-not (Test-Path -LiteralPath $logDir) -and $env:LOCALAPPDATA) {
-    $logDir = Join-Path $env:LOCALAPPDATA "ScriptSuite"
-    if (-not (Test-Path -LiteralPath $logDir)) {
-        try { New-Item -ItemType Directory -Path $logDir -Force | Out-Null } catch { }
-    }
-}
-$logPath = Join-Path $logDir "install.log"
-
+# UAC self-elevation check (SEC-02: Program Files and task migration require admin)
 $needsElevation = $false
 $programFilesRoot = if ($env:ProgramFiles) { [System.IO.Path]::GetFullPath($env:ProgramFiles) } else { "" }
 $programDataRoot = if ($env:ProgramData) { [System.IO.Path]::GetFullPath($env:ProgramData) } else { "" }
@@ -141,23 +206,24 @@ if ($TaskPath -eq "\ScriptSuite\" -or $TaskPath -eq "\ScriptSuite") {
     $needsElevation = $true
 }
 
-$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if ($needsElevation -and -not $isAdmin) {
     Write-Host "Elevating Install.ps1 via UAC..." -ForegroundColor Yellow
     $psExe = (Get-Process -Id $PID).Path
-    $argList = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $scriptPath)
-    if ($PSBoundParameters.ContainsKey('InstallDir')) { $argList += @("-InstallDir", $InstallDir) }
-    if ($PSBoundParameters.ContainsKey('ShortcutPath')) { $argList += @("-ShortcutPath", $ShortcutPath) }
-    if ($PSBoundParameters.ContainsKey('ProjectPath')) { $argList += @("-ProjectPath", $ProjectPath) }
-    if ($PSBoundParameters.ContainsKey('PublishDir')) { $argList += @("-PublishDir", $PublishDir) }
-    if ($PSBoundParameters.ContainsKey('TaskPath')) { $argList += @("-TaskPath", $TaskPath) }
-    if ($PSBoundParameters.ContainsKey('RegistryRoot')) { $argList += @("-RegistryRoot", $RegistryRoot) }
-    if ($NoBuild) { $argList += "-NoBuild" }
-    if ($NonInteractive) { $argList += "-NonInteractive" }
+    $argParts = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Format-QuotedArgument $scriptPath))
+    if ($PSBoundParameters.ContainsKey('InstallDir')) { $argParts += @("-InstallDir", (Format-QuotedArgument $InstallDir)) }
+    if ($PSBoundParameters.ContainsKey('ShortcutPath')) { $argParts += @("-ShortcutPath", (Format-QuotedArgument $ShortcutPath)) }
+    if ($PSBoundParameters.ContainsKey('ProjectPath')) { $argParts += @("-ProjectPath", (Format-QuotedArgument $ProjectPath)) }
+    if ($PSBoundParameters.ContainsKey('PublishDir')) { $argParts += @("-PublishDir", (Format-QuotedArgument $PublishDir)) }
+    if ($PSBoundParameters.ContainsKey('TaskPath')) { $argParts += @("-TaskPath", (Format-QuotedArgument $TaskPath)) }
+    if ($PSBoundParameters.ContainsKey('RegistryRoot')) { $argParts += @("-RegistryRoot", (Format-QuotedArgument $RegistryRoot)) }
+    if ($NoBuild) { $argParts += "-NoBuild" }
+    # Pass -NonInteractive to elevated child so only parent shows summary and pauses once
+    $argParts += "-NonInteractive"
+    $argString = $argParts -join " "
 
     $elevatedExitCode = 1
     try {
-        $proc = Start-Process -FilePath $psExe -ArgumentList $argList -Verb RunAs -PassThru -Wait
+        $proc = Start-Process -FilePath $psExe -ArgumentList $argString -Verb RunAs -PassThru -Wait
         $elevatedExitCode = $proc.ExitCode
     } catch [System.ComponentModel.Win32Exception] {
         $win32Ex = $_.Exception -as [System.ComponentModel.Win32Exception]
@@ -188,6 +254,9 @@ if ($needsElevation -and -not $isAdmin) {
     Write-Host "=== ScriptSuite Installation Summary ===" -ForegroundColor $(if ($elevatedExitCode -eq 0) { "Green" } else { "Red" })
     Write-Host "  Result: $(if ($elevatedExitCode -eq 0) { 'PASS' } else { 'FAIL' })" -ForegroundColor $(if ($elevatedExitCode -eq 0) { "Green" } else { "Red" })
     Write-Host "  Log:    $logPath" -ForegroundColor Gray
+    if ($elevatedExitCode -ne 0) {
+        Write-InstallLog "Elevated installation failed with exit code $elevatedExitCode" -Error
+    }
     if (-not $NonInteractive -and [Environment]::UserInteractive) {
         Write-Host ""
         Read-Host -Prompt "Press Enter to exit..."
@@ -196,33 +265,7 @@ if ($needsElevation -and -not $isAdmin) {
 }
 
 # Elevated installation execution
-function Write-InstallLog {
-    param(
-        [string]$Message,
-        [string]$ForegroundColor,
-        [switch]$Warning,
-        [switch]$Error
-    )
-    $timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
-    $logLine = "[$timestamp] $Message"
-    try {
-        Add-Content -LiteralPath $logPath -Value $logLine -Encoding utf8 -ErrorAction SilentlyContinue
-    } catch { }
-
-    if ($Warning) {
-        Write-Warning $Message
-    } elseif ($Error) {
-        Write-Host $Message -ForegroundColor Red
-    } elseif ($ForegroundColor) {
-        Write-Host $Message -ForegroundColor $ForegroundColor
-    } else {
-        Write-Host $Message
-    }
-}
-
-try {
-    Set-Content -LiteralPath $logPath -Value "=== ScriptSuite Install Log: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ===" -Encoding utf8 -Force
-} catch { }
+Write-InstallLog "=== ScriptSuite Install Execution ==="
 
 try {
     # 1) Stop running instances so files are not locked

@@ -62,6 +62,16 @@ $uninstallKey = if ($RegistryRoot -match '\\ScriptSuite$') {
     Join-Path $RegistryRoot "ScriptSuite"
 }
 
+function Format-QuotedArgument {
+    param([string]$ArgValue)
+    if ([string]::IsNullOrEmpty($ArgValue)) { return '""' }
+    if ($ArgValue.EndsWith('\')) {
+        return "`"$($ArgValue)\`""
+    }
+    return "`"$ArgValue`""
+}
+
+# Setup log path early and write initial log line so early failures leave evidence
 $logDir = Join-Path $env:ProgramData "ScriptSuite"
 if (-not (Test-Path -LiteralPath $logDir)) {
     try { New-Item -ItemType Directory -Path $logDir -Force | Out-Null } catch { }
@@ -73,6 +83,61 @@ if (-not (Test-Path -LiteralPath $logDir) -and $env:LOCALAPPDATA) {
     }
 }
 $logPath = Join-Path $logDir "uninstall.log"
+
+$canWriteLog = $false
+try {
+    [System.IO.File]::AppendAllText($logPath, "")
+    $canWriteLog = $true
+} catch {
+    $canWriteLog = $false
+}
+if (-not $canWriteLog -and $env:LOCALAPPDATA) {
+    $userLogDir = Join-Path $env:LOCALAPPDATA "ScriptSuite"
+    if (-not (Test-Path -LiteralPath $userLogDir)) {
+        try { New-Item -ItemType Directory -Path $userLogDir -Force | Out-Null } catch { }
+    }
+    $logPath = Join-Path $userLogDir "uninstall.log"
+}
+
+function Write-UninstallLog {
+    param(
+        [string]$Message,
+        [string]$ForegroundColor,
+        [switch]$Warning,
+        [switch]$Error
+    )
+    $timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+    $logLine = "[$timestamp] $Message"
+    try {
+        Add-Content -LiteralPath $logPath -Value $logLine -Encoding utf8 -ErrorAction SilentlyContinue
+    } catch { }
+
+    if ($Warning) {
+        Write-Warning $Message
+    } elseif ($Error) {
+        Write-Host $Message -ForegroundColor Red
+    } elseif ($ForegroundColor) {
+        Write-Host $Message -ForegroundColor $ForegroundColor
+    } else {
+        Write-Host $Message
+    }
+}
+
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+Write-UninstallLog "=== ScriptSuite Uninstall started (PID $PID, Admin: $isAdmin, FromTemp: $([bool]$FromTemp), Interactive: $(-not $NonInteractive)) ==="
+
+trap {
+    $err = $_.Exception.Message
+    try {
+        Write-UninstallLog "FATAL: $err" -Error
+        Write-UninstallLog "=== ScriptSuite Uninstallation Summary ==="
+        Write-UninstallLog "  Result:           FAIL"
+        Write-UninstallLog "  Error:            $err"
+        Write-UninstallLog "  Log:              $logPath"
+    } catch { }
+    Write-Host "Uninstall error: $err" -ForegroundColor Red
+    exit 1
+}
 
 $needsElevation = $false
 $programFilesRoot = if ($env:ProgramFiles) { [System.IO.Path]::GetFullPath($env:ProgramFiles) } else { "" }
@@ -105,18 +170,18 @@ if ($TaskPath -eq "\ScriptSuite\" -or $TaskPath -eq "\ScriptSuite") {
     $needsElevation = $true
 }
 
-$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-
 # Check if running from inside the install directory that is being uninstalled
-$realInstallDir = (Resolve-Path -LiteralPath $InstallDir -ErrorAction SilentlyContinue).Path
-if (-not $realInstallDir) { $realInstallDir = $InstallDir }
-$realScriptDir = (Resolve-Path -LiteralPath $scriptDir -ErrorAction SilentlyContinue).Path
-if (-not $realScriptDir) { $realScriptDir = $scriptDir }
+$resolvedInstall = Resolve-Path -LiteralPath $InstallDir -ErrorAction SilentlyContinue
+$realInstallDir = if ($resolvedInstall) { $resolvedInstall.Path } else { $InstallDir }
+$resolvedScript = Resolve-Path -LiteralPath $scriptDir -ErrorAction SilentlyContinue
+$realScriptDir = if ($resolvedScript) { $resolvedScript.Path } else { $scriptDir }
 
 $isUnderInstallDir = $false
 if ($realInstallDir -and $realScriptDir) {
-    if ($realScriptDir.Equals($realInstallDir, [System.StringComparison]::OrdinalIgnoreCase) -or
-        $realScriptDir.StartsWith("$realInstallDir\", [System.StringComparison]::OrdinalIgnoreCase)) {
+    $normInstall = $realInstallDir.TrimEnd('\')
+    $normScript = $realScriptDir.TrimEnd('\')
+    if ($normScript.Equals($normInstall, [System.StringComparison]::OrdinalIgnoreCase) -or
+        $normScript.StartsWith("$normInstall\", [System.StringComparison]::OrdinalIgnoreCase)) {
         $isUnderInstallDir = $true
     }
 }
@@ -129,13 +194,14 @@ if ($isUnderInstallDir -and -not $FromTemp) {
     Copy-Item -LiteralPath $scriptPath -Destination $tempScript -Force
 
     $psExe = (Get-Process -Id $PID).Path
-    $argList = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $tempScript)
-    $argList += @("-InstallDir", $InstallDir)
-    if ($PSBoundParameters.ContainsKey('ShortcutPath')) { $argList += @("-ShortcutPath", $ShortcutPath) }
-    if ($PSBoundParameters.ContainsKey('TaskPath')) { $argList += @("-TaskPath", $TaskPath) }
-    if ($PSBoundParameters.ContainsKey('RegistryRoot')) { $argList += @("-RegistryRoot", $RegistryRoot) }
-    if ($NonInteractive) { $argList += "-NonInteractive" }
-    $argList += "-FromTemp"
+    $argParts = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Format-QuotedArgument $tempScript))
+    $argParts += @("-InstallDir", (Format-QuotedArgument $InstallDir))
+    if ($PSBoundParameters.ContainsKey('ShortcutPath')) { $argParts += @("-ShortcutPath", (Format-QuotedArgument $ShortcutPath)) }
+    if ($PSBoundParameters.ContainsKey('TaskPath')) { $argParts += @("-TaskPath", (Format-QuotedArgument $TaskPath)) }
+    if ($PSBoundParameters.ContainsKey('RegistryRoot')) { $argParts += @("-RegistryRoot", (Format-QuotedArgument $RegistryRoot)) }
+    if ($NonInteractive) { $argParts += "-NonInteractive" }
+    $argParts += "-FromTemp"
+    $argString = $argParts -join " "
 
     Set-Location $env:TEMP
     [System.IO.Directory]::SetCurrentDirectory($env:TEMP)
@@ -144,7 +210,7 @@ if ($isUnderInstallDir -and -not $FromTemp) {
     try {
         $procArgs = @{
             FilePath = $psExe
-            ArgumentList = $argList
+            ArgumentList = $argString
             PassThru = $true
             Wait = $true
         }
@@ -187,6 +253,9 @@ if ($isUnderInstallDir -and -not $FromTemp) {
     Write-Host "=== ScriptSuite Uninstallation Summary ===" -ForegroundColor $(if ($elevatedExitCode -eq 0) { "Green" } else { "Red" })
     Write-Host "  Result: $(if ($elevatedExitCode -eq 0) { 'PASS' } else { 'FAIL' })" -ForegroundColor $(if ($elevatedExitCode -eq 0) { "Green" } else { "Red" })
     Write-Host "  Log:    $logPath" -ForegroundColor Gray
+    if ($elevatedExitCode -ne 0) {
+        Write-UninstallLog "Elevated uninstallation failed with exit code $elevatedExitCode" -Error
+    }
     if (-not $NonInteractive -and [Environment]::UserInteractive) {
         Write-Host ""
         Read-Host -Prompt "Press Enter to exit..."
@@ -198,17 +267,18 @@ if ($isUnderInstallDir -and -not $FromTemp) {
 if ($needsElevation -and -not $isAdmin) {
     Write-Host "Elevating Uninstall.ps1 via UAC..." -ForegroundColor Yellow
     $psExe = (Get-Process -Id $PID).Path
-    $argList = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $scriptPath)
-    if ($PSBoundParameters.ContainsKey('InstallDir')) { $argList += @("-InstallDir", $InstallDir) }
-    if ($PSBoundParameters.ContainsKey('ShortcutPath')) { $argList += @("-ShortcutPath", $ShortcutPath) }
-    if ($PSBoundParameters.ContainsKey('TaskPath')) { $argList += @("-TaskPath", $TaskPath) }
-    if ($PSBoundParameters.ContainsKey('RegistryRoot')) { $argList += @("-RegistryRoot", $RegistryRoot) }
-    if ($FromTemp) { $argList += "-FromTemp" }
-    if ($NonInteractive) { $argList += "-NonInteractive" }
+    $argParts = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Format-QuotedArgument $scriptPath))
+    if ($PSBoundParameters.ContainsKey('InstallDir')) { $argParts += @("-InstallDir", (Format-QuotedArgument $InstallDir)) }
+    if ($PSBoundParameters.ContainsKey('ShortcutPath')) { $argParts += @("-ShortcutPath", (Format-QuotedArgument $ShortcutPath)) }
+    if ($PSBoundParameters.ContainsKey('TaskPath')) { $argParts += @("-TaskPath", (Format-QuotedArgument $TaskPath)) }
+    if ($PSBoundParameters.ContainsKey('RegistryRoot')) { $argParts += @("-RegistryRoot", (Format-QuotedArgument $RegistryRoot)) }
+    if ($FromTemp) { $argParts += "-FromTemp" }
+    if ($NonInteractive) { $argParts += "-NonInteractive" }
+    $argString = $argParts -join " "
 
     $elevatedExitCode = 1
     try {
-        $proc = Start-Process -FilePath $psExe -ArgumentList $argList -Verb RunAs -PassThru -Wait
+        $proc = Start-Process -FilePath $psExe -ArgumentList $argString -Verb RunAs -PassThru -Wait
         $elevatedExitCode = $proc.ExitCode
     } catch [System.ComponentModel.Win32Exception] {
         $win32Ex = $_.Exception -as [System.ComponentModel.Win32Exception]
@@ -239,6 +309,9 @@ if ($needsElevation -and -not $isAdmin) {
     Write-Host "=== ScriptSuite Uninstallation Summary ===" -ForegroundColor $(if ($elevatedExitCode -eq 0) { "Green" } else { "Red" })
     Write-Host "  Result: $(if ($elevatedExitCode -eq 0) { 'PASS' } else { 'FAIL' })" -ForegroundColor $(if ($elevatedExitCode -eq 0) { "Green" } else { "Red" })
     Write-Host "  Log:    $logPath" -ForegroundColor Gray
+    if ($elevatedExitCode -ne 0) {
+        Write-UninstallLog "Elevated uninstallation failed with exit code $elevatedExitCode" -Error
+    }
     if (-not $NonInteractive -and [Environment]::UserInteractive) {
         Write-Host ""
         Read-Host -Prompt "Press Enter to exit..."
@@ -246,34 +319,8 @@ if ($needsElevation -and -not $isAdmin) {
     exit $elevatedExitCode
 }
 
-# Elevated uninstaller
-function Write-UninstallLog {
-    param(
-        [string]$Message,
-        [string]$ForegroundColor,
-        [switch]$Warning,
-        [switch]$Error
-    )
-    $timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
-    $logLine = "[$timestamp] $Message"
-    try {
-        Add-Content -LiteralPath $logPath -Value $logLine -Encoding utf8 -ErrorAction SilentlyContinue
-    } catch { }
-
-    if ($Warning) {
-        Write-Warning $Message
-    } elseif ($Error) {
-        Write-Host $Message -ForegroundColor Red
-    } elseif ($ForegroundColor) {
-        Write-Host $Message -ForegroundColor $ForegroundColor
-    } else {
-        Write-Host $Message
-    }
-}
-
-try {
-    Set-Content -LiteralPath $logPath -Value "=== ScriptSuite Uninstall Log: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ===" -Encoding utf8 -Force
-} catch { }
+# Elevated uninstaller execution
+Write-UninstallLog "=== ScriptSuite Uninstall Execution ==="
 
 try {
     Set-Location $env:TEMP

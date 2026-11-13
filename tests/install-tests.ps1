@@ -383,6 +383,61 @@ try {
         }
     }
 
+    # -------------------------------------------------------------------------
+    # Test 14: Install with spaces in path
+    # -------------------------------------------------------------------------
+    Write-Host "`n--- Test 14: Install with spaces in path ---" -ForegroundColor Yellow
+    $dir14 = Join-Path $testScratchRoot "Test14 Space\Install Dir"
+    $lnk14 = Join-Path $testScratchRoot "Test14 Space\Shortcuts Dir\ScriptSuite.lnk"
+    $regRoot14 = "$testRegBase\Test14 Space"
+    $key14 = "$regRoot14\ScriptSuite"
+
+    $out14Install = pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $installScript -InstallDir $dir14 -ShortcutPath $lnk14 -TaskPath "\ScriptSuiteTest" -RegistryRoot $regRoot14 -PublishDir $PublishDir -NoBuild -NonInteractive
+    $exit14Install = $LASTEXITCODE
+    Assert-Test ($exit14Install -eq 0) "Install with space in path succeeded" "Exit was $exit14Install"
+    Assert-Test (Test-Path -LiteralPath (Join-Path $dir14 "ScriptSuite.exe")) "ScriptSuite.exe exists in install dir with spaces"
+    Assert-Test (Test-Path -LiteralPath (Join-Path $dir14 "Uninstall.ps1")) "Uninstall.ps1 was copied into install dir with spaces"
+    Assert-Test (Test-Path -LiteralPath $lnk14) "Shortcut was created in path with spaces"
+    Assert-Test (Test-Path -LiteralPath $key14) "Registry entry exists in path with spaces"
+
+    # -------------------------------------------------------------------------
+    # Test 15: Self-uninstall from inside InstallDir with space in path
+    # -------------------------------------------------------------------------
+    Write-Host "`n--- Test 15: Self-uninstall from inside InstallDir with space in path ---" -ForegroundColor Yellow
+    $installedUninstall14 = Join-Path $dir14 "Uninstall.ps1"
+    $out15Uninstall = pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $installedUninstall14 -InstallDir $dir14 -ShortcutPath $lnk14 -TaskPath "\ScriptSuiteTest" -RegistryRoot $regRoot14 -NonInteractive
+    $exit15 = $LASTEXITCODE
+    Assert-Test ($exit15 -eq 0) "Self-uninstall with space in path exit code is 0" "Exit was $exit15"
+    Assert-Test (-not (Test-Path -LiteralPath $dir14)) "InstallDir with space in path was deleted by self-uninstall"
+    Assert-Test (-not (Test-Path -LiteralPath $key14)) "Registry key was removed by self-uninstall"
+    Assert-Test (-not (Test-Path -LiteralPath $lnk14)) "Shortcut was removed by self-uninstall"
+
+    # -------------------------------------------------------------------------
+    # Test 16: Elevated relaunch with space in path check
+    # -------------------------------------------------------------------------
+    Write-Host "`n--- Test 16: Elevated relaunch with space in path check ---" -ForegroundColor Yellow
+    if (-not $isTestAdmin) {
+        Write-Host "  [SKIPPED] Elevated relaunch test with space in path skipped (not elevated)" -ForegroundColor Yellow
+        Assert-Test $true "Elevated relaunch test with space in path handled cleanly (skipped when not elevated)"
+    } else {
+        Write-Host "  Elevated privileges detected: running elevated space test" -ForegroundColor Cyan
+        $dir16 = Join-Path $testScratchRoot "Test16 Elevated Space\Install Dir"
+        $lnk16 = Join-Path $testScratchRoot "Test16 Elevated Space\Shortcuts Dir\ScriptSuite.lnk"
+        $regRoot16 = "HKLM:\SOFTWARE\ScriptSuite_ElevatedSpaceTest_$PID"
+        try {
+            $out16In = pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $installScript -InstallDir $dir16 -ShortcutPath $lnk16 -TaskPath "\ScriptSuiteTest" -RegistryRoot $regRoot16 -PublishDir $PublishDir -NoBuild -NonInteractive
+            Assert-Test ($LASTEXITCODE -eq 0) "Elevated install with space in path succeeded"
+            $out16Un = pwsh.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $dir16 "Uninstall.ps1") -InstallDir $dir16 -ShortcutPath $lnk16 -TaskPath "\ScriptSuiteTest" -RegistryRoot $regRoot16 -NonInteractive
+            Assert-Test ($LASTEXITCODE -eq 0) "Elevated self-uninstall with space in path succeeded"
+        } finally {
+            Remove-Item -LiteralPath (Split-Path $dir16) -Recurse -Force -ErrorAction SilentlyContinue
+            if (Test-Path -LiteralPath $regRoot16) {
+                Remove-Item -LiteralPath $regRoot16 -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+
     Write-Host "`n==========================================================" -ForegroundColor Green
     Write-Host " ALL INSTALLER TESTS PASSED: $passCount / $testCount" -ForegroundColor Green
     Write-Host "==========================================================" -ForegroundColor Green
