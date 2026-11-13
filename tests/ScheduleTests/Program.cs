@@ -54,6 +54,9 @@ public class Program
             Test10_CollisionDetection();
             Test11_CleanErrorMessageWithClixmlSample();
             Test12_ExactCapturedStderrProof();
+            Test13_RunHistoryStore_SchemaMigrationAndPrune(testRoot);
+            Test14_DownloadsCleanup_PacketTracerCategory();
+            Test15_EmptyFolderCleanup_DevTreePruning(testRoot);
         }
         finally
         {
@@ -547,5 +550,127 @@ public class Program
         Assert(!ok, "Register returns ok=false on captured proof stderr");
         Assert(needsElev, "Register returns needsElevation=true on captured proof stderr");
         Assert(err == "Access is denied.", $"Cleaned error text is strictly 'Access is denied.' (actual: '{err}')");
+    }
+
+    // 13. RunHistoryStore schema migration, 28-day auto-pruning, and unified query filters
+    private static void Test13_RunHistoryStore_SchemaMigrationAndPrune(string testRoot)
+    {
+        Console.WriteLine("\n--- Test 13: RunHistoryStore Schema Migration, Pruning & Filtering ---");
+        string dbPath = Path.Combine(testRoot, "history_test.db");
+        var store = new RunHistoryStore(dbPath);
+
+        // Insert manual run
+        store.Insert("DownloadsCleanup", DateTime.Now.AddMinutes(-10), DateTime.Now.AddMinutes(-9), RunOutcome.Success, "Cleaned 5 files");
+
+        // Insert scheduled run
+        store.InsertScheduled("SystemHealthReport", DateTime.Now.AddMinutes(-5), DateTime.Now.AddMinutes(-5), DateTime.Now.AddMinutes(-4), "Success", "Health report generated", "timer");
+
+        // Insert old run (40 days old)
+        store.Insert("ClearEventLogs", DateTime.Now.AddDays(-40), DateTime.Now.AddDays(-40), RunOutcome.Success, "Old event log clear");
+
+        // Prune stale runs older than 28 days
+        int pruned = store.PruneStale(28);
+        Assert(pruned >= 1, $"PruneStale pruned {pruned} old row(s)");
+
+        var allRuns = store.GetRecent(200, "All");
+        Assert(allRuns.Count == 2, $"GetRecent('All') returned 2 active runs (actual: {allRuns.Count})");
+
+        var manualRuns = store.GetRecent(200, "Manual");
+        Assert(manualRuns.Count == 1, $"GetRecent('Manual') returned 1 run (actual: {manualRuns.Count})");
+        Assert(manualRuns[0].ScriptId == "DownloadsCleanup", "Manual run script matches");
+        Assert(manualRuns[0].TriggerType == "Manual", "Manual run trigger type is 'Manual'");
+
+        var scheduledRuns = store.GetRecent(200, "Scheduled");
+        Assert(scheduledRuns.Count == 1, $"GetRecent('Scheduled') returned 1 run (actual: {scheduledRuns.Count})");
+        Assert(scheduledRuns[0].ScriptId == "SystemHealthReport", "Scheduled run script matches");
+        Assert(scheduledRuns[0].TriggerType == "Scheduled", "Scheduled run trigger type is 'Scheduled'");
+
+        var latest = store.GetLatestByScript();
+        Assert(latest.ContainsKey("DownloadsCleanup"), "GetLatestByScript contains DownloadsCleanup");
+        Assert(latest.ContainsKey("SystemHealthReport"), "GetLatestByScript contains SystemHealthReport");
+    }
+
+    private static string FindRepoRoot()
+    {
+        string? dir = AppDomain.CurrentDomain.BaseDirectory;
+        while (!string.IsNullOrEmpty(dir))
+        {
+            if (Directory.Exists(Path.Combine(dir, "ScriptSuite")) && Directory.Exists(Path.Combine(dir, "scripts")))
+            {
+                return dir;
+            }
+            dir = Path.GetDirectoryName(dir);
+        }
+        return AppDomain.CurrentDomain.BaseDirectory;
+    }
+
+    // 14. DownloadsCleanup Cisco PacketTracer category routing
+    private static void Test14_DownloadsCleanup_PacketTracerCategory()
+    {
+        Console.WriteLine("\n--- Test 14: DownloadsCleanup PacketTracer Routing ---");
+        string repoRoot = FindRepoRoot();
+        string configPath = Path.Combine(repoRoot, @"ScriptSuite\DefaultConfigs\DownloadsCleanup.json");
+        Assert(File.Exists(configPath), $"DownloadsCleanup.json exists at {configPath}");
+
+        string json = File.ReadAllText(configPath);
+        using var doc = System.Text.Json.JsonDocument.Parse(json);
+        var categories = doc.RootElement.GetProperty("Categories");
+
+        bool foundPacketTracer = false;
+        foreach (var prop in categories.EnumerateObject())
+        {
+            if (prop.Name.EndsWith(@"Networking\PacketTracer", StringComparison.OrdinalIgnoreCase))
+            {
+                foundPacketTracer = true;
+                var exts = new System.Collections.Generic.List<string>();
+                foreach (var el in prop.Value.EnumerateArray())
+                {
+                    exts.Add(el.GetString()!);
+                }
+                Assert(exts.Contains(".pkt"), "PacketTracer category contains .pkt");
+                Assert(exts.Contains(".pka"), "PacketTracer category contains .pka");
+                Assert(exts.Contains(".pkz"), "PacketTracer category contains .pkz");
+                break;
+            }
+        }
+        Assert(foundPacketTracer, "DownloadsCleanup.json defines Networking/PacketTracer category");
+    }
+
+    // 15. EmptyFolderCleanup built-in dev-tree pruning
+    private static void Test15_EmptyFolderCleanup_DevTreePruning(string testRoot)
+    {
+        Console.WriteLine("\n--- Test 15: EmptyFolderCleanup Built-in Dev-Tree Pruning ---");
+        string repoRoot = FindRepoRoot();
+        string scriptPath = Path.Combine(repoRoot, @"scripts\EmptyFolderCleanup\EmptyFolderCleanup.ps1");
+        Assert(File.Exists(scriptPath), $"EmptyFolderCleanup.ps1 exists at {scriptPath}");
+
+        string scriptContent = File.ReadAllText(scriptPath);
+        Assert(scriptContent.Contains("node_modules"), "Script includes node_modules in default ignore names");
+        Assert(scriptContent.Contains(".git"), "Script includes .git in default ignore names");
+
+        // Create scratch folder structure: root/empty_valid, root/node_modules/empty_sub
+        string scratchTarget = Path.Combine(testRoot, "efc_scratch");
+        string validEmpty = Path.Combine(scratchTarget, "empty_valid");
+        string nodeModulesEmpty = Path.Combine(scratchTarget, "node_modules", "empty_sub");
+        Directory.CreateDirectory(validEmpty);
+        Directory.CreateDirectory(nodeModulesEmpty);
+
+        string logDir = Path.Combine(testRoot, "logs");
+        string testCfg = Path.Combine(testRoot, "efc_cfg.json");
+        File.WriteAllText(testCfg, $"{{\"TargetFolder\": \"{scratchTarget.Replace("\\", "\\\\")}\", \"LogDir\": \"{logDir.Replace("\\", "\\\\")}\", \"LogFile\": \"CleanupLog.txt\"}}");
+
+        var psi = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"& '{scriptPath}' -DryRun -ConfigPath '{testCfg}' | Out-String -Width 4096\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        using var proc = Process.Start(psi)!;
+        string stdout = proc.StandardOutput.ReadToEnd();
+        string stderr = proc.StandardError.ReadToEnd();
+        proc.WaitForExit();
+
+        Assert(stdout.Contains("empty_valid"), $"DryRun preview includes empty_valid (stdout: '{stdout.Trim()}', stderr: '{stderr.Trim()}')");
+        Assert(!stdout.Contains("empty_sub"), "DryRun preview prunes/ignores node_modules/empty_sub");
     }
 }
