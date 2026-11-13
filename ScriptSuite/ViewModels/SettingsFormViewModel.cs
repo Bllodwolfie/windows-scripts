@@ -41,6 +41,8 @@ public sealed class SettingsFormViewModel : ViewModelBase
             return;
         var (name, prior) = _undoStack.Pop();
         Fields.FirstOrDefault(x => x.Field.Name == name)?.Restore(prior);
+        if (name == "TargetFolders")
+            _config.SetField(_manifest.Id, "TargetFolder", null);
         _config.SetField(_manifest.Id, name, prior);
         OnPropertyChanged(nameof(CanUndo));
     }
@@ -61,6 +63,8 @@ public sealed class SettingsFormViewModel : ViewModelBase
         foreach (var field in _manifest.Fields)
         {
             JsonNode? def = field.HasDefault ? JsonNode.Parse(field.Default.GetRawText()) : null;
+            if (field.Name == "TargetFolders")
+                _config.SetField(_manifest.Id, "TargetFolder", null);
             _config.SetField(_manifest.Id, field.Name, def);
             Fields.FirstOrDefault(x => x.Field.Name == field.Name)?.Restore(def);
         }
@@ -70,6 +74,8 @@ public sealed class SettingsFormViewModel : ViewModelBase
 
     private void Commit(SettingsFieldViewModel field, JsonNode? prior, JsonNode? next)
     {
+        if (field.Field.Name == "TargetFolders")
+            _config.SetField(_manifest.Id, "TargetFolder", null);
         _config.SetField(_manifest.Id, field.Field.Name, next);
         _undoStack.Push((field.Field.Name, prior));
         OnPropertyChanged(nameof(CanUndo));

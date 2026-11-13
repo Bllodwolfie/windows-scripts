@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using ScriptSuite.Models;
 using ScriptSuite.Services;
+using ScriptSuite.ViewModels;
 
 namespace ScheduleTests;
 
@@ -30,6 +31,7 @@ public class Program
         }
     }
 
+    [STAThread]
     public static int Main(string[] args)
     {
         Console.WriteLine("=================================================");
@@ -60,6 +62,7 @@ public class Program
             Test16_EmptyFolderCleanup_ReparsePointSkip(testRoot);
             Test17_EmptyFolderCleanup_RelativeIgnoreNames(testRoot);
             Test18_EmptyFolderCleanup_MultiFolder(testRoot);
+            Test19_SettingsFormViewModel_LegacyTargetFolderPersistence(testRoot);
         }
         finally
         {
@@ -942,5 +945,71 @@ public class Program
         using (var p = Process.Start(psiRealParity)!) { p.WaitForExit(); }
         Assert(dryCount == 2, $"DryRun predicted 2 folder deletions (actual: {dryCount})");
         Assert(!Directory.Exists(parityC) && !Directory.Exists(parityP), "Real run deleted both nested empty folders matching DryRun prediction");
+    }
+
+    private static void Test19_SettingsFormViewModel_LegacyTargetFolderPersistence(string testRoot)
+    {
+        Console.WriteLine("\n--- Test 19: SettingsFormViewModel Legacy TargetFolder Persistence & Trust ---");
+        string repoRoot = FindRepoRoot();
+        string manifestPath = Path.Combine(repoRoot, @"ScriptSuite\Manifests\EmptyFolderCleanup.json");
+        var manifest = System.Text.Json.JsonSerializer.Deserialize<ScriptManifest>(File.ReadAllText(manifestPath))!;
+
+        string configsDir = AppPaths.ConfigsDir;
+        Directory.CreateDirectory(configsDir);
+        string configPath = AppPaths.ConfigPathFor("EmptyFolderCleanup");
+        var trustStore = new ConfigTrustStore();
+        var configService = new ScriptConfigService(trustStore);
+
+        // Subtest 1: Legacy config (TargetFolder only)
+        string legacyContent = "{\n  \"TargetFolder\": \"C:\\\\LegacyScan\",\n  \"LogDir\": \"C:\\\\Logs\"\n}";
+        File.WriteAllText(configPath, legacyContent);
+        trustStore.Trust("EmptyFolderCleanup");
+        Assert(trustStore.IsTrusted("EmptyFolderCleanup"), "Legacy config initially trusted");
+
+        // Load into ViewModel
+        var vmLegacy = new SettingsFormViewModel(manifest, configService);
+        string onDiskAfterLoad = File.ReadAllText(configPath);
+        Assert(onDiskAfterLoad == legacyContent, "Loading legacy config into ViewModel does not modify disk file");
+        Assert(trustStore.IsTrusted("EmptyFolderCleanup"), "Legacy config remains trusted after loading (never rewritten on load)");
+
+        var targetFoldersField = vmLegacy.Fields.First(f => f.Field.Name == "TargetFolders");
+        Assert(targetFoldersField.Items.Count == 1 && targetFoldersField.Items[0] == "C:\\LegacyScan", "Legacy TargetFolder loaded as in-memory TargetFolders array");
+
+        // Save a change via AddNewItem
+        targetFoldersField.NewItemText = "C:\\AddedScan";
+        targetFoldersField.AddNewItem();
+
+        string onDiskAfterSave = File.ReadAllText(configPath);
+        Assert(onDiskAfterSave.Contains("\"TargetFolders\""), "Saved config contains TargetFolders key");
+        Assert(!onDiskAfterSave.Contains("\"TargetFolder\""), "Saved config does not contain legacy TargetFolder key (dropped on save)");
+        Assert(trustStore.IsTrusted("EmptyFolderCleanup"), "Saved config has updated valid trust hash (trusted)");
+
+        // Undo the change
+        Assert(vmLegacy.CanUndo, "CanUndo is true after edit");
+        vmLegacy.Undo();
+        string onDiskAfterUndo = File.ReadAllText(configPath);
+        Assert(onDiskAfterUndo.Contains("\"TargetFolders\""), "Config after Undo contains TargetFolders key");
+        Assert(!onDiskAfterUndo.Contains("\"TargetFolder\""), "Config after Undo does not contain legacy TargetFolder key");
+        Assert(trustStore.IsTrusted("EmptyFolderCleanup"), "Config remains trusted after Undo");
+
+        // Subtest 2: New config (TargetFolders only)
+        string newContent = "{\n  \"TargetFolders\": [\n    \"C:\\\\NewScan\"\n  ],\n  \"LogDir\": \"C:\\\\Logs\"\n}";
+        File.WriteAllText(configPath, newContent);
+        trustStore.Trust("EmptyFolderCleanup");
+        Assert(trustStore.IsTrusted("EmptyFolderCleanup"), "New config initially trusted");
+
+        var vmNew = new SettingsFormViewModel(manifest, configService);
+        string newDiskAfterLoad = File.ReadAllText(configPath);
+        Assert(newDiskAfterLoad == newContent, "Loading new config does not modify disk");
+        Assert(trustStore.IsTrusted("EmptyFolderCleanup"), "New config remains trusted after loading");
+
+        var targetFoldersField2 = vmNew.Fields.First(f => f.Field.Name == "TargetFolders");
+        targetFoldersField2.NewItemText = "C:\\SecondScan";
+        targetFoldersField2.AddNewItem();
+
+        string newDiskAfterSave = File.ReadAllText(configPath);
+        Assert(newDiskAfterSave.Contains("\"TargetFolders\""), "New config save contains TargetFolders");
+        Assert(!newDiskAfterSave.Contains("\"TargetFolder\""), "New config save does not contain TargetFolder");
+        Assert(trustStore.IsTrusted("EmptyFolderCleanup"), "New config remains trusted after edit");
     }
 }
