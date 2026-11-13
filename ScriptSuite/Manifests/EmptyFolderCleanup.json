@@ -24,6 +24,14 @@
       "default": [],
       "helpText": "Empty folders listed here are never deleted, including everything under them.",
       "helpDetail": "Each entry is a folder this script will always keep, even when empty — and anything inside it is left alone too. A parent folder that only contains ignored folders is kept automatically, since it is not empty. Entries may use %VAR% paths and trailing slashes; matching ignores case. An entry outside the scanned folder simply never matches. Folders that do not exist yet are fine — they are kept if created later. Leave empty for today's behavior."
+    },
+    {
+      "name": "UseDefaultIgnoreNames",
+      "label": "Protect common project and build folders",
+      "type": "bool",
+      "default": true,
+      "helpText": "Keep common project and build folders (node_modules, .git, .vs, bin, obj, target, build, dist, packages, .nuget) even when empty.",
+      "helpDetail": "When enabled, folders matching standard development, package manager, and build artifact names are never deleted even if empty. Uncheck this if you want all empty folders cleaned regardless of name."
     }
   ]
 }

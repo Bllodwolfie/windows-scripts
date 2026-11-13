@@ -64,6 +64,7 @@ public class Program
             Test18_EmptyFolderCleanup_MultiFolder(testRoot);
             Test19_SettingsFormViewModel_LegacyTargetFolderPersistence(testRoot);
             Test20_EmptyFolderCleanup_MultiRootSummaryConsumers(testRoot);
+            Test21_EmptyFolderCleanup_UseDefaultIgnoreNamesOptOut(testRoot);
         }
         finally
         {
@@ -1092,5 +1093,53 @@ public class Program
         string previewSummary = ScriptSuite.RunAllPreviewWindow.BuildSummaryText(
             deleteCount: 5, moveCount: 0, skipCount: 0, reportOnlyCount: 0, finalizedCount: 1, totalCount: 1);
         Assert(previewSummary.Contains("5 to delete"), $"BuildSummaryText formats counts correctly: '{previewSummary}'");
+    }
+
+    private static void Test21_EmptyFolderCleanup_UseDefaultIgnoreNamesOptOut(string testRoot)
+    {
+        Console.WriteLine("\n--- Test 21: EmptyFolderCleanup UseDefaultIgnoreNames Opt-Out ---");
+        string repoRoot = FindRepoRoot();
+        string scriptPath = Path.Combine(repoRoot, @"scripts\EmptyFolderCleanup\EmptyFolderCleanup.ps1");
+        string logDir = Path.Combine(testRoot, "logs_optout");
+
+        // Subtest 1: Default / UseDefaultIgnoreNames = true preserves node_modules
+        string rootDefault = Path.Combine(testRoot, "efc_optout_default");
+        string nmDefault = Path.Combine(rootDefault, "node_modules");
+        string normalDefault = Path.Combine(rootDefault, "normal_empty");
+        Directory.CreateDirectory(nmDefault);
+        Directory.CreateDirectory(normalDefault);
+
+        string cfgDefault = Path.Combine(testRoot, "efc_cfg_optout_default.json");
+        File.WriteAllText(cfgDefault, $"{{\"TargetFolders\": [\"{rootDefault.Replace("\\", "\\\\")}\"], \"UseDefaultIgnoreNames\": true, \"LogDir\": \"{logDir.Replace("\\", "\\\\")}\", \"LogFile\": \"CleanupLog.txt\"}}");
+
+        var psiDefault = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"& '{scriptPath}' -ConfigPath '{cfgDefault}' | Out-String -Width 4096\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        using (var p = Process.Start(psiDefault)!) { p.WaitForExit(); }
+        Assert(!Directory.Exists(normalDefault), "normal_empty folder deleted under default settings");
+        Assert(Directory.Exists(nmDefault), "empty node_modules folder PRESERVED when UseDefaultIgnoreNames = true");
+
+        // Subtest 2: UseDefaultIgnoreNames = false deletes node_modules
+        string rootOptOut = Path.Combine(testRoot, "efc_optout_false");
+        string nmOptOut = Path.Combine(rootOptOut, "node_modules");
+        string normalOptOut = Path.Combine(rootOptOut, "normal_empty");
+        Directory.CreateDirectory(nmOptOut);
+        Directory.CreateDirectory(normalOptOut);
+
+        string cfgOptOut = Path.Combine(testRoot, "efc_cfg_optout_false.json");
+        File.WriteAllText(cfgOptOut, $"{{\"TargetFolders\": [\"{rootOptOut.Replace("\\", "\\\\")}\"], \"UseDefaultIgnoreNames\": false, \"LogDir\": \"{logDir.Replace("\\", "\\\\")}\", \"LogFile\": \"CleanupLog.txt\"}}");
+
+        var psiOptOut = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"& '{scriptPath}' -ConfigPath '{cfgOptOut}' | Out-String -Width 4096\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        using (var p = Process.Start(psiOptOut)!) { p.WaitForExit(); }
+        Assert(!Directory.Exists(normalOptOut), "normal_empty folder deleted under opt-out settings");
+        Assert(!Directory.Exists(nmOptOut), "empty node_modules folder DELETED when UseDefaultIgnoreNames = false");
     }
 }

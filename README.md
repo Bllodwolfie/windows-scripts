@@ -65,7 +65,7 @@ Descriptions are verbatim from `ScriptSuite/Manifests/*.json:2` (source of truth
 | [SystemHealthReport](scripts/SystemHealthReport/) | Generates a self-contained HTML report of system health (CPU, memory, disks, network, errors). | No |
 | [ClearEventLogs](scripts/ClearEventLogs/) | Backs up and clears all Windows event logs. | **Yes** |
 | [DownloadsCleanup](scripts/DownloadsCleanup/) | Sorts and cleans the Downloads folder: deletes old installer/archive files and moves others into matching category folders. Supports Advanced per-extension rules (Ignore/Delete/MoveTo) that override the simple `Extensions to delete` list. | No |
-| [EmptyFolderCleanup](scripts/EmptyFolderCleanup/) | Recursively removes empty folders under a chosen root folder. | No |
+| [EmptyFolderCleanup](scripts/EmptyFolderCleanup/) | Recursively removes empty folders under chosen root folders. Protects common build and project directories (node_modules, .git, bin, obj, etc.), skips NTFS reparse points/junctions, and supports multiple scan roots. | No |
 | [EmptyRecycleBin](scripts/EmptyRecycleBin/) | Permanently empties the Recycle Bin. Deleted files cannot be recovered. Supports “Only delete items older than N days” (0 = everything). | No |
 | [RestorePoint](scripts/RestorePoint/) | Creates a System Restore point and verifies it actually appeared. | **Yes** |
 | [ScreenshotsCleanup](scripts/ScreenshotsCleanup/) | Deletes old screenshots from the Pictures\Screenshots folder. | No |
@@ -76,11 +76,14 @@ Defaults live in `ScriptSuite/DefaultConfigs/*.json:1` and copy to `%LOCALAPPDAT
 
 - `ClearEventLogs` → `BackupDir: %USERPROFILE%\Documents\Script_Logs\EventLogBackups`
 - `DownloadsCleanup` → `SourceDir: %USERPROFILE%\Downloads`, `CutoffDays: 7`, `LogDir: %USERPROFILE%\Documents\Script_Logs` (+ `DeleteExts` / `Categories`)
-- `EmptyFolderCleanup` → `TargetFolder: %USERPROFILE%\Downloads`
+- `EmptyFolderCleanup` → `TargetFolders: ["%USERPROFILE%\Downloads"]`, `UseDefaultIgnoreNames: true`
 - `ScreenshotsCleanup` → `TargetFolder: %USERPROFILE%\Pictures\Screenshots`, `CutoffDays: 7`
 - `SoftwareInventory` → `OutputFile: %USERPROFILE%\Documents\Script_Logs\Software_Inventory.txt`
 - `SystemHealthReport` → `OutputDir: %USERPROFILE%\Documents`, `OutputFile: System_Health_Report.html`
 - `TempCleanup` → `TargetFolder: %TEMP%`, `CutoffDays: 7`
+
+> [!NOTE]
+> **EmptyFolderCleanup Multi-Root & Protection:** `EmptyFolderCleanup` supports scanning multiple root folders (`TargetFolders`), automatically de-duplicates overlapping roots, skips NTFS junctions and reparse points to prevent traversing external trees, and protects standard build and project folders (`node_modules`, `.git`, `.vs`, `bin`, `obj`, `target`, `build`, `dist`, `packages`, `.nuget`) by default unless opted out via `UseDefaultIgnoreNames: false`.
 
 Each script supports dry-run preview where `supportsDryRun: true` in its manifest (7 of 9; `SoftwareInventory` and `SystemHealthReport` are reports, not previews).
 

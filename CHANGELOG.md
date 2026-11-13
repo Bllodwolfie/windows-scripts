@@ -2,6 +2,13 @@
 
 All notable changes to ScriptSuite are documented in this file.
 
+## [Unreleased]
+
+### Added
+- **EmptyFolderCleanup Default Ignore Names Opt-Out:** Added `UseDefaultIgnoreNames` setting (bool, default `true`) with UI checkbox to allow users to opt out of preserving standard project, dependency, and build artifact folders (`node_modules`, `.git`, `.vs`, `bin`, `obj`, `target`, `build`, `dist`, `packages`, `.nuget`) when empty.
+- **EmptyFolderCleanup Multi-Folder Scanning:** Configurable scanning across multiple root folders (`TargetFolders`), with de-duplication, child-nesting collapse, and path-scope denylist protection.
+- **EmptyFolderCleanup Reparse Point & Junction Skip:** Directory traversals strictly skip NTFS reparse points and directory junctions to prevent traversing or deleting folders outside target directory trees.
+
 ## [3.2.3] - 2026-11-13
 
 ### Fixed

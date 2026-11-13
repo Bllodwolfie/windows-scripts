@@ -25,9 +25,10 @@ function Test-Selected([string]$FullName) {
 
 # Fallback defaults, used only when the config file is missing (see TempCleanup).
 $Config = @{
-    TargetFolders = @("$env:USERPROFILE\Downloads")
-    LogDir        = "$env:USERPROFILE\Documents\Script_Logs"
-    LogFile       = "CleanupLog.txt"
+    TargetFolders         = @("$env:USERPROFILE\Downloads")
+    UseDefaultIgnoreNames = $true
+    LogDir                = "$env:USERPROFILE\Documents\Script_Logs"
+    LogFile               = "CleanupLog.txt"
 }
 
 if (Test-Path -LiteralPath $ConfigPath) {
@@ -134,6 +135,15 @@ if ($Config -is [hashtable]) {
     $ignoreRaw = @($Config.IgnoreFolders)
 }
 
+$useDefaultIgnoreNames = $true
+if ($Config -is [hashtable]) {
+    if ($Config.ContainsKey("UseDefaultIgnoreNames") -and $null -ne $Config["UseDefaultIgnoreNames"]) {
+        $useDefaultIgnoreNames = [bool]$Config["UseDefaultIgnoreNames"]
+    }
+} elseif ($null -ne $Config.PSObject.Properties["UseDefaultIgnoreNames"] -and $null -ne $Config.UseDefaultIgnoreNames) {
+    $useDefaultIgnoreNames = [bool]$Config.UseDefaultIgnoreNames
+}
+
 function Normalize-IgnorePath([string]$P) {
     if ([string]::IsNullOrWhiteSpace($P)) { return $null }
     $clean = $P.Trim().Trim('"', "'")
@@ -153,7 +163,7 @@ foreach ($raw in $ignoreRaw) {
 }
 
 # Built-in ignored folder names (VCS, dependency, environment, and build artifact trees)
-$defaultIgnoreNames = @('.git', '.svn', '.hg', 'node_modules', 'vendor', '.venv', 'venv', '__pycache__', '.cargo', 'target', 'bin', 'obj')
+$defaultIgnoreNames = @('.git', '.svn', '.hg', 'node_modules', 'vendor', '.venv', 'venv', '__pycache__', '.cargo', 'target', 'bin', 'obj', '.vs', 'build', 'dist', 'packages', '.nuget')
 
 # True when $FullName is an ignored folder itself or lives under one.
 # Default ignore names are checked ONLY on path components BELOW $RootPath,
@@ -170,11 +180,13 @@ function Test-Ignored([string]$FullName, [string]$RootPath) {
 
     # Evaluate default ignore names relative to the scan root (only path components strictly below $RootPath)
     if ($normFull.StartsWith($normRoot + [System.IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
-        $rel = $normFull.Substring($normRoot.Length + 1)
-        $parts = $rel.Split([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
-        foreach ($p in $parts) {
-            foreach ($def in $defaultIgnoreNames) {
-                if ($p.Equals($def, [StringComparison]::OrdinalIgnoreCase)) { return $true }
+        if ($useDefaultIgnoreNames) {
+            $rel = $normFull.Substring($normRoot.Length + 1)
+            $parts = $rel.Split([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+            foreach ($p in $parts) {
+                foreach ($def in $defaultIgnoreNames) {
+                    if ($p.Equals($def, [StringComparison]::OrdinalIgnoreCase)) { return $true }
+                }
             }
         }
     } elseif ($normFull.Equals($normRoot, [StringComparison]::OrdinalIgnoreCase)) {
