@@ -33,16 +33,19 @@ New-Item -ItemType Directory -Path $testScratchRoot -Force | Out-Null
 $testRegBase = "HKCU:\Software\ScriptSuiteTest_InstallTests_$PID"
 $defaultTestRegRoot = "$testRegBase\Default"
 
-$testCount = 0
+$ranCount = 0
 $passCount = 0
+$failedCount = 0
+$skippedCount = 0
 
 function Assert-Test {
     param([bool]$Condition, [string]$TestName, [string]$Details = "")
-    $script:testCount++
+    $script:ranCount++
     if ($Condition) {
         $script:passCount++
         Write-Host "  PASS: $TestName" -ForegroundColor Green
     } else {
+        $script:failedCount++
         Write-Host "  FAIL: $TestName" -ForegroundColor Red
         if ($Details) { Write-Host "        $Details" -ForegroundColor DarkYellow }
         throw "Assertion failed for '$TestName': $Details"
@@ -370,7 +373,7 @@ try {
     $isTestAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     if (-not $isTestAdmin) {
         Write-Host "  [SKIPPED] Elevated HKLM default registry test skipped (not elevated)" -ForegroundColor Yellow
-        Assert-Test $true "Elevated-only HKLM test handled cleanly (skipped when not elevated)"
+        $script:skippedCount++
     } else {
         Write-Host "  Elevated privileges detected: running HKLM test check" -ForegroundColor Cyan
         $hklmScratchKey = "HKLM:\SOFTWARE\ScriptSuite_ElevatedTestCheck_$PID"
@@ -418,7 +421,7 @@ try {
     Write-Host "`n--- Test 16: Elevated relaunch with space in path check ---" -ForegroundColor Yellow
     if (-not $isTestAdmin) {
         Write-Host "  [SKIPPED] Elevated relaunch test with space in path skipped (not elevated)" -ForegroundColor Yellow
-        Assert-Test $true "Elevated relaunch test with space in path handled cleanly (skipped when not elevated)"
+        $script:skippedCount++
     } else {
         Write-Host "  Elevated privileges detected: running elevated space test" -ForegroundColor Cyan
         $dir16 = Join-Path $testScratchRoot "Test16 Elevated Space\Install Dir"
@@ -438,77 +441,125 @@ try {
     }
 
     # -------------------------------------------------------------------------
-    # Test 17: Log growth capping tests
+    # Test 17: Log growth capping tests (both pwsh.exe and powershell.exe)
     # -------------------------------------------------------------------------
     Write-Host "`n--- Test 17: Log growth capping tests ---" -ForegroundColor Yellow
     $logTestDir = Join-Path $testScratchRoot "Test17_LogCapping"
     New-Item -ItemType Directory -Path $logTestDir -Force | Out-Null
 
-    # Subtest A: Oversized log is trimmed once
-    $oversizedLog = Join-Path $logTestDir "oversized.log"
-    # Create an oversized log file (~300 KB, 300 lines)
     $lines300 = 1..300 | ForEach-Object { "Pre-existing log line $_ : " + ("A" * 1024) }
-    Set-Content -LiteralPath $oversizedLog -Value $lines300 -Encoding utf8
-    $oversizedInitialLength = (Get-Item -LiteralPath $oversizedLog).Length
-    Assert-Test ($oversizedInitialLength -gt 256KB) "Oversized log is initially > 256 KB ($oversizedInitialLength bytes)"
 
-    # Run Install.ps1 pointing to this log
-    $dir17a = Join-Path $logTestDir "InstallA"
-    $lnk17a = Join-Path $logTestDir "ShortcutsA\ScriptSuite.lnk"
-    $reg17a = "$testRegBase\Test17A"
-    $out17a = pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $installScript -InstallDir $dir17a -ShortcutPath $lnk17a -TaskPath "\ScriptSuiteTest" -RegistryRoot $reg17a -PublishDir $PublishDir -LogPath $oversizedLog -NoBuild -NonInteractive
-    Assert-Test ($LASTEXITCODE -eq 0) "Install with oversized log succeeded"
+    $engines = @("pwsh.exe", "powershell.exe")
+    foreach ($engine in $engines) {
+        $engineTag = if ($engine -match "pwsh") { "pwsh" } else { "ps51" }
+        Write-Host "`n  Testing log growth capping under $engine ($engineTag) ..." -ForegroundColor Cyan
+        $subtestRoot = Join-Path $logTestDir $engineTag
+        New-Item -ItemType Directory -Path $subtestRoot -Force | Out-Null
 
-    $logContentAfterTrim = Get-Content -LiteralPath $oversizedLog
-    $trimMatches1 = @($logContentAfterTrim | Where-Object { $_ -match "log trimmed" })
-    Assert-Test ($trimMatches1.Count -eq 1) "Oversized log was trimmed once (contains note 'log trimmed')"
-    Assert-Test ($logContentAfterTrim.Count -lt 200) "Trimmed log line count is capped (~100 tail lines + new entries, actual: $($logContentAfterTrim.Count))"
+        # Subtest A: Oversized multi-line log is trimmed once
+        $pdA = Join-Path $subtestRoot "PDA"
+        $pdLogDirA = Join-Path $pdA "ScriptSuite"
+        New-Item -ItemType Directory -Path $pdLogDirA -Force | Out-Null
+        $oversizedLog = Join-Path $pdLogDirA "install.log"
+        Set-Content -LiteralPath $oversizedLog -Value $lines300 -Encoding utf8
+        $oversizedInitialLength = (Get-Item -LiteralPath $oversizedLog).Length
+        Assert-Test ($oversizedInitialLength -gt 256KB) "[$engine] Oversized log is initially > 256 KB ($oversizedInitialLength bytes)"
 
-    # Run a second time to ensure it is not trimmed again when under 256 KB
-    $out17a2 = pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $installScript -InstallDir $dir17a -ShortcutPath $lnk17a -TaskPath "\ScriptSuiteTest" -RegistryRoot $reg17a -PublishDir $PublishDir -LogPath $oversizedLog -NoBuild -NonInteractive
-    Assert-Test ($LASTEXITCODE -eq 0) "Second install run succeeded"
-    $logContentAfterSecond = Get-Content -LiteralPath $oversizedLog
-    $trimMatches2 = @($logContentAfterSecond | Where-Object { $_ -match "log trimmed" })
-    Assert-Test ($trimMatches2.Count -eq 1) "Second run did not trim again (log trimmed note still appears only once)"
+        $dir17a = Join-Path $subtestRoot "InstallA"
+        $lnk17a = Join-Path $subtestRoot "ShortcutsA\ScriptSuite.lnk"
+        $reg17a = "$testRegBase\Test17A_$engineTag"
 
-    # Subtest B: A -FromTemp child does not trim
-    $fromTempLog = Join-Path $logTestDir "fromtemp.log"
-    Set-Content -LiteralPath $fromTempLog -Value $lines300 -Encoding utf8
-    $dir17b = Join-Path $logTestDir "InstallB"
-    $lnk17b = Join-Path $logTestDir "ShortcutsB\ScriptSuite.lnk"
-    $reg17b = "$testRegBase\Test17B"
+        # Run Install.ps1 with redirected $env:ProgramData
+        $cmd17a = "`$env:ProgramData = '$pdA'; & '$installScript' -InstallDir '$dir17a' -ShortcutPath '$lnk17a' -TaskPath '\ScriptSuiteTest' -RegistryRoot '$reg17a' -PublishDir '$PublishDir' -NoBuild -NonInteractive"
+        $out17a = & $engine -NoProfile -ExecutionPolicy Bypass -Command $cmd17a
+        Assert-Test ($LASTEXITCODE -eq 0) "[$engine] Install with oversized log succeeded"
 
-    # Invoke Uninstall.ps1 with -FromTemp against oversized log
-    $out17b = pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $uninstallScript -InstallDir $dir17b -ShortcutPath $lnk17b -TaskPath "\ScriptSuiteTest" -RegistryRoot $reg17b -LogPath $fromTempLog -FromTemp -NonInteractive
-    $fromTempContent = Get-Content -LiteralPath $fromTempLog
-    $fromTempTrimMatches = @($fromTempContent | Where-Object { $_ -match "log trimmed" })
-    Assert-Test ($fromTempTrimMatches.Count -eq 0) "A -FromTemp child does not trim the log"
-    Assert-Test ($fromTempContent.Count -ge 300) "All pre-existing lines preserved in -FromTemp run (count: $($fromTempContent.Count))"
+        $logContentAfterTrim = Get-Content -LiteralPath $oversizedLog
+        $trimMatches1 = @($logContentAfterTrim | Where-Object { $_ -match "log trimmed" })
+        Assert-Test ($trimMatches1.Count -eq 1) "[$engine] Oversized log was trimmed once (contains note 'log trimmed')"
+        Assert-Test ($logContentAfterTrim.Count -lt 200) "[$engine] Trimmed log line count is capped (~100 tail lines + new entries, actual: $($logContentAfterTrim.Count))"
+        $oversizedTrimmedLength = (Get-Item -LiteralPath $oversizedLog).Length
+        Assert-Test ($oversizedTrimmedLength -le 256KB) "[$engine] Trimmed log file size is <= 256 KB ($oversizedTrimmedLength bytes)"
 
-    # Subtest C: A small log is untouched
-    $smallLog = Join-Path $logTestDir "small.log"
-    $smallCanary = "CANARY_LINE_PRESERVED_SMALL_LOG"
-    $smallLines = @(
-        "[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] First small log entry",
-        "[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] $smallCanary",
-        "[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] Third small log entry"
-    )
-    Set-Content -LiteralPath $smallLog -Value $smallLines -Encoding utf8
-    $dir17c = Join-Path $logTestDir "InstallC"
-    $lnk17c = Join-Path $logTestDir "ShortcutsC\ScriptSuite.lnk"
-    $reg17c = "$testRegBase\Test17C"
+        # Run a second time to ensure it is not trimmed again when under 256 KB
+        $out17a2 = & $engine -NoProfile -ExecutionPolicy Bypass -Command $cmd17a
+        Assert-Test ($LASTEXITCODE -eq 0) "[$engine] Second install run succeeded"
+        $logContentAfterSecond = Get-Content -LiteralPath $oversizedLog
+        $trimMatches2 = @($logContentAfterSecond | Where-Object { $_ -match "log trimmed" })
+        Assert-Test ($trimMatches2.Count -eq 1) "[$engine] Second run did not trim again (log trimmed note still appears only once)"
 
-    $out17c = pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $installScript -InstallDir $dir17c -ShortcutPath $lnk17c -TaskPath "\ScriptSuiteTest" -RegistryRoot $reg17c -PublishDir $PublishDir -LogPath $smallLog -NoBuild -NonInteractive
-    Assert-Test ($LASTEXITCODE -eq 0) "Install with small log succeeded"
-    $smallLogAfter = Get-Content -LiteralPath $smallLog
-    $smallTrimMatches = @($smallLogAfter | Where-Object { $_ -match "log trimmed" })
-    Assert-Test ($smallTrimMatches.Count -eq 0) "Small log was not trimmed (no 'log trimmed' note)"
-    $canaryFound = @($smallLogAfter | Where-Object { $_ -match $smallCanary })
-    Assert-Test ($canaryFound.Count -ge 1) "Small log pre-existing content is untouched (canary preserved)"
+        # Subtest B: Oversized log with ONE VERY LONG LINE is capped to <= 256 KB
+        $pdB = Join-Path $subtestRoot "PDB_LongLine"
+        $pdLogDirB = Join-Path $pdB "ScriptSuite"
+        New-Item -ItemType Directory -Path $pdLogDirB -Force | Out-Null
+        $longLineLog = Join-Path $pdLogDirB "install.log"
+        $singleLongLine = "VERY_LONG_LINE_CANARY_" + ("B" * 350000)
+        Set-Content -LiteralPath $longLineLog -Value $singleLongLine -Encoding utf8
+        $longLineInitialLength = (Get-Item -LiteralPath $longLineLog).Length
+        Assert-Test ($longLineInitialLength -gt 256KB) "[$engine] Long-line log is initially > 256 KB ($longLineInitialLength bytes)"
 
-    Write-Host "`n==========================================================" -ForegroundColor Green
-    Write-Host " ALL INSTALLER TESTS PASSED: $passCount / $testCount" -ForegroundColor Green
-    Write-Host "==========================================================" -ForegroundColor Green
+        $dir17b = Join-Path $subtestRoot "InstallB"
+        $lnk17b = Join-Path $subtestRoot "ShortcutsB\ScriptSuite.lnk"
+        $reg17b = "$testRegBase\Test17B_$engineTag"
+
+        $cmd17b = "`$env:ProgramData = '$pdB'; & '$installScript' -InstallDir '$dir17b' -ShortcutPath '$lnk17b' -TaskPath '\ScriptSuiteTest' -RegistryRoot '$reg17b' -PublishDir '$PublishDir' -NoBuild -NonInteractive"
+        $out17b = & $engine -NoProfile -ExecutionPolicy Bypass -Command $cmd17b
+        Assert-Test ($LASTEXITCODE -eq 0) "[$engine] Install with single long line log succeeded"
+
+        $longLineTrimmedLength = (Get-Item -LiteralPath $longLineLog).Length
+        Assert-Test ($longLineTrimmedLength -lt $longLineInitialLength) "[$engine] Long-line log size was reduced ($longLineTrimmedLength bytes < $longLineInitialLength bytes)"
+        Assert-Test ($longLineTrimmedLength -le (256KB + 16KB)) "[$engine] Long-line log capped near 256 KB ($longLineTrimmedLength bytes)"
+        $longLineContentAfter = Get-Content -LiteralPath $longLineLog
+        $longLineTrimMatches = @($longLineContentAfter | Where-Object { $_ -match "log trimmed" })
+        Assert-Test ($longLineTrimMatches.Count -ge 1) "[$engine] Long-line log contains note 'log trimmed'"
+
+        # Subtest C: A -FromTemp child does not trim
+        $pdC = Join-Path $subtestRoot "PDC_FromTemp"
+        $pdLogDirC = Join-Path $pdC "ScriptSuite"
+        New-Item -ItemType Directory -Path $pdLogDirC -Force | Out-Null
+        $fromTempLog = Join-Path $pdLogDirC "uninstall.log"
+        Set-Content -LiteralPath $fromTempLog -Value $lines300 -Encoding utf8
+        $dir17c = Join-Path $subtestRoot "InstallC"
+        $lnk17c = Join-Path $subtestRoot "ShortcutsC\ScriptSuite.lnk"
+        $reg17c = "$testRegBase\Test17C_$engineTag"
+
+        # Invoke Uninstall.ps1 with -FromTemp
+        $cmd17c = "`$env:ProgramData = '$pdC'; & '$uninstallScript' -InstallDir '$dir17c' -ShortcutPath '$lnk17c' -TaskPath '\ScriptSuiteTest' -RegistryRoot '$reg17c' -FromTemp -NonInteractive"
+        $out17c = & $engine -NoProfile -ExecutionPolicy Bypass -Command $cmd17c
+        $fromTempContent = Get-Content -LiteralPath $fromTempLog
+        $fromTempTrimMatches = @($fromTempContent | Where-Object { $_ -match "log trimmed" })
+        Assert-Test ($fromTempTrimMatches.Count -eq 0) "[$engine] A -FromTemp child does not trim the log"
+        Assert-Test ($fromTempContent.Count -ge 300) "[$engine] All pre-existing lines preserved in -FromTemp run (count: $($fromTempContent.Count))"
+
+        # Subtest D: A small log is untouched
+        $pdD = Join-Path $subtestRoot "PDD_Small"
+        $pdLogDirD = Join-Path $pdD "ScriptSuite"
+        New-Item -ItemType Directory -Path $pdLogDirD -Force | Out-Null
+        $smallLog = Join-Path $pdLogDirD "install.log"
+        $smallCanary = "CANARY_LINE_PRESERVED_SMALL_LOG"
+        $smallLines = @(
+            "[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] First small log entry",
+            "[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] $smallCanary",
+            "[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] Third small log entry"
+        )
+        Set-Content -LiteralPath $smallLog -Value $smallLines -Encoding utf8
+        $dir17d = Join-Path $subtestRoot "InstallD"
+        $lnk17d = Join-Path $subtestRoot "ShortcutsD\ScriptSuite.lnk"
+        $reg17d = "$testRegBase\Test17D_$engineTag"
+
+        $cmd17d = "`$env:ProgramData = '$pdD'; & '$installScript' -InstallDir '$dir17d' -ShortcutPath '$lnk17d' -TaskPath '\ScriptSuiteTest' -RegistryRoot '$reg17d' -PublishDir '$PublishDir' -NoBuild -NonInteractive"
+        $out17d = & $engine -NoProfile -ExecutionPolicy Bypass -Command $cmd17d
+        Assert-Test ($LASTEXITCODE -eq 0) "[$engine] Install with small log succeeded"
+        $smallLogAfter = Get-Content -LiteralPath $smallLog
+        $smallTrimMatches = @($smallLogAfter | Where-Object { $_ -match "log trimmed" })
+        Assert-Test ($smallTrimMatches.Count -eq 0) "[$engine] Small log was not trimmed (no 'log trimmed' note)"
+        $canaryFound = @($smallLogAfter | Where-Object { $_ -match $smallCanary })
+        Assert-Test ($canaryFound.Count -ge 1) "[$engine] Small log pre-existing content is untouched (canary preserved)"
+    }
+
+    Write-Host "`n==========================================================" -ForegroundColor $(if ($failedCount -eq 0) { "Green" } else { "Red" })
+    Write-Host " ran $ranCount, skipped $skippedCount, failed $failedCount" -ForegroundColor $(if ($failedCount -eq 0) { "Green" } else { "Red" })
+    Write-Host "==========================================================" -ForegroundColor $(if ($failedCount -eq 0) { "Green" } else { "Red" })
 } finally {
     Remove-Item -LiteralPath $testScratchRoot -Recurse -Force -ErrorAction SilentlyContinue
     if (Test-Path -LiteralPath $testRegBase) {

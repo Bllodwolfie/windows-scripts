@@ -27,7 +27,6 @@ param(
     [string]$PublishDir,
     [string]$TaskPath = "\ScriptSuite\",
     [string]$RegistryRoot = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
-    [string]$LogPath,
     [switch]$Child,
     [switch]$NoBuild,
     [switch]$NonInteractive
@@ -85,39 +84,31 @@ function Format-QuotedArgument {
 }
 
 # 0) Setup log path early and write initial log line so early failures leave evidence
-if (-not $LogPath) {
-    $logDir = Join-Path $env:ProgramData "ScriptSuite"
+$logDir = Join-Path $env:ProgramData "ScriptSuite"
+if (-not (Test-Path -LiteralPath $logDir)) {
+    try { New-Item -ItemType Directory -Path $logDir -Force | Out-Null } catch { }
+}
+if (-not (Test-Path -LiteralPath $logDir) -and $env:LOCALAPPDATA) {
+    $logDir = Join-Path $env:LOCALAPPDATA "ScriptSuite"
     if (-not (Test-Path -LiteralPath $logDir)) {
         try { New-Item -ItemType Directory -Path $logDir -Force | Out-Null } catch { }
     }
-    if (-not (Test-Path -LiteralPath $logDir) -and $env:LOCALAPPDATA) {
-        $logDir = Join-Path $env:LOCALAPPDATA "ScriptSuite"
-        if (-not (Test-Path -LiteralPath $logDir)) {
-            try { New-Item -ItemType Directory -Path $logDir -Force | Out-Null } catch { }
-        }
-    }
-    $logPath = Join-Path $logDir "install.log"
+}
+$logPath = Join-Path $logDir "install.log"
 
+$canWriteLog = $false
+try {
+    [System.IO.File]::AppendAllText($logPath, "")
+    $canWriteLog = $true
+} catch {
     $canWriteLog = $false
-    try {
-        [System.IO.File]::AppendAllText($logPath, "")
-        $canWriteLog = $true
-    } catch {
-        $canWriteLog = $false
+}
+if (-not $canWriteLog -and $env:LOCALAPPDATA) {
+    $userLogDir = Join-Path $env:LOCALAPPDATA "ScriptSuite"
+    if (-not (Test-Path -LiteralPath $userLogDir)) {
+        try { New-Item -ItemType Directory -Path $userLogDir -Force | Out-Null } catch { }
     }
-    if (-not $canWriteLog -and $env:LOCALAPPDATA) {
-        $userLogDir = Join-Path $env:LOCALAPPDATA "ScriptSuite"
-        if (-not (Test-Path -LiteralPath $userLogDir)) {
-            try { New-Item -ItemType Directory -Path $userLogDir -Force | Out-Null } catch { }
-        }
-        $logPath = Join-Path $userLogDir "install.log"
-    }
-} else {
-    $logPath = $LogPath
-    $parentLogDir = Split-Path -Parent $logPath
-    if ($parentLogDir -and -not (Test-Path -LiteralPath $parentLogDir)) {
-        try { New-Item -ItemType Directory -Path $parentLogDir -Force | Out-Null } catch { }
-    }
+    $logPath = Join-Path $userLogDir "install.log"
 }
 
 # Cap log growth if top-level invocation (not an elevated child launched by parent) and log file > 256 KB
@@ -129,7 +120,18 @@ if (-not $Child) {
                 $tailLines = Get-Content -LiteralPath $logPath -Tail 100 -ErrorAction SilentlyContinue
                 if ($tailLines) {
                     $trimNote = "[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] === Log capped (log trimmed, previous size: $([math]::Round($logItem.Length / 1KB)) KB) ==="
-                    $trimmedContent = @($trimNote) + $tailLines
+                    $tailText = ($tailLines -join "`r`n")
+                    $utf8 = [System.Text.Encoding]::UTF8
+                    $maxTailBytes = [int](256KB - $utf8.GetByteCount($trimNote) - 512)
+                    if ($utf8.GetByteCount($tailText) -gt $maxTailBytes) {
+                        if ($tailText.Length -gt $maxTailBytes) {
+                            $tailText = $tailText.Substring($tailText.Length - $maxTailBytes)
+                        }
+                        while ($utf8.GetByteCount($tailText) -gt $maxTailBytes -and $tailText.Length -gt 0) {
+                            $tailText = $tailText.Substring(1)
+                        }
+                    }
+                    $trimmedContent = "$trimNote`r`n$tailText"
                     Set-Content -LiteralPath $logPath -Value $trimmedContent -Encoding utf8 -Force -ErrorAction SilentlyContinue
                 }
             }
@@ -243,7 +245,6 @@ if ($needsElevation -and -not $isAdmin) {
     if ($PSBoundParameters.ContainsKey('PublishDir')) { $argParts += @("-PublishDir", (Format-QuotedArgument $PublishDir)) }
     if ($PSBoundParameters.ContainsKey('TaskPath')) { $argParts += @("-TaskPath", (Format-QuotedArgument $TaskPath)) }
     if ($PSBoundParameters.ContainsKey('RegistryRoot')) { $argParts += @("-RegistryRoot", (Format-QuotedArgument $RegistryRoot)) }
-    if ($PSBoundParameters.ContainsKey('LogPath')) { $argParts += @("-LogPath", (Format-QuotedArgument $LogPath)) }
     if ($NoBuild) { $argParts += "-NoBuild" }
     # Pass -NonInteractive to elevated child so only parent shows summary and pauses once
     $argParts += "-NonInteractive"
