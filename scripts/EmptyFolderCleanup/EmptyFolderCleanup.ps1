@@ -158,36 +158,29 @@ $defaultIgnoreNames = @('.git', '.svn', '.hg', 'node_modules', 'vendor', '.venv'
 # True when $FullName is an ignored folder itself or lives under one.
 # Default ignore names are checked ONLY on path components BELOW $RootPath,
 # so a scan root that itself sits under bin/target/vendor/venv/etc. is still processed.
-# A path outside the scan root simply never matches (harmless, no error).
+# RootPath is required; callers must pass the scan root explicitly.
 # Supplied IncludeOnly entries do NOT override this: ignore always wins.
-function Test-Ignored([string]$FullName, [string]$RootPath = $null) {
+function Test-Ignored([string]$FullName, [string]$RootPath) {
     if ([string]::IsNullOrWhiteSpace($FullName)) { return $false }
+    if ([string]::IsNullOrWhiteSpace($RootPath)) {
+        throw [System.ArgumentException]::new("RootPath must be specified when testing ignored paths: '$FullName'")
+    }
     $normFull = try { [System.IO.Path]::GetFullPath($FullName).TrimEnd('\', '/') } catch { $FullName.TrimEnd('\', '/') }
+    $normRoot = try { [System.IO.Path]::GetFullPath($RootPath).TrimEnd('\', '/') } catch { $RootPath.TrimEnd('\', '/') }
 
-    # Evaluate default ignore names relative to the scan root (only path components below $RootPath)
-    if (-not [string]::IsNullOrWhiteSpace($RootPath)) {
-        $normRoot = try { [System.IO.Path]::GetFullPath($RootPath).TrimEnd('\', '/') } catch { $RootPath.TrimEnd('\', '/') }
-        if ($normFull.StartsWith($normRoot + [System.IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
-            $rel = $normFull.Substring($normRoot.Length + 1)
-            $parts = $rel.Split([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
-            foreach ($p in $parts) {
-                foreach ($def in $defaultIgnoreNames) {
-                    if ($p.Equals($def, [StringComparison]::OrdinalIgnoreCase)) { return $true }
-                }
-            }
-        } elseif (-not $normFull.Equals($normRoot, [StringComparison]::OrdinalIgnoreCase)) {
-            # Outside scan root: check leaf only
-            $leaf = [System.IO.Path]::GetFileName($normFull)
+    # Evaluate default ignore names relative to the scan root (only path components strictly below $RootPath)
+    if ($normFull.StartsWith($normRoot + [System.IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+        $rel = $normFull.Substring($normRoot.Length + 1)
+        $parts = $rel.Split([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+        foreach ($p in $parts) {
             foreach ($def in $defaultIgnoreNames) {
-                if ($leaf.Equals($def, [StringComparison]::OrdinalIgnoreCase)) { return $true }
+                if ($p.Equals($def, [StringComparison]::OrdinalIgnoreCase)) { return $true }
             }
         }
+    } elseif ($normFull.Equals($normRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        # Scan root itself is not an ignored child
     } else {
-        # Fallback when no root provided: check leaf only
-        $leaf = [System.IO.Path]::GetFileName($normFull)
-        foreach ($def in $defaultIgnoreNames) {
-            if ($leaf.Equals($def, [StringComparison]::OrdinalIgnoreCase)) { return $true }
-        }
+        throw [System.ArgumentException]::new("FullName '$FullName' is outside the scan root '$RootPath'")
     }
 
     if ($ignoreList.Count -eq 0) { return $false }
