@@ -1,4 +1,4 @@
-# Recursively removes empty folders under TargetFolder.
+﻿# Recursively removes empty folders under TargetFolder.
 # Loops repeatedly because deleting a folder can leave its now-empty parent
 # behind, which needs another pass to catch. Each pass tracks whether any
 # folder was actually deleted; if a pass removes nothing (e.g. a locked folder
@@ -156,18 +156,37 @@ foreach ($raw in $ignoreRaw) {
 $defaultIgnoreNames = @('.git', '.svn', '.hg', 'node_modules', 'vendor', '.venv', 'venv', '__pycache__', '.cargo', 'target', 'bin', 'obj')
 
 # True when $FullName is an ignored folder itself or lives under one.
+# Default ignore names are checked ONLY on path components BELOW $RootPath,
+# so a scan root that itself sits under bin/target/vendor/venv/etc. is still processed.
 # A path outside the scan root simply never matches (harmless, no error).
 # Supplied IncludeOnly entries do NOT override this: ignore always wins.
-function Test-Ignored([string]$FullName) {
+function Test-Ignored([string]$FullName, [string]$RootPath = $null) {
     if ([string]::IsNullOrWhiteSpace($FullName)) { return $false }
-    $leaf = [System.IO.Path]::GetFileName($FullName.TrimEnd('\', '/'))
-    foreach ($def in $defaultIgnoreNames) {
-        if ($leaf.Equals($def, [StringComparison]::OrdinalIgnoreCase)) { return $true }
-    }
-    $parts = $FullName.Split([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
-    foreach ($p in $parts) {
+    $normFull = try { [System.IO.Path]::GetFullPath($FullName).TrimEnd('\', '/') } catch { $FullName.TrimEnd('\', '/') }
+
+    # Evaluate default ignore names relative to the scan root (only path components below $RootPath)
+    if (-not [string]::IsNullOrWhiteSpace($RootPath)) {
+        $normRoot = try { [System.IO.Path]::GetFullPath($RootPath).TrimEnd('\', '/') } catch { $RootPath.TrimEnd('\', '/') }
+        if ($normFull.StartsWith($normRoot + [System.IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+            $rel = $normFull.Substring($normRoot.Length + 1)
+            $parts = $rel.Split([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+            foreach ($p in $parts) {
+                foreach ($def in $defaultIgnoreNames) {
+                    if ($p.Equals($def, [StringComparison]::OrdinalIgnoreCase)) { return $true }
+                }
+            }
+        } elseif (-not $normFull.Equals($normRoot, [StringComparison]::OrdinalIgnoreCase)) {
+            # Outside scan root: check leaf only
+            $leaf = [System.IO.Path]::GetFileName($normFull)
+            foreach ($def in $defaultIgnoreNames) {
+                if ($leaf.Equals($def, [StringComparison]::OrdinalIgnoreCase)) { return $true }
+            }
+        }
+    } else {
+        # Fallback when no root provided: check leaf only
+        $leaf = [System.IO.Path]::GetFileName($normFull)
         foreach ($def in $defaultIgnoreNames) {
-            if ($p.Equals($def, [StringComparison]::OrdinalIgnoreCase)) { return $true }
+            if ($leaf.Equals($def, [StringComparison]::OrdinalIgnoreCase)) { return $true }
         }
     }
 
@@ -214,7 +233,7 @@ function Get-CandidateDirectories([string]$RootPath) {
             if (-not $visited.Add($d.FullName)) {
                 continue
             }
-            if (-not (Test-Ignored $d.FullName)) {
+            if (-not (Test-Ignored $d.FullName $normRoot)) {
                 $result.Add($d.FullName)
                 $queue.Enqueue($d.FullName)
             }

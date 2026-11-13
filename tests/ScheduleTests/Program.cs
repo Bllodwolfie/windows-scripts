@@ -58,6 +58,7 @@ public class Program
             Test14_DownloadsCleanup_PacketTracerCategory();
             Test15_EmptyFolderCleanup_DevTreePruning(testRoot);
             Test16_EmptyFolderCleanup_ReparsePointSkip(testRoot);
+            Test17_EmptyFolderCleanup_RelativeIgnoreNames(testRoot);
         }
         finally
         {
@@ -740,5 +741,54 @@ public class Program
         Directory.Delete(junctionPath, false);
         Assert(!Directory.Exists(junctionPath), "Junction safely removed");
         Assert(Directory.Exists(outsideFolder) && Directory.Exists(outsideSub), "Outside folder untouched after junction removal");
+    }
+
+    // 17. EmptyFolderCleanup Relative Ignore Names
+    private static void Test17_EmptyFolderCleanup_RelativeIgnoreNames(string testRoot)
+    {
+        Console.WriteLine("\n--- Test 17: EmptyFolderCleanup Relative Ignore Names ---");
+        string repoRoot = FindRepoRoot();
+        string scriptPath = Path.Combine(repoRoot, @"scripts\EmptyFolderCleanup\EmptyFolderCleanup.ps1");
+
+        // Scratch hierarchy: testRoot/ancestor_bin/bin/scan_root/empty_sub
+        // Scan root sits under an ancestor named 'bin'.
+        string scratchBase = Path.Combine(testRoot, "efc_rel_scratch");
+        string scanRoot = Path.Combine(scratchBase, "ancestor_bin", "bin", "scan_root");
+        string emptySub = Path.Combine(scanRoot, "empty_sub");
+        string nodeModulesChild = Path.Combine(scanRoot, "node_modules", "empty_child");
+
+        Directory.CreateDirectory(emptySub);
+        Directory.CreateDirectory(nodeModulesChild);
+
+        string logDir = Path.Combine(testRoot, "logs_rel");
+        string testCfg = Path.Combine(testRoot, "efc_rel_cfg.json");
+        File.WriteAllText(testCfg, $"{{\"TargetFolder\": \"{scanRoot.Replace("\\", "\\\\")}\", \"LogDir\": \"{logDir.Replace("\\", "\\\\")}\", \"LogFile\": \"CleanupLog.txt\"}}");
+
+        // 1. DryRun preview
+        var psiDry = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"& '{scriptPath}' -DryRun -ConfigPath '{testCfg}' | Out-String -Width 4096\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        using var procDry = Process.Start(psiDry)!;
+        string stdoutDry = procDry.StandardOutput.ReadToEnd();
+        procDry.WaitForExit();
+
+        Assert(stdoutDry.Contains("empty_sub"), "DryRun includes empty_sub even though scan root is under an ancestor named 'bin'");
+        Assert(!stdoutDry.Contains("empty_child"), "DryRun skips node_modules/empty_child below scan root");
+
+        // 2. Real run
+        var psiReal = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"& '{scriptPath}' -ConfigPath '{testCfg}' | Out-String -Width 4096\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        using var procReal = Process.Start(psiReal)!;
+        procReal.WaitForExit();
+
+        Assert(!Directory.Exists(emptySub), "empty_sub was deleted in real run under ancestor bin");
+        Assert(Directory.Exists(nodeModulesChild), "node_modules/empty_child was kept in real run");
     }
 }
