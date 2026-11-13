@@ -113,7 +113,22 @@ public partial class HistoryWindow : Window
         CountText.Text = _filtered.Count == _all.Count
             ? $"{_all.Count} run(s) recorded"
             : $"{_filtered.Count} of {_all.Count} run(s) matched";
+        EmptyMessage.Text = GetEmptyMessageText(_all.Count, _filtered.Count);
         EmptyMessage.Visibility = _rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    public static string GetEmptyMessageText(int totalCount, int filteredCount) =>
+        totalCount > 0 && filteredCount == 0
+            ? "No runs match your filters."
+            : "No runs recorded yet — run a script to see its history here.";
+
+    internal string CurrentEmptyMessageText => EmptyMessage.Text;
+    internal bool IsEmptyMessageVisible => EmptyMessage.Visibility == Visibility.Visible;
+    internal void TestLoadAndFilter(string query = "")
+    {
+        OnLoaded(this, new RoutedEventArgs());
+        SearchBox.Text = query;
+        ApplyFilter();
     }
 
     private void PrevPage_Click(object sender, RoutedEventArgs e)

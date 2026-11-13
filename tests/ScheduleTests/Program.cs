@@ -65,6 +65,7 @@ public class Program
             Test19_SettingsFormViewModel_LegacyTargetFolderPersistence(testRoot);
             Test20_EmptyFolderCleanup_MultiRootSummaryConsumers(testRoot);
             Test21_EmptyFolderCleanup_UseDefaultIgnoreNamesOptOut(testRoot);
+            Test22_HistoryWindow_EmptyStateWording(testRoot);
         }
         finally
         {
@@ -1141,5 +1142,58 @@ public class Program
         using (var p = Process.Start(psiOptOut)!) { p.WaitForExit(); }
         Assert(!Directory.Exists(normalOptOut), "normal_empty folder deleted under opt-out settings");
         Assert(!Directory.Exists(nmOptOut), "empty node_modules folder DELETED when UseDefaultIgnoreNames = false");
+    }
+
+    private static void Test22_HistoryWindow_EmptyStateWording(string testRoot)
+    {
+        Console.WriteLine("\n--- Test 22: HistoryWindow Empty State Wording ---");
+
+        // 1. Pure helper function assertion
+        string textZeroTotal = ScriptSuite.HistoryWindow.GetEmptyMessageText(0, 0);
+        Assert(textZeroTotal.Contains("No runs recorded yet"),
+            $"0 total rows produces 'No runs recorded yet': '{textZeroTotal}'");
+
+        string textFilteredOut = ScriptSuite.HistoryWindow.GetEmptyMessageText(5, 0);
+        Assert(textFilteredOut == "No runs match your filters.",
+            $"Rows exist but 0 matches produces 'No runs match your filters.': '{textFilteredOut}'");
+
+        string textMatchesExist = ScriptSuite.HistoryWindow.GetEmptyMessageText(5, 2);
+        Assert(textMatchesExist.Contains("No runs recorded yet"),
+            $"When matches exist, default string returned (UI hides it): '{textMatchesExist}'");
+
+        // 2. UI-level test with real HistoryWindow instance
+        if (System.Windows.Application.Current == null)
+            new System.Windows.Application();
+
+        string manifestsDir = Path.Combine(FindRepoRoot(), @"ScriptSuite\Manifests");
+        var catalog = new ManifestCatalog(manifestsDir);
+
+        // Subtest A: Fresh / Empty DB
+        string emptyDb = Path.Combine(testRoot, "empty_hist.db");
+        var storeEmpty = new RunHistoryStore(emptyDb);
+        var winEmpty = new ScriptSuite.HistoryWindow(storeEmpty, catalog);
+        winEmpty.TestLoadAndFilter();
+        Assert(winEmpty.IsEmptyMessageVisible, "EmptyMessage is visible when history is empty");
+        Assert(winEmpty.CurrentEmptyMessageText.Contains("No runs recorded yet"),
+            $"Empty DB displays 'No runs recorded yet': '{winEmpty.CurrentEmptyMessageText}'");
+
+        // Subtest B: Populated DB
+        string popDb = Path.Combine(testRoot, "pop_hist.db");
+        var storePop = new RunHistoryStore(popDb);
+        DateTime t = DateTime.Now;
+        storePop.Insert("DownloadsCleanup", t.AddMinutes(-5), t.AddMinutes(-4), RunOutcome.Success, "12 files deleted");
+        storePop.Insert("TempCleanup", t.AddMinutes(-3), t.AddMinutes(-2), RunOutcome.Success, "5 files deleted");
+
+        var winPop = new ScriptSuite.HistoryWindow(storePop, catalog);
+
+        // When no filter is applied (matches exist)
+        winPop.TestLoadAndFilter("");
+        Assert(!winPop.IsEmptyMessageVisible, "EmptyMessage is collapsed when runs match");
+
+        // When filter matches nothing
+        winPop.TestLoadAndFilter("NonExistentScriptName12345");
+        Assert(winPop.IsEmptyMessageVisible, "EmptyMessage is visible when filters match 0 runs");
+        Assert(winPop.CurrentEmptyMessageText == "No runs match your filters.",
+            $"Populated DB with unmatched filter displays 'No runs match your filters.': '{winPop.CurrentEmptyMessageText}'");
     }
 }
