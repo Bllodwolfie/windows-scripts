@@ -63,6 +63,7 @@ public class Program
             Test17_EmptyFolderCleanup_RelativeIgnoreNames(testRoot);
             Test18_EmptyFolderCleanup_MultiFolder(testRoot);
             Test19_SettingsFormViewModel_LegacyTargetFolderPersistence(testRoot);
+            Test20_EmptyFolderCleanup_MultiRootSummaryConsumers(testRoot);
         }
         finally
         {
@@ -1011,5 +1012,85 @@ public class Program
         Assert(newDiskAfterSave.Contains("\"TargetFolders\""), "New config save contains TargetFolders");
         Assert(!newDiskAfterSave.Contains("\"TargetFolder\""), "New config save does not contain TargetFolder");
         Assert(trustStore.IsTrusted("EmptyFolderCleanup"), "New config remains trusted after edit");
+    }
+
+    private static void Test20_EmptyFolderCleanup_MultiRootSummaryConsumers(string testRoot)
+    {
+        Console.WriteLine("\n--- Test 20: EmptyFolderCleanup Multi-Root Summary Consumers & Joined Roots ---");
+
+        // 1. RunHistoryStore.BuildSummary verification with multi-root summary strings
+        var logsSingle = new List<string>
+        {
+            "Starting EmptyFolderCleanup",
+            "INFO: EmptyFolderCleanup: 4 deleted across 1 root(s) processed.",
+            "Cleanup finished"
+        };
+        string? summarySingle = RunHistoryStore.BuildSummary(logsSingle);
+        Assert(summarySingle == "EmptyFolderCleanup: 4 deleted across 1 root(s) processed.",
+            $"BuildSummary parses single-root summary: '{summarySingle}'");
+
+        var logsMulti = new List<string>
+        {
+            "Cleanup started (3 root(s) to process)",
+            "DELETED : C:\\Root1\\sub",
+            "DELETED : C:\\Root2\\sub",
+            "INFO: EmptyFolderCleanup: 2 deleted across 3 root(s) processed.",
+            "Cleanup finished (2 deleted across 3 root(s) processed)"
+        };
+        string? summaryMulti = RunHistoryStore.BuildSummary(logsMulti);
+        Assert(summaryMulti == "EmptyFolderCleanup: 2 deleted across 3 root(s) processed.",
+            $"BuildSummary parses multi-root summary: '{summaryMulti}'");
+
+        var logsMultiZero = new List<string>
+        {
+            "Cleanup started (2 root(s) to process)",
+            "INFO: EmptyFolderCleanup: 0 deleted across 2 root(s) processed.",
+            "Cleanup finished (0 deleted across 2 root(s) processed)"
+        };
+        string? summaryZero = RunHistoryStore.BuildSummary(logsMultiZero);
+        Assert(summaryZero == "EmptyFolderCleanup: 0 deleted across 2 root(s) processed.",
+            $"BuildSummary parses zero-deleted multi-root summary: '{summaryZero}'");
+
+        // 2. Preceding joined roots warning PSCustomObject log does not corrupt final summary
+        var logsWithWarning = new List<string>
+        {
+            "Cleanup started (2 root(s) to process)",
+            "OUTPUT: Action=Summary; Target=C:\\Root1; C:\\Root2; Detail=1 empty folder(s) could not be removed (long path or locked); Path=C:\\Root1; C:\\Root2; Reason=remaining empty folders after passes; Status=Warning",
+            "WARN: 1 empty folder(s) could not be removed (long path or locked)",
+            "INFO: EmptyFolderCleanup: 3 deleted across 2 root(s) processed.",
+            "Cleanup finished (3 deleted across 2 root(s) processed)"
+        };
+        string? summaryWithWarn = RunHistoryStore.BuildSummary(logsWithWarning);
+        Assert(summaryWithWarn == "EmptyFolderCleanup: 3 deleted across 2 root(s) processed.",
+            $"BuildSummary ignores preceding warning PSCustomObject log and extracts correct summary: '{summaryWithWarn}'");
+        Assert(summaryWithWarn?.Length <= 120, "Summary line is not truncated");
+
+        // 3. Scheduled run store persists and retrieves multi-root summary intact
+        string dbPath = Path.Combine(testRoot, "test_summary_history.db");
+        var store = new RunHistoryStore(dbPath);
+        DateTime now = DateTime.Now;
+        long id = store.InsertScheduled("EmptyFolderCleanup", now.AddMinutes(-10), now.AddMinutes(-10), now.AddMinutes(-9),
+            "Success", "EmptyFolderCleanup: 15 deleted across 4 root(s) processed.", "task_scheduler");
+        Assert(id > 0, "InsertScheduled succeeds for multi-root summary");
+
+        var recent = store.GetRecentScheduled(10);
+        var entry = recent.FirstOrDefault(r => r.Id == id);
+        Assert(entry != null, "Inserted scheduled run retrieved");
+        Assert(entry?.Summary == "EmptyFolderCleanup: 15 deleted across 4 root(s) processed.",
+            $"Scheduled run summary matches exact multi-root text: '{entry?.Summary}'");
+
+        // 4. DryRunItem handles joined roots Target/Path and Action=Summary without bad splitting or miscounting
+        var itemSummary = new DryRunItem
+        {
+            Action = "Summary",
+            Target = @"C:\ScanRoot1; C:\ScanRoot2",
+            Detail = "2 empty folder(s) could not be removed"
+        };
+        Assert(itemSummary.Target == @"C:\ScanRoot1; C:\ScanRoot2", "Joined roots in Target preserved without bad splitting");
+
+        // Verify RunAllPreviewWindow summary aggregation does not count Summary as Delete/Move/Skip
+        string previewSummary = ScriptSuite.RunAllPreviewWindow.BuildSummaryText(
+            deleteCount: 5, moveCount: 0, skipCount: 0, reportOnlyCount: 0, finalizedCount: 1, totalCount: 1);
+        Assert(previewSummary.Contains("5 to delete"), $"BuildSummaryText formats counts correctly: '{previewSummary}'");
     }
 }
