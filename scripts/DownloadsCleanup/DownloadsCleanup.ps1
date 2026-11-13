@@ -1,4 +1,4 @@
-﻿# Sorts and cleans up the Downloads folder:
+# Sorts and cleans up the Downloads folder:
 #   - Files older than CutoffDays with an extension in DeleteExts are deleted outright.
 #   - Files older than CutoffDays with an extension listed under Categories are
 #     moved into the matching destination folder (created if missing).
@@ -27,6 +27,7 @@ $Config = @{
         "$env:USERPROFILE\Videos\Misc"             = @('.3gp', '.asf', '.avi', '.flv', '.m2ts', '.m4v', '.mkv', '.mov', '.mp4', '.mpeg', '.mpg', '.ogv', '.ts', '.vob', '.webm', '.wmv')
         "$env:USERPROFILE\Pictures\Misc"           = @('.avif', '.bmp', '.cr2', '.dng', '.eps', '.gif', '.heic', '.heif', '.ico', '.jpeg', '.jpg', '.nef', '.png', '.psd', '.raw', '.svg', '.tif', '.tiff', '.webp')
         "$env:USERPROFILE\Documents\Modeling"      = @('.3dm', '.3ds', '.3mf', '.blend', '.c4d', '.dae', '.dxf', '.fbx', '.glb', '.gltf', '.iges', '.igs', '.lwo', '.lxo', '.max', '.mb', '.ma', '.obj', '.ply', '.skp', '.sldasm', '.sldprt', '.step', '.stp', '.stl', '.usdz', '.vrml', '.wrl', '.x3d')
+        "$env:USERPROFILE\Documents\Networking\PacketTracer" = @('.pka', '.pkt', '.pkz')
         "$env:USERPROFILE\Documents\Spreadsheets"  = @('.csv', '.numbers', '.ods', '.tsv', '.xls', '.xlsb', '.xlsm', '.xlsx', '.xlt', '.xltm', '.xltx', '.xlw')
         "$env:USERPROFILE\Documents\Presentations" = @('.key', '.odp', '.pps', '.ppsx', '.ppt', '.pptm', '.pptx', '.pot', '.potm', '.potx')
         "$env:USERPROFILE\Documents\Text"          = @('.doc', '.docb', '.docm', '.docx', '.dot', '.dotm', '.dotx', '.epub', '.log', '.md', '.msg', '.odt', '.pdf', '.rtf', '.tex', '.txt', '.wpd', '.wps')
