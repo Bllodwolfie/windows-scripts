@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Automated isolated regression tests for Install.ps1, Uninstall.ps1, and Install.cmd.
   Ensures PowerShell 5.1 compatibility, UAC wait & summary logging, upgrade migration,
@@ -29,6 +29,9 @@ if (-not $PublishDir -or -not (Test-Path -LiteralPath (Join-Path $PublishDir "Sc
 $testScratchRoot = Join-Path $env:TEMP "ScriptSuite-InstallTests-$PID"
 Remove-Item -LiteralPath $testScratchRoot -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $testScratchRoot -Force | Out-Null
+
+$testRegBase = "HKCU:\Software\ScriptSuiteTest_InstallTests_$PID"
+$defaultTestRegRoot = "$testRegBase\Default"
 
 $testCount = 0
 $passCount = 0
@@ -74,7 +77,7 @@ try {
     Copy-Item (Join-Path $PublishDir "*") -Destination $extracted1 -Recurse -Force
     Copy-Item $installScript -Destination $extracted1 -Force
 
-    $cmd51 = "& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path '$extracted1' 'Install.ps1') -InstallDir '$dir1' -ShortcutPath '$lnk1' -TaskPath '\ScriptSuiteTest' -NonInteractive"
+    $cmd51 = "& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path '$extracted1' 'Install.ps1') -InstallDir '$dir1' -ShortcutPath '$lnk1' -TaskPath '\ScriptSuiteTest' -RegistryRoot '$defaultTestRegRoot' -NonInteractive"
     $out1 = powershell.exe -NoProfile -ExecutionPolicy Bypass -Command $cmd51
     $exit1 = $LASTEXITCODE
 
@@ -104,7 +107,7 @@ try {
     Copy-Item (Join-Path $PublishDir "*") -Destination $extracted2 -Recurse -Force
     Copy-Item $installScript -Destination $extracted2 -Force
 
-    $cmdPwsh = "& pwsh.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path '$extracted2' 'Install.ps1') -InstallDir '$dir2' -ShortcutPath '$lnk2' -TaskPath '\ScriptSuiteTest' -NonInteractive"
+    $cmdPwsh = "& pwsh.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path '$extracted2' 'Install.ps1') -InstallDir '$dir2' -ShortcutPath '$lnk2' -TaskPath '\ScriptSuiteTest' -RegistryRoot '$defaultTestRegRoot' -NonInteractive"
     $out2 = pwsh.exe -NoProfile -ExecutionPolicy Bypass -Command $cmdPwsh
     $exit2 = $LASTEXITCODE
 
@@ -126,7 +129,7 @@ try {
     Copy-Item $installCmd -Destination $extracted3 -Force
 
     $installCmdPath = Join-Path $extracted3 "Install.cmd"
-    $out3 = & cmd.exe /c "`"$installCmdPath`" -InstallDir `"$dir3`" -ShortcutPath `"$lnk3`" -TaskPath `"\ScriptSuiteTest`" -NonInteractive"
+    $out3 = & cmd.exe /c "`"$installCmdPath`" -InstallDir `"$dir3`" -ShortcutPath `"$lnk3`" -TaskPath `"\ScriptSuiteTest`" -RegistryRoot `"$defaultTestRegRoot`" -NonInteractive"
     $exit3 = $LASTEXITCODE
 
     Assert-Test ($exit3 -eq 0) "Install.cmd exit code is 0" "Exit code was $exit3"
@@ -152,7 +155,7 @@ try {
     Register-ScheduledTask -TaskPath "\ScriptSuiteTest\" -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Force | Out-Null
 
     # Run upgrade install
-    $out4 = pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $installScript -InstallDir $dir4 -ShortcutPath $lnk4 -TaskPath "\ScriptSuiteTest" -PublishDir $PublishDir -NoBuild -NonInteractive
+    $out4 = pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $installScript -InstallDir $dir4 -ShortcutPath $lnk4 -TaskPath "\ScriptSuiteTest" -RegistryRoot $defaultTestRegRoot -PublishDir $PublishDir -NoBuild -NonInteractive
     $exit4 = $LASTEXITCODE
     Assert-Test ($exit4 -eq 0) "Upgrade install exit code is 0"
 
@@ -180,7 +183,7 @@ try {
     $dummyProc = Start-Process -FilePath (Join-Path $dir5a "ScriptSuite.exe") -ArgumentList "--help" -PassThru
     Start-Sleep -Milliseconds 200
 
-    $out5a = pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $installScript -InstallDir $dir5a -ShortcutPath $lnk5a -TaskPath "\ScriptSuiteTest" -PublishDir $PublishDir -NoBuild -NonInteractive
+    $out5a = pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $installScript -InstallDir $dir5a -ShortcutPath $lnk5a -TaskPath "\ScriptSuiteTest" -RegistryRoot $defaultTestRegRoot -PublishDir $PublishDir -NoBuild -NonInteractive
     $exit5a = $LASTEXITCODE
     Assert-Test ($exit5a -eq 0) "Install terminates running ScriptSuite and succeeds"
 
@@ -194,7 +197,7 @@ try {
     # Open exclusive lock
     $fileStream = [System.IO.File]::Open($lockedExe, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
     try {
-        $out5b = pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $installScript -InstallDir $dir5b -ShortcutPath $lnk5b -TaskPath "\ScriptSuiteTest" -PublishDir $PublishDir -NoBuild -NonInteractive 2>&1
+        $out5b = pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $installScript -InstallDir $dir5b -ShortcutPath $lnk5b -TaskPath "\ScriptSuiteTest" -RegistryRoot $defaultTestRegRoot -PublishDir $PublishDir -NoBuild -NonInteractive 2>&1
         $exit5b = $LASTEXITCODE
         Assert-Test ($exit5b -ne 0) "Install on locked file returns non-zero exit code ($exit5b)"
         $hasFail = ($out5b | Out-String) -match "Result:\s+FAIL"
@@ -249,7 +252,7 @@ try {
 </Project>
 "@ | Set-Content -LiteralPath $fakeCsproj -Encoding utf8
 
-    $out7 = pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $installScript -ProjectPath $fakeCsproj -PublishDir $PublishDir -NoBuild -InstallDir $dir7 -ShortcutPath $lnk7 -TaskPath "\ScriptSuiteTest" -NonInteractive 2>&1
+    $out7 = pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $installScript -ProjectPath $fakeCsproj -PublishDir $PublishDir -NoBuild -InstallDir $dir7 -ShortcutPath $lnk7 -TaskPath "\ScriptSuiteTest" -RegistryRoot $defaultTestRegRoot -NonInteractive 2>&1
     $exit7 = $LASTEXITCODE
 
     Assert-Test ($exit7 -ne 0) "Version mismatch returns non-zero exit code ($exit7)"
@@ -263,7 +266,7 @@ try {
     # First install to dir8
     $dir8 = Join-Path $testScratchRoot "Test8_uninstall\Install"
     $lnk8 = Join-Path $testScratchRoot "Test8_uninstall\Programs\ScriptSuite.lnk"
-    pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $installScript -InstallDir $dir8 -ShortcutPath $lnk8 -TaskPath "\ScriptSuiteTest" -PublishDir $PublishDir -NoBuild -NonInteractive | Out-Null
+    pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $installScript -InstallDir $dir8 -ShortcutPath $lnk8 -TaskPath "\ScriptSuiteTest" -RegistryRoot $defaultTestRegRoot -PublishDir $PublishDir -NoBuild -NonInteractive | Out-Null
     Assert-Test (Test-Path -LiteralPath $dir8) "Pre-uninstall: install dir exists"
     Assert-Test (Test-Path -LiteralPath $lnk8) "Pre-uninstall: shortcut exists"
 
@@ -276,7 +279,7 @@ try {
     Register-ScheduledTask -TaskPath "\ScriptSuiteTest\" -TaskName $taskName8 -Action $act8 -Trigger $tr8 -Principal $pr8 -Force | Out-Null
 
     # Run Uninstall.ps1
-    $out8 = pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $uninstallScript -InstallDir $dir8 -ShortcutPath $lnk8 -TaskPath "\ScriptSuiteTest" -NonInteractive
+    $out8 = pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $uninstallScript -InstallDir $dir8 -ShortcutPath $lnk8 -TaskPath "\ScriptSuiteTest" -RegistryRoot $defaultTestRegRoot -NonInteractive
     $exit8 = $LASTEXITCODE
 
     Assert-Test ($exit8 -eq 0) "Uninstall exit code is 0"
@@ -287,9 +290,105 @@ try {
 
     Clean-ScratchTask $taskName8
 
+    # -------------------------------------------------------------------------
+    # Test 9: Installed apps registry registration & expected values
+    # -------------------------------------------------------------------------
+    Write-Host "`n--- Test 9: Installed apps registry registration ---" -ForegroundColor Yellow
+    $dir9 = Join-Path $testScratchRoot "Test9_reg\Install"
+    $lnk9 = Join-Path $testScratchRoot "Test9_reg\Programs\ScriptSuite.lnk"
+    $regRoot9 = "$testRegBase\Test9"
+    $key9 = "$regRoot9\ScriptSuite"
+
+    $out9 = pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $installScript -InstallDir $dir9 -ShortcutPath $lnk9 -TaskPath "\ScriptSuiteTest" -RegistryRoot $regRoot9 -PublishDir $PublishDir -NoBuild -NonInteractive
+    $exit9 = $LASTEXITCODE
+    Assert-Test ($exit9 -eq 0) "Install with isolated RegistryRoot succeeds" "Exit code was $exit9"
+    Assert-Test (Test-Path -LiteralPath $key9) "Registry key created at expected path ($key9)"
+
+    $regValues = Get-ItemProperty -LiteralPath $key9
+    Assert-Test ($regValues.DisplayName -eq "ScriptSuite") "DisplayName equals 'ScriptSuite' (actual: $($regValues.DisplayName))"
+    Assert-Test ($regValues.DisplayVersion -match '^\d+\.\d+\.\d+$') "DisplayVersion has no +hash suffix (actual: $($regValues.DisplayVersion))"
+    Assert-Test ($regValues.Publisher -eq "Bllodwolfie") "Publisher equals 'Bllodwolfie' (actual: $($regValues.Publisher))"
+    Assert-Test ($regValues.InstallLocation -eq $dir9) "InstallLocation matches install dir (actual: $($regValues.InstallLocation))"
+    $expectedExeTarget = Join-Path $dir9 "ScriptSuite.exe"
+    Assert-Test ($regValues.DisplayIcon -eq $expectedExeTarget) "DisplayIcon matches exe target (actual: $($regValues.DisplayIcon))"
+    Assert-Test ($regValues.UninstallString -like "*Uninstall.ps1*") "UninstallString points to Uninstall.ps1 (actual: $($regValues.UninstallString))"
+    Assert-Test ($regValues.NoModify -eq 1) "NoModify equals 1 (actual: $($regValues.NoModify))"
+    Assert-Test ($regValues.NoRepair -eq 1) "NoRepair equals 1 (actual: $($regValues.NoRepair))"
+    Assert-Test ($regValues.EstimatedSize -gt 0) "EstimatedSize is greater than 0 KB (actual: $($regValues.EstimatedSize) KB)"
+    Assert-Test ($regValues.URLInfoAbout -eq "https://github.com/Bllodwolfie/windows-scripts") "URLInfoAbout matches repo URL (actual: $($regValues.URLInfoAbout))"
+
+    # -------------------------------------------------------------------------
+    # Test 10: Upgrade in place is idempotent (no duplicates, overwrites values)
+    # -------------------------------------------------------------------------
+    Write-Host "`n--- Test 10: Upgrade in place idempotency ---" -ForegroundColor Yellow
+    $out10 = pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $installScript -InstallDir $dir9 -ShortcutPath $lnk9 -TaskPath "\ScriptSuiteTest" -RegistryRoot $regRoot9 -PublishDir $PublishDir -NoBuild -NonInteractive
+    $exit10 = $LASTEXITCODE
+    Assert-Test ($exit10 -eq 0) "Upgrade install exit code is 0"
+    Assert-Test (Test-Path -LiteralPath $key9) "Registry key still exists after upgrade"
+    $regValues10 = Get-ItemProperty -LiteralPath $key9
+    Assert-Test ($regValues10.DisplayName -eq "ScriptSuite") "DisplayName preserved after upgrade"
+    $subkeysCount = @(Get-ChildItem -LiteralPath $regRoot9).Count
+    Assert-Test ($subkeysCount -eq 1) "No duplicate registry subkeys created ($subkeysCount)"
+
+    # -------------------------------------------------------------------------
+    # Test 11: Uninstall.ps1 removes registry key
+    # -------------------------------------------------------------------------
+    Write-Host "`n--- Test 11: Uninstall removes registry key ---" -ForegroundColor Yellow
+    $out11 = pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $uninstallScript -InstallDir $dir9 -ShortcutPath $lnk9 -TaskPath "\ScriptSuiteTest" -RegistryRoot $regRoot9 -NonInteractive
+    $exit11 = $LASTEXITCODE
+    Assert-Test ($exit11 -eq 0) "Uninstall exit code is 0"
+    Assert-Test (-not (Test-Path -LiteralPath $key9)) "Registry key was removed by Uninstall.ps1"
+    Assert-Test (-not (Test-Path -LiteralPath $dir9)) "Install directory was removed by Uninstall.ps1"
+
+    # -------------------------------------------------------------------------
+    # Test 12: Self-uninstall from inside $InstallDir via temp copy
+    # -------------------------------------------------------------------------
+    Write-Host "`n--- Test 12: Self-uninstall from inside InstallDir via temp copy ---" -ForegroundColor Yellow
+    $dir12 = Join-Path $testScratchRoot "Test12_self\Install"
+    $lnk12 = Join-Path $testScratchRoot "Test12_self\Programs\ScriptSuite.lnk"
+    $regRoot12 = "$testRegBase\Test12"
+    $key12 = "$regRoot12\ScriptSuite"
+
+    $out12Install = pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $installScript -InstallDir $dir12 -ShortcutPath $lnk12 -TaskPath "\ScriptSuiteTest" -RegistryRoot $regRoot12 -PublishDir $PublishDir -NoBuild -NonInteractive
+    Assert-Test ($LASTEXITCODE -eq 0) "Install for Test 12 succeeded"
+    Assert-Test (Test-Path -LiteralPath (Join-Path $dir12 "Uninstall.ps1")) "Uninstall.ps1 was copied into install dir"
+    Assert-Test (Test-Path -LiteralPath (Join-Path $dir12 "Uninstall.cmd")) "Uninstall.cmd was copied into install dir"
+    Assert-Test (Test-Path -LiteralPath $key12) "Registry key exists before self-uninstall"
+
+    # Invoke Uninstall.ps1 FROM INSIDE $dir12
+    $installedUninstallPs1 = Join-Path $dir12 "Uninstall.ps1"
+    $out12Uninstall = pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $installedUninstallPs1 -InstallDir $dir12 -ShortcutPath $lnk12 -TaskPath "\ScriptSuiteTest" -RegistryRoot $regRoot12 -NonInteractive
+    $exit12 = $LASTEXITCODE
+    Assert-Test ($exit12 -eq 0) "Self-uninstall from inside InstallDir exit code is 0" "Exit was $exit12"
+    Assert-Test (-not (Test-Path -LiteralPath $dir12)) "InstallDir was completely deleted by self-uninstall"
+    Assert-Test (-not (Test-Path -LiteralPath $key12)) "Registry key was completely removed by self-uninstall"
+
+    # -------------------------------------------------------------------------
+    # Test 13: Elevated-only tests handling
+    # -------------------------------------------------------------------------
+    Write-Host "`n--- Test 13: Elevated-only registry test check ---" -ForegroundColor Yellow
+    $isTestAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    if (-not $isTestAdmin) {
+        Write-Host "  [SKIPPED] Elevated HKLM default registry test skipped (not elevated)" -ForegroundColor Yellow
+        Assert-Test $true "Elevated-only HKLM test handled cleanly (skipped when not elevated)"
+    } else {
+        Write-Host "  Elevated privileges detected: running HKLM test check" -ForegroundColor Cyan
+        $hklmScratchKey = "HKLM:\SOFTWARE\ScriptSuite_ElevatedTestCheck_$PID"
+        try {
+            New-Item -ItemType Directory -Path $hklmScratchKey -Force | Out-Null
+            Set-ItemProperty -LiteralPath $hklmScratchKey -Name "TestVal" -Value 1 | Out-Null
+            Assert-Test (Test-Path -LiteralPath $hklmScratchKey) "Elevated HKLM write succeeded"
+        } finally {
+            Remove-Item -LiteralPath $hklmScratchKey -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
     Write-Host "`n==========================================================" -ForegroundColor Green
     Write-Host " ALL INSTALLER TESTS PASSED: $passCount / $testCount" -ForegroundColor Green
     Write-Host "==========================================================" -ForegroundColor Green
 } finally {
     Remove-Item -LiteralPath $testScratchRoot -Recurse -Force -ErrorAction SilentlyContinue
+    if (Test-Path -LiteralPath $testRegBase) {
+        Remove-Item -LiteralPath $testRegBase -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }

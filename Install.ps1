@@ -26,6 +26,7 @@ param(
     [string]$ProjectPath,
     [string]$PublishDir,
     [string]$TaskPath = "\ScriptSuite\",
+    [string]$RegistryRoot = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
     [switch]$NoBuild,
     [switch]$NonInteractive
 )
@@ -60,6 +61,17 @@ if (-not $ShortcutPath) {
 if ($TaskPath -and -not $TaskPath.EndsWith("\")) {
     $TaskPath = "$TaskPath\"
 }
+if (-not $RegistryRoot) {
+    $RegistryRoot = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"
+}
+if ($RegistryRoot -match '^(HKLM|HKCU)\\' -and $RegistryRoot -notmatch '^[A-Za-z]+:\\') {
+    $RegistryRoot = $RegistryRoot -replace '^([A-Za-z]+)\\', '$1:\'
+}
+$uninstallKey = if ($RegistryRoot -match '\\ScriptSuite$') {
+    $RegistryRoot
+} else {
+    Join-Path $RegistryRoot "ScriptSuite"
+}
 
 # Prebuilt-exe mode detection: if ScriptSuite.exe exists next to Install.ps1,
 # we do not need ProjectPath or dotnet at all.
@@ -88,10 +100,49 @@ $logDir = Join-Path $env:ProgramData "ScriptSuite"
 if (-not (Test-Path -LiteralPath $logDir)) {
     try { New-Item -ItemType Directory -Path $logDir -Force | Out-Null } catch { }
 }
+if (-not (Test-Path -LiteralPath $logDir) -and $env:LOCALAPPDATA) {
+    $logDir = Join-Path $env:LOCALAPPDATA "ScriptSuite"
+    if (-not (Test-Path -LiteralPath $logDir)) {
+        try { New-Item -ItemType Directory -Path $logDir -Force | Out-Null } catch { }
+    }
+}
 $logPath = Join-Path $logDir "install.log"
 
+$needsElevation = $false
+$programFilesRoot = if ($env:ProgramFiles) { [System.IO.Path]::GetFullPath($env:ProgramFiles) } else { "" }
+$programDataRoot = if ($env:ProgramData) { [System.IO.Path]::GetFullPath($env:ProgramData) } else { "" }
+
+if ($InstallDir) {
+    try {
+        $fullInstall = [System.IO.Path]::GetFullPath($InstallDir)
+        if ($programFilesRoot -and $fullInstall.StartsWith($programFilesRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $needsElevation = $true
+        }
+    } catch { $needsElevation = $true }
+} else {
+    $needsElevation = $true
+}
+
+if ($ShortcutPath) {
+    try {
+        $fullShortcut = [System.IO.Path]::GetFullPath($ShortcutPath)
+        if ($programDataRoot -and $fullShortcut.StartsWith($programDataRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $needsElevation = $true
+        }
+    } catch { }
+} else {
+    $needsElevation = $true
+}
+
+if ($RegistryRoot -match '^HKLM' -or $uninstallKey -match '^HKLM') {
+    $needsElevation = $true
+}
+if ($TaskPath -eq "\ScriptSuite\" -or $TaskPath -eq "\ScriptSuite") {
+    $needsElevation = $true
+}
+
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-if (-not $isAdmin) {
+if ($needsElevation -and -not $isAdmin) {
     Write-Host "Elevating Install.ps1 via UAC..." -ForegroundColor Yellow
     $psExe = (Get-Process -Id $PID).Path
     $argList = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $scriptPath)
@@ -100,6 +151,7 @@ if (-not $isAdmin) {
     if ($PSBoundParameters.ContainsKey('ProjectPath')) { $argList += @("-ProjectPath", $ProjectPath) }
     if ($PSBoundParameters.ContainsKey('PublishDir')) { $argList += @("-PublishDir", $PublishDir) }
     if ($PSBoundParameters.ContainsKey('TaskPath')) { $argList += @("-TaskPath", $TaskPath) }
+    if ($PSBoundParameters.ContainsKey('RegistryRoot')) { $argList += @("-RegistryRoot", $RegistryRoot) }
     if ($NoBuild) { $argList += "-NoBuild" }
     if ($NonInteractive) { $argList += "-NonInteractive" }
 
@@ -202,6 +254,16 @@ try {
     Copy-Item -Path (Join-Path $PublishDir "*") -Destination $InstallDir -Recurse -Force
     $target = Join-Path $InstallDir "ScriptSuite.exe"
     if (-not (Test-Path -LiteralPath $target)) { throw "Expected exe missing after copy: $target" }
+
+    # Copy Uninstall scripts into $InstallDir if available in source directory
+    $sourceUninstallPs1 = Join-Path $scriptDir "Uninstall.ps1"
+    if (Test-Path -LiteralPath $sourceUninstallPs1) {
+        Copy-Item -LiteralPath $sourceUninstallPs1 -Destination (Join-Path $InstallDir "Uninstall.ps1") -Force
+    }
+    $sourceUninstallCmd = Join-Path $scriptDir "Uninstall.cmd"
+    if (Test-Path -LiteralPath $sourceUninstallCmd) {
+        Copy-Item -LiteralPath $sourceUninstallCmd -Destination (Join-Path $InstallDir "Uninstall.cmd") -Force
+    }
 
     # 4) Start Menu shortcut — what Windows Search indexes
     Write-InstallLog "Creating shortcut $ShortcutPath ..."
@@ -367,12 +429,50 @@ try {
         throw "Verification failed: Shortcut TargetPath mismatch (expected '$target', read back '$readBackShortcutTarget')"
     }
 
+    # 9) Register ScriptSuite in Windows "Installed apps"
+    Write-InstallLog "Registering ScriptSuite in Windows Installed apps ($uninstallKey)..."
+    $displayVersion = ($installedVersion -split '\+')[0].Trim()
+    $sizeBytes = 0
+    try {
+        $sizeBytes = (Get-ChildItem -LiteralPath $InstallDir -Recurse -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
+    } catch { }
+    $estimatedSizeKB = if ($sizeBytes -gt 0) { [int][math]::Round($sizeBytes / 1KB) } else { 0 }
+
+    $uninstallPs1Target = Join-Path $InstallDir "Uninstall.ps1"
+    $uninstallString = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$uninstallPs1Target`""
+
+    $parentKey = Split-Path $uninstallKey -Parent
+    if ($parentKey -and -not (Test-Path -LiteralPath $parentKey)) {
+        New-Item -ItemType Directory -Path $parentKey -Force | Out-Null
+    }
+    if (-not (Test-Path -LiteralPath $uninstallKey)) {
+        New-Item -ItemType Directory -Path $uninstallKey -Force | Out-Null
+    }
+
+    Set-ItemProperty -LiteralPath $uninstallKey -Name "DisplayName" -Value "ScriptSuite" -Type String
+    Set-ItemProperty -LiteralPath $uninstallKey -Name "DisplayVersion" -Value $displayVersion -Type String
+    Set-ItemProperty -LiteralPath $uninstallKey -Name "Publisher" -Value "Bllodwolfie" -Type String
+    Set-ItemProperty -LiteralPath $uninstallKey -Name "InstallLocation" -Value $InstallDir -Type String
+    Set-ItemProperty -LiteralPath $uninstallKey -Name "DisplayIcon" -Value $target -Type String
+    Set-ItemProperty -LiteralPath $uninstallKey -Name "UninstallString" -Value $uninstallString -Type String
+    Set-ItemProperty -LiteralPath $uninstallKey -Name "NoModify" -Value 1 -Type DWord
+    Set-ItemProperty -LiteralPath $uninstallKey -Name "NoRepair" -Value 1 -Type DWord
+    Set-ItemProperty -LiteralPath $uninstallKey -Name "EstimatedSize" -Value $estimatedSizeKB -Type DWord
+    Set-ItemProperty -LiteralPath $uninstallKey -Name "URLInfoAbout" -Value "https://github.com/Bllodwolfie/windows-scripts" -Type String
+
+    # Verify registry entry read back
+    $regCheck = Get-ItemProperty -LiteralPath $uninstallKey -ErrorAction SilentlyContinue
+    if (-not $regCheck -or $regCheck.DisplayName -ne "ScriptSuite") {
+        throw "Verification failed: Registry key not created at $uninstallKey"
+    }
+
     Write-Host ""
     Write-Host "=== ScriptSuite Installation Summary ===" -ForegroundColor Green
     Write-Host "  Installed Version: $installedVersion" -ForegroundColor Green
     Write-Host "  Task Migrations:   $migratedTasksCount migrated"
     Write-Host "  Config Trust:      $configTrustState"
     Write-Host "  Shortcut Target:   $readBackShortcutTarget"
+    Write-Host "  Installed Apps:    Registered ($uninstallKey)"
     Write-Host "  Result:            PASS" -ForegroundColor Green
     Write-Host "  Log:               $logPath" -ForegroundColor Gray
 
@@ -381,6 +481,7 @@ try {
     Write-InstallLog "  Task Migrations:   $migratedTasksCount migrated"
     Write-InstallLog "  Config Trust:      $configTrustState"
     Write-InstallLog "  Shortcut Target:   $readBackShortcutTarget"
+    Write-InstallLog "  Installed Apps:    Registered ($uninstallKey)"
     Write-InstallLog "  Result:            PASS"
     Write-InstallLog "  Log:               $logPath"
 

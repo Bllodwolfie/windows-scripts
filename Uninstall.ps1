@@ -15,6 +15,8 @@ param(
     [string]$InstallDir,
     [string]$ShortcutPath,
     [string]$TaskPath = "\ScriptSuite\",
+    [string]$RegistryRoot = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+    [switch]$FromTemp,
     [switch]$NonInteractive
 )
 
@@ -48,21 +50,160 @@ if (-not $ShortcutPath) {
 if ($TaskPath -and -not $TaskPath.EndsWith("\")) {
     $TaskPath = "$TaskPath\"
 }
+if (-not $RegistryRoot) {
+    $RegistryRoot = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"
+}
+if ($RegistryRoot -match '^(HKLM|HKCU)\\' -and $RegistryRoot -notmatch '^[A-Za-z]+:\\') {
+    $RegistryRoot = $RegistryRoot -replace '^([A-Za-z]+)\\', '$1:\'
+}
+$uninstallKey = if ($RegistryRoot -match '\\ScriptSuite$') {
+    $RegistryRoot
+} else {
+    Join-Path $RegistryRoot "ScriptSuite"
+}
 
 $logDir = Join-Path $env:ProgramData "ScriptSuite"
 if (-not (Test-Path -LiteralPath $logDir)) {
     try { New-Item -ItemType Directory -Path $logDir -Force | Out-Null } catch { }
 }
+if (-not (Test-Path -LiteralPath $logDir) -and $env:LOCALAPPDATA) {
+    $logDir = Join-Path $env:LOCALAPPDATA "ScriptSuite"
+    if (-not (Test-Path -LiteralPath $logDir)) {
+        try { New-Item -ItemType Directory -Path $logDir -Force | Out-Null } catch { }
+    }
+}
 $logPath = Join-Path $logDir "uninstall.log"
 
+$needsElevation = $false
+$programFilesRoot = if ($env:ProgramFiles) { [System.IO.Path]::GetFullPath($env:ProgramFiles) } else { "" }
+$programDataRoot = if ($env:ProgramData) { [System.IO.Path]::GetFullPath($env:ProgramData) } else { "" }
+
+if ($InstallDir) {
+    try {
+        $fullInstall = [System.IO.Path]::GetFullPath($InstallDir)
+        if ($programFilesRoot -and $fullInstall.StartsWith($programFilesRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $needsElevation = $true
+        }
+    } catch { $needsElevation = $true }
+} else {
+    $needsElevation = $true
+}
+
+if ($ShortcutPath) {
+    try {
+        $fullShortcut = [System.IO.Path]::GetFullPath($ShortcutPath)
+        if ($programDataRoot -and $fullShortcut.StartsWith($programDataRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $needsElevation = $true
+        }
+    } catch { }
+}
+
+if ($RegistryRoot -match '^HKLM' -or $uninstallKey -match '^HKLM') {
+    $needsElevation = $true
+}
+if ($TaskPath -eq "\ScriptSuite\" -or $TaskPath -eq "\ScriptSuite") {
+    $needsElevation = $true
+}
+
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-if (-not $isAdmin) {
+
+# Check if running from inside the install directory that is being uninstalled
+$realInstallDir = (Resolve-Path -LiteralPath $InstallDir -ErrorAction SilentlyContinue).Path
+if (-not $realInstallDir) { $realInstallDir = $InstallDir }
+$realScriptDir = (Resolve-Path -LiteralPath $scriptDir -ErrorAction SilentlyContinue).Path
+if (-not $realScriptDir) { $realScriptDir = $scriptDir }
+
+$isUnderInstallDir = $false
+if ($realInstallDir -and $realScriptDir) {
+    if ($realScriptDir.Equals($realInstallDir, [System.StringComparison]::OrdinalIgnoreCase) -or
+        $realScriptDir.StartsWith("$realInstallDir\", [System.StringComparison]::OrdinalIgnoreCase)) {
+        $isUnderInstallDir = $true
+    }
+}
+
+# If running from inside $InstallDir, copy to a temp directory and re-launch from temp
+if ($isUnderInstallDir -and -not $FromTemp) {
+    $tempDir = Join-Path $env:TEMP "ScriptSuite-Uninstall-$([Guid]::NewGuid().ToString('N'))"
+    New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
+    $tempScript = Join-Path $tempDir "Uninstall.ps1"
+    Copy-Item -LiteralPath $scriptPath -Destination $tempScript -Force
+
+    $psExe = (Get-Process -Id $PID).Path
+    $argList = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $tempScript)
+    $argList += @("-InstallDir", $InstallDir)
+    if ($PSBoundParameters.ContainsKey('ShortcutPath')) { $argList += @("-ShortcutPath", $ShortcutPath) }
+    if ($PSBoundParameters.ContainsKey('TaskPath')) { $argList += @("-TaskPath", $TaskPath) }
+    if ($PSBoundParameters.ContainsKey('RegistryRoot')) { $argList += @("-RegistryRoot", $RegistryRoot) }
+    if ($NonInteractive) { $argList += "-NonInteractive" }
+    $argList += "-FromTemp"
+
+    Set-Location $env:TEMP
+    [System.IO.Directory]::SetCurrentDirectory($env:TEMP)
+
+    $elevatedExitCode = 1
+    try {
+        $procArgs = @{
+            FilePath = $psExe
+            ArgumentList = $argList
+            PassThru = $true
+            Wait = $true
+        }
+        if ($needsElevation -and -not $isAdmin) {
+            Write-Host "Elevating Uninstall.ps1 via UAC from temp copy..." -ForegroundColor Yellow
+            $procArgs["Verb"] = "RunAs"
+        } else {
+            Write-Host "Re-launching Uninstall.ps1 from temp copy..." -ForegroundColor Yellow
+        }
+        $proc = Start-Process @procArgs
+        $elevatedExitCode = $proc.ExitCode
+    } catch [System.ComponentModel.Win32Exception] {
+        $win32Ex = $_.Exception -as [System.ComponentModel.Win32Exception]
+        $errorCode = if ($win32Ex) { $win32Ex.NativeErrorCode } else { 0 }
+        if ($errorCode -eq 1223) {
+            Write-Host ""
+            Write-Host "=== ScriptSuite Uninstallation Summary ===" -ForegroundColor Red
+            Write-Host "  Result: FAIL (UAC prompt declined)" -ForegroundColor Red
+            Write-Host "  Log:    $logPath" -ForegroundColor Gray
+            if (-not $NonInteractive -and [Environment]::UserInteractive) {
+                Write-Host ""
+                Read-Host -Prompt "Press Enter to exit..."
+            }
+            exit 1223
+        }
+        Write-Host ""
+        Write-Host "=== ScriptSuite Uninstallation Summary ===" -ForegroundColor Red
+        Write-Host "  Result: FAIL ($($_.Exception.Message))" -ForegroundColor Red
+        Write-Host "  Log:    $logPath" -ForegroundColor Gray
+        if (-not $NonInteractive -and [Environment]::UserInteractive) {
+            Write-Host ""
+            Read-Host -Prompt "Press Enter to exit..."
+        }
+        exit 1
+    } finally {
+        Remove-Item -LiteralPath $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    Write-Host ""
+    Write-Host "=== ScriptSuite Uninstallation Summary ===" -ForegroundColor $(if ($elevatedExitCode -eq 0) { "Green" } else { "Red" })
+    Write-Host "  Result: $(if ($elevatedExitCode -eq 0) { 'PASS' } else { 'FAIL' })" -ForegroundColor $(if ($elevatedExitCode -eq 0) { "Green" } else { "Red" })
+    Write-Host "  Log:    $logPath" -ForegroundColor Gray
+    if (-not $NonInteractive -and [Environment]::UserInteractive) {
+        Write-Host ""
+        Read-Host -Prompt "Press Enter to exit..."
+    }
+    exit $elevatedExitCode
+}
+
+# Standard elevation if running outside $InstallDir and not admin
+if ($needsElevation -and -not $isAdmin) {
     Write-Host "Elevating Uninstall.ps1 via UAC..." -ForegroundColor Yellow
     $psExe = (Get-Process -Id $PID).Path
     $argList = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $scriptPath)
     if ($PSBoundParameters.ContainsKey('InstallDir')) { $argList += @("-InstallDir", $InstallDir) }
     if ($PSBoundParameters.ContainsKey('ShortcutPath')) { $argList += @("-ShortcutPath", $ShortcutPath) }
     if ($PSBoundParameters.ContainsKey('TaskPath')) { $argList += @("-TaskPath", $TaskPath) }
+    if ($PSBoundParameters.ContainsKey('RegistryRoot')) { $argList += @("-RegistryRoot", $RegistryRoot) }
+    if ($FromTemp) { $argList += "-FromTemp" }
     if ($NonInteractive) { $argList += "-NonInteractive" }
 
     $elevatedExitCode = 1
@@ -135,6 +276,8 @@ try {
 } catch { }
 
 try {
+    Set-Location $env:TEMP
+    [System.IO.Directory]::SetCurrentDirectory($env:TEMP)
     Write-UninstallLog "Uninstalling ScriptSuite..." -ForegroundColor Cyan
 
     # 1) Stop running processes
@@ -233,12 +376,25 @@ try {
         }
     }
 
+    # 5) Remove Installed apps registry key
+    $registryRemoved = "Not present"
+    if (Test-Path -LiteralPath $uninstallKey) {
+        if ($PSCmdlet.ShouldProcess($uninstallKey, "Remove Installed apps registry key")) {
+            Remove-Item -LiteralPath $uninstallKey -Recurse -Force
+            Write-UninstallLog "  Removed registry key $uninstallKey"
+            $registryRemoved = "Removed"
+        }
+    }
+
     # Verification
     if (Test-Path -LiteralPath $InstallDir) {
         throw "Verification failed: Install directory still exists after removal: $InstallDir"
     }
     if (Test-Path -LiteralPath $ShortcutPath) {
         throw "Verification failed: Shortcut still exists after removal: $ShortcutPath"
+    }
+    if (Test-Path -LiteralPath $uninstallKey) {
+        throw "Verification failed: Registry key still exists after removal: $uninstallKey"
     }
 
     Write-UninstallLog "  Data preserved: $env:LOCALAPPDATA\ScriptSuite\ (history.db, configs)"
@@ -247,6 +403,7 @@ try {
     Write-Host "  Tasks Removed:    $unregisteredCount"
     Write-Host "  Shortcut:         $shortcutRemoved"
     Write-Host "  Install Dir:      $installDirRemoved"
+    Write-Host "  Registry Key:     $registryRemoved"
     Write-Host "  Data Preserved:   $env:LOCALAPPDATA\ScriptSuite\"
     Write-Host "  Result:           PASS" -ForegroundColor Green
     Write-Host "  Log:              $logPath" -ForegroundColor Gray
@@ -255,6 +412,7 @@ try {
     Write-UninstallLog "  Tasks Removed:    $unregisteredCount"
     Write-UninstallLog "  Shortcut:         $shortcutRemoved"
     Write-UninstallLog "  Install Dir:      $installDirRemoved"
+    Write-UninstallLog "  Registry Key:     $registryRemoved"
     Write-UninstallLog "  Data Preserved:   $env:LOCALAPPDATA\ScriptSuite\"
     Write-UninstallLog "  Result:           PASS"
     Write-UninstallLog "  Log:              $logPath"
