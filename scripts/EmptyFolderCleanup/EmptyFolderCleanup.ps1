@@ -1,4 +1,4 @@
-﻿# Recursively removes empty folders under TargetFolder.
+# Recursively removes empty folders under TargetFolder.
 # Loops repeatedly because deleting a folder can leave its now-empty parent
 # behind, which needs another pass to catch. Each pass tracks whether any
 # folder was actually deleted; if a pass removes nothing (e.g. a locked folder
@@ -35,11 +35,11 @@ if (Test-Path -LiteralPath $ConfigPath) {
         $loaded = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
         if ($null -ne $loaded) { $Config = $loaded } else { throw "empty config" }
     } catch {
-        Write-Warning "EmptyFolderCleanup config is corrupt or unreadable at $ConfigPath — using defaults (TargetFolder=$($Config.TargetFolder)). Check or reset the config via Settings."
+        Write-Warning "EmptyFolderCleanup config is corrupt or unreadable at $ConfigPath - using defaults (TargetFolder=$($Config.TargetFolder)). Check or reset the config via Settings."
     }
     $raw = (Get-Content -LiteralPath $ConfigPath -Raw -ErrorAction SilentlyContinue)
     if ($null -ne $raw -and $raw.Trim() -eq "") {
-        Write-Warning "EmptyFolderCleanup config is empty at $ConfigPath — using defaults (TargetFolder=$($Config.TargetFolder))."
+        Write-Warning "EmptyFolderCleanup config is empty at $ConfigPath - using defaults (TargetFolder=$($Config.TargetFolder))."
     }
 }
 
@@ -56,7 +56,7 @@ function Test-PathScope([string]$Path, [string]$ExpectedRoot) {
     # drive root, %SystemRoot%, %ProgramFiles%, %ProgramFiles(x86)%, %ProgramData%, %USERPROFILE%, %APPDATA%, %LOCALAPPDATA%, %LOCALAPPDATA%\ScriptSuite, install dir
     $driveRoot = [System.IO.Path]::GetPathRoot($full)
     if (-not [string]::IsNullOrEmpty($driveRoot) -and $norm.Equals($driveRoot.TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase)) {
-        Write-Error "Path '$clean' is a drive root — aborting."
+        Write-Error "Path '$clean' is a drive root - aborting."
         exit 1
     }
 
@@ -92,7 +92,7 @@ function Test-PathScope([string]$Path, [string]$ExpectedRoot) {
     foreach ($d in $deniedTargets) {
         if ($norm.Equals($d, [StringComparison]::OrdinalIgnoreCase) -or
             $d.StartsWith($norm + [System.IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
-            Write-Error "Path '$clean' is denylisted or an ancestor of protected path '$d' — aborting."
+            Write-Error "Path '$clean' is denylisted or an ancestor of protected path '$d' - aborting."
             exit 1
         }
     }
@@ -105,10 +105,10 @@ function Test-PathScope([string]$Path, [string]$ExpectedRoot) {
         if (-not $isInside) {
             $isElevated = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
             if ($isElevated) {
-                Write-Error "Path '$clean' is outside expected scope (expected under '$ExpectedRoot') — aborting (elevated execution)"
+                Write-Error "Path '$clean' is outside expected scope (expected under '$ExpectedRoot') - aborting (elevated execution)"
                 exit 1
             } else {
-                Write-Warning "Path '$clean' is outside expected scope (expected under '$ExpectedRoot') — proceeding anyway"
+                Write-Warning "Path '$clean' is outside expected scope (expected under '$ExpectedRoot') - proceeding anyway"
             }
         }
     }
@@ -152,10 +152,25 @@ foreach ($raw in $ignoreRaw) {
     if ($n) { $ignoreList += $n }
 }
 
+# Built-in ignored folder names (VCS, dependency, environment, and build artifact trees)
+$defaultIgnoreNames = @('.git', '.svn', '.hg', 'node_modules', 'vendor', '.venv', 'venv', '__pycache__', '.cargo', 'target', 'bin', 'obj')
+
 # True when $FullName is an ignored folder itself or lives under one.
 # A path outside the scan root simply never matches (harmless, no error).
 # Supplied IncludeOnly entries do NOT override this: ignore always wins.
 function Test-Ignored([string]$FullName) {
+    if ([string]::IsNullOrWhiteSpace($FullName)) { return $false }
+    $leaf = [System.IO.Path]::GetFileName($FullName.TrimEnd('\', '/'))
+    foreach ($def in $defaultIgnoreNames) {
+        if ($leaf.Equals($def, [StringComparison]::OrdinalIgnoreCase)) { return $true }
+    }
+    $parts = $FullName.Split([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+    foreach ($p in $parts) {
+        foreach ($def in $defaultIgnoreNames) {
+            if ($p.Equals($def, [StringComparison]::OrdinalIgnoreCase)) { return $true }
+        }
+    }
+
     if ($ignoreList.Count -eq 0) { return $false }
     $n = Normalize-IgnorePath $FullName
     if (-not $n) { return $false }
@@ -166,9 +181,29 @@ function Test-Ignored([string]$FullName) {
     return $false
 }
 
+# Fast pruned bottom-up directory collector: prunes ignored subtrees immediately
+# and sorts children before parents (longest/deepest path first)
+function Get-CandidateDirectories([string]$RootPath) {
+    $result = [System.Collections.Generic.List[string]]::new()
+    $queue = [System.Collections.Generic.Queue[string]]::new()
+    $queue.Enqueue($RootPath)
+
+    while ($queue.Count -gt 0) {
+        $current = $queue.Dequeue()
+        $subDirs = @(Get-ChildItem -LiteralPath $current -Directory -Force -ErrorAction SilentlyContinue)
+        foreach ($d in $subDirs) {
+            if (-not (Test-Ignored $d.FullName)) {
+                $result.Add($d.FullName)
+                $queue.Enqueue($d.FullName)
+            }
+        }
+    }
+    return @($result | Sort-Object { $_.Length } -Descending)
+}
+
 # Folder listing state: 'Empty' (lists cleanly, zero surviving children),
 # 'NonEmpty', or 'Inaccessible' (nothing listable AND at least one listing
-# error, e.g. ACL-denied — must never be mistaken for empty, since an
+# error, e.g. ACL-denied - must never be mistaken for empty, since an
 # unreadable folder also yields zero items). $Removed optionally hides
 # already-simulated-removed children (DryRun multi-pass); pass $null when
 # no simulation applies.
@@ -206,7 +241,7 @@ function ConvertTo-LongPath([string]$Path) {
 # unexpectedly non-empty at delete time (e.g. content landed between the
 # emptiness scan and this call) THROWS, routing through the warn/skip path
 # below instead of this silently deleting the new contents. Note: it deletes
-# permanently rather than to the Recycle Bin — but only genuinely EMPTY folders
+# permanently rather than to the Recycle Bin - but only genuinely EMPTY folders
 # are ever passed here, and an empty folder carries no data, so nothing
 # recoverable is lost.
 #
@@ -263,8 +298,9 @@ function Remove-EmptyFolder([string]$Path) {
 # Target folder from config; fall back to the original Downloads default if
 # the config is missing or empty (e.g. an older config file without the field).
 $path    = if ($Config.TargetFolder) { Expand-ConfigPath $Config.TargetFolder } else { "$env:USERPROFILE\Downloads" }
-$logDir  = Expand-ConfigPath $Config.LogDir
-$logFile = Join-Path $logDir $Config.LogFile
+$logDir  = if ($Config.LogDir) { Expand-ConfigPath $Config.LogDir } else { "$env:USERPROFILE\Documents\Script_Logs" }
+$logName = if ($Config.LogFile) { $Config.LogFile } else { "CleanupLog.txt" }
+$logFile = Join-Path $logDir $logName
 
 Test-PathScope $path "$env:USERPROFILE"
 if ($logDir) { Test-PathScope $logDir "$env:USERPROFILE" }
@@ -278,100 +314,81 @@ function Write-Log($message) {
 
 if (Test-Path -LiteralPath $path) {
     if ($DryRun) {
-        # Simulate the multi-pass loop: repeatedly find currently-empty folders,
-        # "remove" them from a set (not the disk), and keep scanning until no
-        # more become empty. This yields the same folder set the real run would
-        # delete (including parents that only become empty after their empty
-        # children are removed), as structured objects for the app's preview.
+        # Simulate deletion bottom-up (children before parents): prune ignored
+        # trees immediately, "remove" empty folders from a simulated set,
+        # so parents emptied by deleted children preview accurately in a single pass.
         $simRemoved = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-        # Inaccessible folders are never delete candidates. Surface them once
-        # as Skip items instead of letting them spoof "empty" in the preview
-        # (an ACL-denied folder lists zero items, exactly like an empty one).
         $reportedInaccessible = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-        Get-ChildItem -LiteralPath $path -Directory -Force -Recurse -ErrorAction SilentlyContinue |
-            Where-Object { -not (Test-Ignored $_.FullName) -and (Test-Selected $_.FullName) } |
-            ForEach-Object {
-                if ((Get-FolderState $_.FullName $null) -eq 'Inaccessible' -and $reportedInaccessible.Add($_.FullName)) {
+        $candidates = Get-CandidateDirectories $path
+
+        foreach ($dirPath in $candidates) {
+            if ((Test-Selected $dirPath) -and (Get-FolderState $dirPath $null) -eq 'Inaccessible' -and $reportedInaccessible.Add($dirPath)) {
+                [PSCustomObject]@{
+                    Action = 'Skip'
+                    Target = $dirPath
+                    Detail = 'inaccessible (access denied or locked), would be skipped'
+                }
+            }
+        }
+
+        foreach ($dirPath in $candidates) {
+            if (-not $simRemoved.Contains($dirPath) -and (Test-Selected $dirPath)) {
+                if ((Get-FolderState $dirPath $simRemoved) -eq 'Empty') {
+                    [void]$simRemoved.Add($dirPath)
                     [PSCustomObject]@{
-                        Action = 'Skip'
-                        Target = $_.FullName
-                        Detail = 'inaccessible (access denied or locked), would be skipped'
+                        Action = 'Delete'
+                        Target = $dirPath
+                        Detail = 'empty folder'
                     }
                 }
             }
-        $changed = $true
-        while ($changed) {
-            $changed = $false
-            $empty = @(Get-ChildItem -LiteralPath $path -Directory -Force -Recurse -ErrorAction SilentlyContinue |
-                Where-Object {
-                    -not $simRemoved.Contains($_.FullName) -and
-                    -not (Test-Ignored $_.FullName) -and
-                    (Test-Selected $_.FullName) -and
-                    (Get-FolderState $_.FullName $simRemoved) -eq 'Empty'
-                })
-            foreach ($dir in $empty) {
-                [void]$simRemoved.Add($dir.FullName)
-                $changed = $true
-                [PSCustomObject]@{
-                    Action = 'Delete'
-                    Target = $dir.FullName
-                    Detail = 'empty folder'
-                }
-            }
         }
-        exit
+        return
     }
 
     Write-Log "Cleanup started"
-    # Inaccessible folders are never delete candidates (see DryRun note
-    # above): warn once here instead of attempting doomed deletes against them.
-    foreach ($dir in @(Get-ChildItem -LiteralPath $path -Directory -Force -Recurse -ErrorAction SilentlyContinue |
-        Where-Object { -not (Test-Ignored $_.FullName) -and (Test-Selected $_.FullName) -and (Get-FolderState $_.FullName $null) -eq 'Inaccessible' })) {
-        Write-Warning "Skipping inaccessible folder: $($dir.FullName)"
+    $candidates = Get-CandidateDirectories $path
+
+    # Inaccessible folders are never delete candidates: warn once here
+    foreach ($dirPath in $candidates) {
+        if ((Test-Selected $dirPath) -and (Get-FolderState $dirPath $null) -eq 'Inaccessible') {
+            Write-Warning "Skipping inaccessible folder: $dirPath"
+        }
     }
-    do {
-        # Find all subfolders (recursively) that currently contain zero items
-        $empty = @(Get-ChildItem -LiteralPath $path -Directory -Force -Recurse -ErrorAction SilentlyContinue |
-            Where-Object {
-                -not (Test-Ignored $_.FullName) -and
-                (Test-Selected $_.FullName) -and
-                (Get-FolderState $_.FullName $null) -eq 'Empty'
-            })
 
-        $deletedAnything = $false
-        $undeletable = @()
-        foreach ($dir in $empty) {
-            $fullName = $dir.FullName
+    $undeletable = @()
+    foreach ($dirPath in $candidates) {
+        if ((Test-Selected $dirPath) -and (Get-FolderState $dirPath $null) -eq 'Empty') {
             try {
-                Remove-EmptyFolder $fullName
+                Remove-EmptyFolder $dirPath
             } catch {}
-            if (Test-Path -LiteralPath $fullName) {
+            if (Test-Path -LiteralPath $dirPath) {
                 # Still there after the delete attempt -> locked or protected
-                $undeletable += $fullName
+                $undeletable += $dirPath
             } else {
-                $deletedAnything = $true
-                Write-Log "DELETED : $fullName"
+                Write-Log "DELETED : $dirPath"
             }
         }
+    }
 
-        if ($undeletable.Count -gt 0) {
-            foreach ($u in $undeletable) {
-                Write-Warning "Could not remove empty folder: $u"
-                # R7: structured failure for UI/history — matches Action/Target/Detail pattern + Path/Reason/Status
-                [PSCustomObject]@{
-                    Action = 'Delete'
-                    Target = $u
-                    Detail = 'Failed: locked or long path or protected'
-                    Path   = $u
-                    Reason = 'locked or long path or protected'
-                    Status = 'Failed'
-                }
+    if ($undeletable.Count -gt 0) {
+        foreach ($u in $undeletable) {
+            Write-Warning "Could not remove empty folder: $u"
+            # R7: structured failure for UI/history - matches Action/Target/Detail pattern + Path/Reason/Status
+            [PSCustomObject]@{
+                Action = 'Delete'
+                Target = $u
+                Detail = 'Failed: locked or long path or protected'
+                Path   = $u
+                Reason = 'locked or long path or protected'
+                Status = 'Failed'
             }
         }
-    } while ($deletedAnything)
-    # Ignored folders stay empty on disk by design — exclude them here too, or
+    }
+
+    # Ignored folders stay empty on disk by design - exclude them here too, or
     # a run that correctly kept them would still report Warning + Summary.
-    $remainingEmpty = @(Get-ChildItem -LiteralPath $path -Directory -Force -Recurse -ErrorAction SilentlyContinue | Where-Object { -not (Test-Ignored $_.FullName) -and (Get-FolderState $_.FullName $null) -eq 'Empty' }).Count
+    $remainingEmpty = @(Get-CandidateDirectories $path | Where-Object { (Get-FolderState $_ $null) -eq 'Empty' }).Count
     if ($remainingEmpty -gt 0) {
         Write-Warning "$remainingEmpty empty folder(s) could not be removed (long path or locked)"
         [PSCustomObject]@{
