@@ -79,6 +79,8 @@ public sealed class SettingsFormViewModel : ViewModelBase
     {
         if (doc.TryGetPropertyValue(field.Name, out var v) && v is not null && v.GetValueKind() != JsonValueKind.Null)
             return v.DeepClone();
+        if (field.Name == "TargetFolders" && doc.TryGetPropertyValue("TargetFolder", out var legacy) && legacy is not null && legacy.GetValueKind() == JsonValueKind.String)
+            return new JsonArray(legacy.DeepClone());
         return null; // SettingsFieldViewModel falls back to the manifest default
     }
 }

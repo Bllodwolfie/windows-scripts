@@ -25,9 +25,9 @@ function Test-Selected([string]$FullName) {
 
 # Fallback defaults, used only when the config file is missing (see TempCleanup).
 $Config = @{
-    TargetFolder = "$env:USERPROFILE\Downloads"
-    LogDir       = "$env:USERPROFILE\Documents\Script_Logs"
-    LogFile      = "CleanupLog.txt"
+    TargetFolders = @("$env:USERPROFILE\Downloads")
+    LogDir        = "$env:USERPROFILE\Documents\Script_Logs"
+    LogFile       = "CleanupLog.txt"
 }
 
 if (Test-Path -LiteralPath $ConfigPath) {
@@ -35,11 +35,11 @@ if (Test-Path -LiteralPath $ConfigPath) {
         $loaded = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
         if ($null -ne $loaded) { $Config = $loaded } else { throw "empty config" }
     } catch {
-        Write-Warning "EmptyFolderCleanup config is corrupt or unreadable at $ConfigPath - using defaults (TargetFolder=$($Config.TargetFolder)). Check or reset the config via Settings."
+        Write-Warning "EmptyFolderCleanup config is corrupt or unreadable at $ConfigPath - using defaults. Check or reset the config via Settings."
     }
     $raw = (Get-Content -LiteralPath $ConfigPath -Raw -ErrorAction SilentlyContinue)
     if ($null -ne $raw -and $raw.Trim() -eq "") {
-        Write-Warning "EmptyFolderCleanup config is empty at $ConfigPath - using defaults (TargetFolder=$($Config.TargetFolder))."
+        Write-Warning "EmptyFolderCleanup config is empty at $ConfigPath - using defaults."
     }
 }
 
@@ -336,16 +336,33 @@ function Remove-EmptyFolder([string]$Path) {
     }
 }
 
-# Target folder from config; fall back to the original Downloads default if
-# the config is missing or empty (e.g. an older config file without the field).
-$path    = if ($Config.TargetFolder) { Expand-ConfigPath $Config.TargetFolder } else { "$env:USERPROFILE\Downloads" }
+# Target folders resolution (backward-compatible):
+# If both TargetFolders and TargetFolder exist, TargetFolders wins.
+# If only legacy TargetFolder exists, treat it as a single-item list.
+# Never silently rewrite old configs.
+$rawRoots = @()
+if ($Config -is [hashtable]) {
+    if ($Config.ContainsKey("TargetFolders") -and $null -ne $Config["TargetFolders"]) {
+        $rawRoots = @($Config["TargetFolders"])
+    } elseif ($Config.ContainsKey("TargetFolder") -and $null -ne $Config["TargetFolder"]) {
+        $rawRoots = @($Config["TargetFolder"])
+    }
+} elseif ($null -ne $Config.PSObject) {
+    if ($null -ne $Config.PSObject.Properties["TargetFolders"] -and $null -ne $Config.TargetFolders) {
+        $rawRoots = @($Config.TargetFolders)
+    } elseif ($null -ne $Config.PSObject.Properties["TargetFolder"] -and $null -ne $Config.TargetFolder) {
+        $rawRoots = @($Config.TargetFolder)
+    }
+}
+if ($rawRoots.Count -eq 0) {
+    $rawRoots = @("$env:USERPROFILE\Downloads")
+}
+
 $logDir  = if ($Config.LogDir) { Expand-ConfigPath $Config.LogDir } else { "$env:USERPROFILE\Documents\Script_Logs" }
 $logName = if ($Config.LogFile) { $Config.LogFile } else { "CleanupLog.txt" }
 $logFile = Join-Path $logDir $logName
 
-Test-PathScope $path "$env:USERPROFILE"
 if ($logDir) { Test-PathScope $logDir "$env:USERPROFILE" }
-
 $null = New-Item -ItemType Directory -Path $logDir -Force -ErrorAction SilentlyContinue
 
 function Write-Log($message) {
@@ -353,14 +370,64 @@ function Write-Log($message) {
     "[$timestamp] $message" | Out-File -FilePath $logFile -Append -Encoding utf8
 }
 
-if (Test-Path -LiteralPath $path) {
-    if ($DryRun) {
-        # Simulate deletion bottom-up (children before parents): prune ignored
-        # trees immediately, "remove" empty folders from a simulated set,
-        # so parents emptied by deleted children preview accurately in a single pass.
-        $simRemoved = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-        $reportedInaccessible = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-        $candidates = Get-CandidateDirectories $path
+# Every root goes through Test-PathScope and the denylist individually;
+# any denylisted root aborts the whole run before anything is deleted (hard abort).
+$normalizedRoots = [System.Collections.Generic.List[string]]::new()
+$seenRoots = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+foreach ($r in $rawRoots) {
+    if ([string]::IsNullOrWhiteSpace($r)) { continue }
+    $expanded = Expand-ConfigPath ([string]$r)
+    Test-PathScope $expanded "$env:USERPROFILE"
+    $norm = try { [System.IO.Path]::GetFullPath($expanded).TrimEnd('\', '/') } catch { $expanded.TrimEnd('\', '/') }
+    if ($seenRoots.Add($norm)) {
+        $normalizedRoots.Add($norm)
+    } else {
+        Write-Warning "Dropping duplicate target folder: '$norm'"
+    }
+}
+
+# De-duplicate roots: drop a root that lies inside another listed root
+$sortedRoots = @($normalizedRoots | Sort-Object { $_.Length })
+$filteredRoots = [System.Collections.Generic.List[string]]::new()
+
+foreach ($candidate in $sortedRoots) {
+    $isNested = $false
+    foreach ($existing in $filteredRoots) {
+        if ($candidate.StartsWith($existing + [System.IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase) -or
+            $candidate.StartsWith($existing + [System.IO.Path]::AltDirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+            $isNested = $true
+            Write-Warning "Dropping nested target folder '$candidate' because it is inside '$existing'"
+            break
+        }
+    }
+    if (-not $isNested) {
+        $filteredRoots.Add($candidate)
+    }
+}
+
+# Skip roots that do not exist with a warning, no failure unless ALL roots are missing.
+$validRoots = [System.Collections.Generic.List[string]]::new()
+foreach ($root in $filteredRoots) {
+    if (Test-Path -LiteralPath $root) {
+        $validRoots.Add($root)
+    } else {
+        Write-Warning "Target folder does not exist: '$root'"
+    }
+}
+
+if ($validRoots.Count -eq 0) {
+    Write-Error "No valid target folders exist to process - aborting."
+    exit 1
+}
+
+if ($DryRun) {
+    # Simulate deletion bottom-up across all valid roots
+    $simRemoved = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $reportedInaccessible = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+    foreach ($rootPath in $validRoots) {
+        $candidates = Get-CandidateDirectories $rootPath
 
         foreach ($dirPath in $candidates) {
             if ((Test-Selected $dirPath) -and (Get-FolderState $dirPath $null) -eq 'Inaccessible' -and $reportedInaccessible.Add($dirPath)) {
@@ -384,11 +451,17 @@ if (Test-Path -LiteralPath $path) {
                 }
             }
         }
-        return
     }
+    return
+}
 
-    Write-Log "Cleanup started"
-    $candidates = Get-CandidateDirectories $path
+Write-Log "Cleanup started ($($validRoots.Count) root(s) to process)"
+$totalDeleted = 0
+$allUndeletable = [System.Collections.Generic.List[string]]::new()
+$totalRemainingEmpty = 0
+
+foreach ($rootPath in $validRoots) {
+    $candidates = Get-CandidateDirectories $rootPath
 
     # Inaccessible folders are never delete candidates: warn once here
     foreach ($dirPath in $candidates) {
@@ -397,7 +470,6 @@ if (Test-Path -LiteralPath $path) {
         }
     }
 
-    $undeletable = @()
     foreach ($dirPath in $candidates) {
         if ((Test-Selected $dirPath) -and (Get-FolderState $dirPath $null) -eq 'Empty') {
             try {
@@ -405,41 +477,44 @@ if (Test-Path -LiteralPath $path) {
             } catch {}
             if (Test-Path -LiteralPath $dirPath) {
                 # Still there after the delete attempt -> locked or protected
-                $undeletable += $dirPath
+                $allUndeletable.Add($dirPath)
             } else {
+                $totalDeleted++
                 Write-Log "DELETED : $dirPath"
             }
         }
     }
 
-    if ($undeletable.Count -gt 0) {
-        foreach ($u in $undeletable) {
-            Write-Warning "Could not remove empty folder: $u"
-            # R7: structured failure for UI/history - matches Action/Target/Detail pattern + Path/Reason/Status
-            [PSCustomObject]@{
-                Action = 'Delete'
-                Target = $u
-                Detail = 'Failed: locked or long path or protected'
-                Path   = $u
-                Reason = 'locked or long path or protected'
-                Status = 'Failed'
-            }
-        }
-    }
-
-    # Ignored folders stay empty on disk by design - exclude them here too, or
-    # a run that correctly kept them would still report Warning + Summary.
-    $remainingEmpty = @(Get-CandidateDirectories $path | Where-Object { (Get-FolderState $_ $null) -eq 'Empty' }).Count
-    if ($remainingEmpty -gt 0) {
-        Write-Warning "$remainingEmpty empty folder(s) could not be removed (long path or locked)"
-        [PSCustomObject]@{
-            Action = 'Summary'
-            Target = $path
-            Detail = "$remainingEmpty empty folder(s) could not be removed (long path or locked)"
-            Path   = $path
-            Reason = 'remaining empty folders after passes'
-            Status = 'Warning'
-        }
-    }
-    Write-Log "Cleanup finished"
+    $rem = @(Get-CandidateDirectories $rootPath | Where-Object { (Get-FolderState $_ $null) -eq 'Empty' }).Count
+    $totalRemainingEmpty += $rem
 }
+
+if ($allUndeletable.Count -gt 0) {
+    foreach ($u in $allUndeletable) {
+        Write-Warning "Could not remove empty folder: $u"
+        # R7: structured failure for UI/history - matches Action/Target/Detail pattern + Path/Reason/Status
+        [PSCustomObject]@{
+            Action = 'Delete'
+            Target = $u
+            Detail = 'Failed: locked or long path or protected'
+            Path   = $u
+            Reason = 'locked or long path or protected'
+            Status = 'Failed'
+        }
+    }
+}
+
+if ($totalRemainingEmpty -gt 0) {
+    Write-Warning "$totalRemainingEmpty empty folder(s) could not be removed (long path or locked)"
+    [PSCustomObject]@{
+        Action = 'Summary'
+        Target = ($validRoots -join '; ')
+        Detail = "$totalRemainingEmpty empty folder(s) could not be removed (long path or locked)"
+        Path   = ($validRoots -join '; ')
+        Reason = 'remaining empty folders after passes'
+        Status = 'Warning'
+    }
+}
+
+Write-Host "EmptyFolderCleanup: $totalDeleted deleted across $($validRoots.Count) root(s) processed."
+Write-Log "Cleanup finished ($totalDeleted deleted across $($validRoots.Count) root(s) processed)"

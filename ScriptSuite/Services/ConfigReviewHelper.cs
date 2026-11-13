@@ -42,8 +42,17 @@ public static class ConfigReviewHelper
             }
             case "EmptyFolderCleanup":
             {
-                string target = root["TargetFolder"]?.ToString() ?? "%USERPROFILE%";
-                actionSummary = $"Will delete empty folders under '{target}'.";
+                string targetDesc;
+                if (root["TargetFolders"] is JsonArray arr && arr.Count > 0)
+                {
+                    var items = arr.Select(x => x?.ToString() ?? "").Where(s => !string.IsNullOrEmpty(s)).ToList();
+                    targetDesc = items.Count == 1 ? $"'{items[0]}'" : string.Join(", ", items.Select(i => $"'{i}'"));
+                }
+                else
+                {
+                    targetDesc = $"'{root["TargetFolder"]?.ToString() ?? "%USERPROFILE%\\Downloads"}'";
+                }
+                actionSummary = $"Will delete empty folders under {targetDesc}.";
                 break;
             }
             case "EmptyRecycleBin":

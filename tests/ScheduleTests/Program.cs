@@ -59,6 +59,7 @@ public class Program
             Test15_EmptyFolderCleanup_DevTreePruning(testRoot);
             Test16_EmptyFolderCleanup_ReparsePointSkip(testRoot);
             Test17_EmptyFolderCleanup_RelativeIgnoreNames(testRoot);
+            Test18_EmptyFolderCleanup_MultiFolder(testRoot);
         }
         finally
         {
@@ -790,5 +791,156 @@ public class Program
 
         Assert(!Directory.Exists(emptySub), "empty_sub was deleted in real run under ancestor bin");
         Assert(Directory.Exists(nodeModulesChild), "node_modules/empty_child was kept in real run");
+    }
+
+    // 18. EmptyFolderCleanup Multi-Folder Support
+    private static void Test18_EmptyFolderCleanup_MultiFolder(string testRoot)
+    {
+        Console.WriteLine("\n--- Test 18: EmptyFolderCleanup Multi-Folder Support ---");
+        string repoRoot = FindRepoRoot();
+        string scriptPath = Path.Combine(repoRoot, @"scripts\EmptyFolderCleanup\EmptyFolderCleanup.ps1");
+        string logDir = Path.Combine(testRoot, "logs_multi");
+
+        // Subtest 1: Legacy single-TargetFolder config
+        string legacyTarget = Path.Combine(testRoot, "efc_legacy");
+        string legacyEmpty = Path.Combine(legacyTarget, "empty_leg");
+        Directory.CreateDirectory(legacyEmpty);
+        string cfgLegacy = Path.Combine(testRoot, "efc_cfg_legacy.json");
+        File.WriteAllText(cfgLegacy, $"{{\"TargetFolder\": \"{legacyTarget.Replace("\\", "\\\\")}\", \"LogDir\": \"{logDir.Replace("\\", "\\\\")}\", \"LogFile\": \"CleanupLog.txt\"}}");
+
+        var psiLegacy = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"& '{scriptPath}' -ConfigPath '{cfgLegacy}' | Out-String -Width 4096\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        using (var p = Process.Start(psiLegacy)!) { p.WaitForExit(); }
+        Assert(!Directory.Exists(legacyEmpty), "Legacy single-TargetFolder config deletes empty folder");
+
+        // Subtest 2: Two roots both processed
+        string root1 = Path.Combine(testRoot, "efc_multi1");
+        string root2 = Path.Combine(testRoot, "efc_multi2");
+        string empty1 = Path.Combine(root1, "empty1");
+        string empty2 = Path.Combine(root2, "empty2");
+        Directory.CreateDirectory(empty1);
+        Directory.CreateDirectory(empty2);
+
+        string cfgMulti = Path.Combine(testRoot, "efc_cfg_multi.json");
+        File.WriteAllText(cfgMulti, $"{{\"TargetFolders\": [\"{root1.Replace("\\", "\\\\")}\", \"{root2.Replace("\\", "\\\\")}\"], \"LogDir\": \"{logDir.Replace("\\", "\\\\")}\", \"LogFile\": \"CleanupLog.txt\"}}");
+
+        var psiDryMulti = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"& '{scriptPath}' -DryRun -ConfigPath '{cfgMulti}' | Out-String -Width 4096\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        string dryOutMulti;
+        using (var p = Process.Start(psiDryMulti)!) { dryOutMulti = p.StandardOutput.ReadToEnd(); p.WaitForExit(); }
+        Assert(dryOutMulti.Contains("empty1") && dryOutMulti.Contains("empty2"), "Two roots both processed in DryRun");
+
+        var psiRealMulti = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"& '{scriptPath}' -ConfigPath '{cfgMulti}' | Out-String -Width 4096\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        string realOutMulti;
+        using (var p = Process.Start(psiRealMulti)!) { realOutMulti = p.StandardOutput.ReadToEnd(); p.WaitForExit(); }
+        Assert(!Directory.Exists(empty1) && !Directory.Exists(empty2), "Two roots both processed and deleted in real run");
+        Assert(realOutMulti.Contains("across 2 root(s) processed"), "Summary states 2 roots were processed");
+
+        // Subtest 3: Overlapping roots de-duplicated
+        string parentRoot = Path.Combine(testRoot, "efc_overlap_parent");
+        string childRoot = Path.Combine(parentRoot, "child_dir");
+        string emptyParent = Path.Combine(parentRoot, "empty_parent");
+        string emptyChild = Path.Combine(childRoot, "empty_child");
+        Directory.CreateDirectory(emptyParent);
+        Directory.CreateDirectory(emptyChild);
+
+        string cfgOverlap = Path.Combine(testRoot, "efc_cfg_overlap.json");
+        File.WriteAllText(cfgOverlap, $"{{\"TargetFolders\": [\"{parentRoot.Replace("\\", "\\\\")}\", \"{childRoot.Replace("\\", "\\\\")}\", \"{parentRoot.Replace("\\", "\\\\")}\"], \"LogDir\": \"{logDir.Replace("\\", "\\\\")}\", \"LogFile\": \"CleanupLog.txt\"}}");
+
+        var psiOverlap = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"& '{scriptPath}' -ConfigPath '{cfgOverlap}' 3>&1 | Out-String -Width 4096\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        string overlapOut;
+        using (var p = Process.Start(psiOverlap)!) { overlapOut = p.StandardOutput.ReadToEnd(); p.WaitForExit(); }
+        Assert(overlapOut.Contains("duplicate") || overlapOut.Contains("nested"), "Overlapping and duplicate roots generate drop warnings");
+        Assert(!Directory.Exists(emptyParent) && !Directory.Exists(emptyChild), "Empty folders under parent and nested child roots deleted cleanly");
+
+        // Subtest 4: One denylisted root aborts everything before any delete
+        string safeRoot = Path.Combine(testRoot, "efc_safe_root");
+        string mustKeep = Path.Combine(safeRoot, "must_not_delete");
+        Directory.CreateDirectory(mustKeep);
+
+        string cfgDeny = Path.Combine(testRoot, "efc_cfg_deny.json");
+        File.WriteAllText(cfgDeny, $"{{\"TargetFolders\": [\"{safeRoot.Replace("\\", "\\\\")}\", \"C:\\\\\"], \"LogDir\": \"{logDir.Replace("\\", "\\\\")}\", \"LogFile\": \"CleanupLog.txt\"}}");
+
+        var psiDeny = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"& '{scriptPath}' -ConfigPath '{cfgDeny}' | Out-String -Width 4096\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        int denyExit;
+        using (var p = Process.Start(psiDeny)!) { p.WaitForExit(); denyExit = p.ExitCode; }
+        Assert(denyExit != 0, "Denylisted root aborts run with non-zero exit code");
+        Assert(Directory.Exists(mustKeep), "Nothing was deleted when a denylisted root was present");
+
+        // Subtest 5: Missing root warns and continues
+        string existRoot = Path.Combine(testRoot, "efc_exist_root");
+        string emptyExist = Path.Combine(existRoot, "empty_exist");
+        string missingRoot = Path.Combine(testRoot, "efc_missing_dir_12345");
+        Directory.CreateDirectory(emptyExist);
+
+        string cfgMissing = Path.Combine(testRoot, "efc_cfg_missing.json");
+        File.WriteAllText(cfgMissing, $"{{\"TargetFolders\": [\"{missingRoot.Replace("\\", "\\\\")}\", \"{existRoot.Replace("\\", "\\\\")}\"], \"LogDir\": \"{logDir.Replace("\\", "\\\\")}\", \"LogFile\": \"CleanupLog.txt\"}}");
+
+        var psiMissing = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"& '{scriptPath}' -ConfigPath '{cfgMissing}' 3>&1 | Out-String -Width 4096\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        string missingOut;
+        using (var p = Process.Start(psiMissing)!) { missingOut = p.StandardOutput.ReadToEnd(); p.WaitForExit(); }
+        Assert(missingOut.Contains("does not exist"), "Missing root produces warning");
+        Assert(!Directory.Exists(emptyExist), "Existing root was processed and empty folder deleted despite missing sibling root");
+
+        // Subtest 6: DryRun list equals what the real run deletes on a scratch tree
+        string parityRoot = Path.Combine(testRoot, "efc_parity_root");
+        string parityP = Path.Combine(parityRoot, "p_empty");
+        string parityC = Path.Combine(parityP, "c_empty");
+        Directory.CreateDirectory(parityC);
+
+        string cfgParity = Path.Combine(testRoot, "efc_cfg_parity.json");
+        File.WriteAllText(cfgParity, $"{{\"TargetFolders\": [\"{parityRoot.Replace("\\", "\\\\")}\"], \"LogDir\": \"{logDir.Replace("\\", "\\\\")}\", \"LogFile\": \"CleanupLog.txt\"}}");
+
+        var psiDryParity = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"& '{scriptPath}' -DryRun -ConfigPath '{cfgParity}' | Out-String -Width 4096\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        string dryParity;
+        using (var p = Process.Start(psiDryParity)!) { dryParity = p.StandardOutput.ReadToEnd(); p.WaitForExit(); }
+        int dryCount = 0;
+        foreach (var line in dryParity.Split('\n'))
+        {
+            if (line.Trim().StartsWith("Delete")) dryCount++;
+        }
+
+        var psiRealParity = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"& '{scriptPath}' -ConfigPath '{cfgParity}' | Out-String -Width 4096\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        using (var p = Process.Start(psiRealParity)!) { p.WaitForExit(); }
+        Assert(dryCount == 2, $"DryRun predicted 2 folder deletions (actual: {dryCount})");
+        Assert(!Directory.Exists(parityC) && !Directory.Exists(parityP), "Real run deleted both nested empty folders matching DryRun prediction");
     }
 }
