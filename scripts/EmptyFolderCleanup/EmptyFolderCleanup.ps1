@@ -182,16 +182,38 @@ function Test-Ignored([string]$FullName) {
 }
 
 # Fast pruned bottom-up directory collector: prunes ignored subtrees immediately
-# and sorts children before parents (longest/deepest path first)
+# and sorts children before parents (longest/deepest path first).
+# Reparse points (junctions, symlinks) are never enqueued, listed, or descended.
 function Get-CandidateDirectories([string]$RootPath) {
     $result = [System.Collections.Generic.List[string]]::new()
     $queue = [System.Collections.Generic.Queue[string]]::new()
-    $queue.Enqueue($RootPath)
+    $visited = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+    if ([string]::IsNullOrWhiteSpace($RootPath)) { return @() }
+    $normRoot = try { [System.IO.Path]::GetFullPath($RootPath).TrimEnd('\', '/') } catch { $RootPath.TrimEnd('\', '/') }
+
+    $rootItem = Get-Item -LiteralPath $normRoot -Force -ErrorAction SilentlyContinue
+    if ($rootItem -and (($rootItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) {
+        Write-Warning "Scan root '$RootPath' is a reparse point - skipping."
+        return @()
+    }
+
+    [void]$visited.Add($normRoot)
+    $queue.Enqueue($normRoot)
 
     while ($queue.Count -gt 0) {
         $current = $queue.Dequeue()
         $subDirs = @(Get-ChildItem -LiteralPath $current -Directory -Force -ErrorAction SilentlyContinue)
         foreach ($d in $subDirs) {
+            # Skip directories with ReparsePoint attribute (junctions, symlinks):
+            # never enqueue them, never list them as delete candidates, never descend.
+            if (($d.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+                continue
+            }
+            # Guard against cycles
+            if (-not $visited.Add($d.FullName)) {
+                continue
+            }
             if (-not (Test-Ignored $d.FullName)) {
                 $result.Add($d.FullName)
                 $queue.Enqueue($d.FullName)

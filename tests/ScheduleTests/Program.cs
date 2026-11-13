@@ -57,6 +57,7 @@ public class Program
             Test13_RunHistoryStore_SchemaMigrationAndPrune(testRoot);
             Test14_DownloadsCleanup_PacketTracerCategory();
             Test15_EmptyFolderCleanup_DevTreePruning(testRoot);
+            Test16_EmptyFolderCleanup_ReparsePointSkip(testRoot);
         }
         finally
         {
@@ -672,5 +673,72 @@ public class Program
 
         Assert(stdout.Contains("empty_valid"), $"DryRun preview includes empty_valid (stdout: '{stdout.Trim()}', stderr: '{stderr.Trim()}')");
         Assert(!stdout.Contains("empty_sub"), "DryRun preview prunes/ignores node_modules/empty_sub");
+    }
+
+    // 16. EmptyFolderCleanup ReparsePoint and junction skipping
+    private static void Test16_EmptyFolderCleanup_ReparsePointSkip(string testRoot)
+    {
+        Console.WriteLine("\n--- Test 16: EmptyFolderCleanup ReparsePoint Skip ---");
+        string repoRoot = FindRepoRoot();
+        string scriptPath = Path.Combine(repoRoot, @"scripts\EmptyFolderCleanup\EmptyFolderCleanup.ps1");
+
+        // Scratch directories: scan_root, outside_folder, outside_sub, normal_empty
+        string scratchTarget = Path.Combine(testRoot, "efc_reparse_scratch");
+        string scanRoot = Path.Combine(scratchTarget, "scan_root");
+        string outsideFolder = Path.Combine(scratchTarget, "outside_folder");
+        string outsideSub = Path.Combine(outsideFolder, "empty_sub");
+        string normalEmpty = Path.Combine(scanRoot, "normal_empty");
+
+        Directory.CreateDirectory(outsideSub);
+        Directory.CreateDirectory(normalEmpty);
+
+        string junctionPath = Path.Combine(scanRoot, "junc_outside");
+        var createJunc = Process.Start(new ProcessStartInfo("powershell.exe",
+            $"-NoProfile -Command \"New-Item -ItemType Junction -Path '{junctionPath}' -Target '{outsideFolder}' | Out-Null\"")
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true
+        })!;
+        createJunc.WaitForExit();
+        Assert(Directory.Exists(junctionPath), "Junction successfully created in scratch dir");
+
+        string logDir = Path.Combine(testRoot, "logs_reparse");
+        string testCfg = Path.Combine(testRoot, "efc_reparse_cfg.json");
+        File.WriteAllText(testCfg, $"{{\"TargetFolder\": \"{scanRoot.Replace("\\", "\\\\")}\", \"LogDir\": \"{logDir.Replace("\\", "\\\\")}\", \"LogFile\": \"CleanupLog.txt\"}}");
+
+        // 1. DryRun preview test
+        var psiDry = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"& '{scriptPath}' -DryRun -ConfigPath '{testCfg}' | Out-String -Width 4096\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        using var procDry = Process.Start(psiDry)!;
+        string stdoutDry = procDry.StandardOutput.ReadToEnd();
+        procDry.WaitForExit();
+
+        Assert(stdoutDry.Contains("normal_empty"), "DryRun includes normal_empty folder");
+        Assert(!stdoutDry.Contains("junc_outside"), "DryRun does not include junction folder");
+        Assert(!stdoutDry.Contains("empty_sub"), "DryRun does not traverse into junction target empty_sub");
+
+        // 2. Real run test
+        var psiReal = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"& '{scriptPath}' -ConfigPath '{testCfg}' | Out-String -Width 4096\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        using var procReal = Process.Start(psiReal)!;
+        procReal.WaitForExit();
+
+        Assert(!Directory.Exists(normalEmpty), "Normal empty folder was deleted in real run");
+        Assert(Directory.Exists(junctionPath), "Junction itself was not deleted in real run");
+        Assert(Directory.Exists(outsideFolder), "Outside folder was untouched in real run");
+        Assert(Directory.Exists(outsideSub), "Outside empty subfolder was untouched in real run");
+
+        // 3. Safe removal of junction (remove junction itself, never recurse)
+        Directory.Delete(junctionPath, false);
+        Assert(!Directory.Exists(junctionPath), "Junction safely removed");
+        Assert(Directory.Exists(outsideFolder) && Directory.Exists(outsideSub), "Outside folder untouched after junction removal");
     }
 }
