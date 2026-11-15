@@ -253,7 +253,8 @@ if ($needsElevation -and -not $isAdmin) {
 
     $elevatedExitCode = 1
     try {
-        $proc = Start-Process -FilePath $psExe -ArgumentList $argString -Verb RunAs -PassThru -Wait
+        $proc = Start-Process -FilePath $psExe -ArgumentList $argString -Verb RunAs -PassThru
+        $proc.WaitForExit()
         $elevatedExitCode = $proc.ExitCode
     } catch [System.ComponentModel.Win32Exception] {
         $win32Ex = $_.Exception -as [System.ComponentModel.Win32Exception]
@@ -311,9 +312,13 @@ try {
     if (-not $NoBuild) {
         Write-InstallLog "Publishing self-contained win-x64 from $ProjectPath ..."
         Remove-Item -LiteralPath $PublishDir -Recurse -Force -ErrorAction SilentlyContinue
-        $pubArgs = @("publish", $ProjectPath, "-c", "Release", "-r", "win-x64", "--self-contained", "true", "-o", $PublishDir, "/p:DebugType=None", "/p:DebugSymbols=false")
-        & dotnet @pubArgs
-        if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE" }
+        $pubArgs = @("publish", $ProjectPath, "-c", "Release", "-r", "win-x64", "--self-contained", "true", "-o", $PublishDir, "/p:DebugType=None", "/p:DebugSymbols=false", "-nodeReuse:false", "-p:UseSharedCompilation=false")
+        try {
+            & dotnet @pubArgs
+            if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE" }
+        } finally {
+            try { & dotnet build-server shutdown *>$null } catch { }
+        }
     } else {
         Write-InstallLog "Using prebuilt files from $PublishDir"
         if (-not (Test-Path -LiteralPath (Join-Path $PublishDir "ScriptSuite.exe"))) {

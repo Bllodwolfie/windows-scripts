@@ -241,7 +241,6 @@ if ($isUnderInstallDir -and -not $FromTemp) {
             FilePath = $psExe
             ArgumentList = $argString
             PassThru = $true
-            Wait = $true
         }
         if ($needsElevation -and -not $isAdmin) {
             Write-Host "Elevating Uninstall.ps1 via UAC from temp copy..." -ForegroundColor Yellow
@@ -250,6 +249,7 @@ if ($isUnderInstallDir -and -not $FromTemp) {
             Write-Host "Re-launching Uninstall.ps1 from temp copy..." -ForegroundColor Yellow
         }
         $proc = Start-Process @procArgs
+        $proc.WaitForExit()
         $elevatedExitCode = $proc.ExitCode
     } catch [System.ComponentModel.Win32Exception] {
         $win32Ex = $_.Exception -as [System.ComponentModel.Win32Exception]
@@ -308,7 +308,8 @@ if ($needsElevation -and -not $isAdmin) {
 
     $elevatedExitCode = 1
     try {
-        $proc = Start-Process -FilePath $psExe -ArgumentList $argString -Verb RunAs -PassThru -Wait
+        $proc = Start-Process -FilePath $psExe -ArgumentList $argString -Verb RunAs -PassThru
+        $proc.WaitForExit()
         $elevatedExitCode = $proc.ExitCode
     } catch [System.ComponentModel.Win32Exception] {
         $win32Ex = $_.Exception -as [System.ComponentModel.Win32Exception]

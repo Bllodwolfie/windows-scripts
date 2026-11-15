@@ -587,6 +587,88 @@ try {
         Assert-Test ($canaryFound.Count -ge 1) "[$engine] Small log pre-existing content is untouched (canary preserved)"
     }
 
+    # -------------------------------------------------------------------------
+    # Test 18: Uninstall.ps1 elevation decision logic & process wait behavior
+    # -------------------------------------------------------------------------
+    Write-Host "`n--- Test 18: Uninstall.ps1 elevation decision logic & process wait behavior ---" -ForegroundColor Yellow
+    foreach ($engine in @("powershell.exe", "pwsh.exe")) {
+        $engineTag = if ($engine -like "*powershell*") { "PS51" } else { "PS7" }
+
+        # Subtest A: Audit Uninstall.ps1 elevation decision logic when not admin
+        $decisionScript = @"
+`$programFilesRoot = if (`$env:ProgramFiles) { [System.IO.Path]::GetFullPath(`$env:ProgramFiles) } else { "" }
+`$programDataRoot = if (`$env:ProgramData) { [System.IO.Path]::GetFullPath(`$env:ProgramData) } else { "" }
+
+function Check-NeedsElevation {
+    param(`$InstallDir, `$ShortcutPath, `$TaskPath, `$RegistryRoot)
+    if (-not `$InstallDir) { `$InstallDir = Join-Path `$env:ProgramFiles "ScriptSuite" }
+    if (-not `$ShortcutPath) { `$ShortcutPath = Join-Path `$env:ProgramData "Microsoft\Windows\Start Menu\Programs\ScriptSuite.lnk" }
+    if (`$TaskPath -and -not `$TaskPath.EndsWith("\")) { `$TaskPath = "`$TaskPath\" }
+    if (-not `$RegistryRoot) { `$RegistryRoot = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall" }
+    if (`$RegistryRoot -match '^(HKLM|HKCU)\\' -and `$RegistryRoot -notmatch '^[A-Za-z]+:\\') {
+        `$RegistryRoot = `$RegistryRoot -replace '^([A-Za-z]+)\\', '`$1:\'
+    }
+    `$uninstallKey = if (`$RegistryRoot -match '\\ScriptSuite$') { `$RegistryRoot } else { Join-Path `$RegistryRoot "ScriptSuite" }
+
+    `$needs = `$false
+    if (`$InstallDir) {
+        try {
+            `$full = [System.IO.Path]::GetFullPath(`$InstallDir)
+            if (`$programFilesRoot -and `$full.StartsWith(`$programFilesRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+                `$needs = `$true
+            }
+        } catch { `$needs = `$true }
+    } else { `$needs = `$true }
+
+    if (`$ShortcutPath) {
+        try {
+            `$full = [System.IO.Path]::GetFullPath(`$ShortcutPath)
+            if (`$programDataRoot -and `$full.StartsWith(`$programDataRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+                `$needs = `$true
+            }
+        } catch { }
+    }
+
+    if (`$RegistryRoot -match '^HKLM' -or `$uninstallKey -match '^HKLM') {
+        `$needs = `$true
+    }
+    if (`$TaskPath -eq "\ScriptSuite\" -or `$TaskPath -eq "\ScriptSuite") {
+        `$needs = `$true
+    }
+    return `$needs
+}
+
+@{
+    Default = Check-NeedsElevation
+    PFOnly = Check-NeedsElevation -InstallDir "`$env:ProgramFiles\ScriptSuite" -ShortcutPath "C:\temp\s.lnk" -TaskPath "\Test\" -RegistryRoot "HKCU:\Software\Test"
+    HKLMOnly = Check-NeedsElevation -InstallDir "C:\temp\install" -ShortcutPath "C:\temp\s.lnk" -TaskPath "\Test\" -RegistryRoot "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall"
+    TaskOnly = Check-NeedsElevation -InstallDir "C:\temp\install" -ShortcutPath "C:\temp\s.lnk" -TaskPath "\ScriptSuite\" -RegistryRoot "HKCU:\Software\Test"
+    PDOnly = Check-NeedsElevation -InstallDir "C:\temp\install" -ShortcutPath "`$env:ProgramData\Microsoft\Windows\Start Menu\Programs\ScriptSuite.lnk" -TaskPath "\Test\" -RegistryRoot "HKCU:\Software\Test"
+    Scratch = Check-NeedsElevation -InstallDir "C:\temp\install" -ShortcutPath "C:\temp\s.lnk" -TaskPath "\ScriptSuiteTest\" -RegistryRoot "HKCU:\Software\Test"
+} | ConvertTo-Json -Compress
+"@
+        $evalRes = & $engine -NoProfile -ExecutionPolicy Bypass -Command $decisionScript | ConvertFrom-Json
+        Assert-Test ($evalRes.Default -eq $true) "[$engine] Default paths require elevation (needsElevation = true)"
+        Assert-Test ($evalRes.PFOnly -eq $true) "[$engine] Program Files InstallDir triggers needsElevation = true"
+        Assert-Test ($evalRes.HKLMOnly -eq $true) "[$engine] HKLM RegistryRoot triggers needsElevation = true"
+        Assert-Test ($evalRes.TaskOnly -eq $true) "[$engine] Default TaskPath (\ScriptSuite\) triggers needsElevation = true"
+        Assert-Test ($evalRes.PDOnly -eq $true) "[$engine] ProgramData ShortcutPath triggers needsElevation = true"
+        Assert-Test ($evalRes.Scratch -eq $false) "[$engine] Custom scratch paths do not require elevation (needsElevation = false)"
+
+        # Subtest B: Process wait behavior (WaitForExit returns without waiting for background descendant)
+        $tempBgScript = Join-Path $testScratchRoot "bg_descendant_$engineTag.ps1"
+        Set-Content -LiteralPath $tempBgScript -Value @"
+Start-Process powershell.exe -ArgumentList '-NoProfile -Command Start-Sleep -Seconds 3' -WindowStyle Hidden
+exit 0
+"@
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        $p = Start-Process $engine -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$tempBgScript`"" -PassThru
+        $p.WaitForExit()
+        $sw.Stop()
+        Assert-Test ($sw.ElapsedMilliseconds -lt 2500) "[$engine] WaitForExit() returns promptly without waiting for 3000ms background descendant ($($sw.ElapsedMilliseconds) ms)"
+        Assert-Test ($p.ExitCode -eq 0) "[$engine] Child exit code is preserved as 0"
+    }
+
     Write-Host "`n==========================================================" -ForegroundColor $(if ($failedCount -eq 0) { "Green" } else { "Red" })
     Write-Host " ran $ranCount, skipped $skippedCount, failed $failedCount" -ForegroundColor $(if ($failedCount -eq 0) { "Green" } else { "Red" })
     Write-Host "==========================================================" -ForegroundColor $(if ($failedCount -eq 0) { "Green" } else { "Red" })
