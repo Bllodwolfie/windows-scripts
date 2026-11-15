@@ -2,12 +2,27 @@
 
 All notable changes to ScriptSuite are documented in this file.
 
-## [Unreleased]
+## [4.0.0] - 2026-11-15
 
 ### Added
-- **EmptyFolderCleanup Default Ignore Names Opt-Out:** Added `UseDefaultIgnoreNames` setting (bool, default `true`) with UI checkbox to allow users to opt out of preserving standard project, dependency, and build artifact folders (`node_modules`, `.git`, `.vs`, `bin`, `obj`, `target`, `build`, `dist`, `packages`, `.nuget`) when empty.
-- **EmptyFolderCleanup Multi-Folder Scanning:** Configurable scanning across multiple root folders (`TargetFolders`), with de-duplication, child-nesting collapse, and path-scope denylist protection.
-- **EmptyFolderCleanup Reparse Point & Junction Skip:** Directory traversals strictly skip NTFS reparse points and directory junctions to prevent traversing or deleting folders outside target directory trees.
+- Dedicated Scheduled Tasks window.
+- Unified Run History with search and filters.
+- Multiple target folders for EmptyFolderCleanup (legacy single TargetFolder still works).
+- UseDefaultIgnoreNames option in EmptyFolderCleanup.
+- Cisco PacketTracer category in DownloadsCleanup.
+- ScriptSuite registers in Windows Installed apps (Uninstall.cmd and Uninstall.ps1 are installed alongside the app).
+
+### Changed
+- EmptyFolderCleanup uses a single bottom-up scan.
+- Built-in ignored folder names (.git, .svn, .hg, node_modules, vendor, .venv, venv, \_\_pycache\_\_, .cargo, target, bin, obj) are never deleted unless opted out.
+- Reparse points (junctions, symlinks, OneDrive placeholders) are never traversed or deleted.
+- Installer and uninstaller logs are capped at 256 KB.
+
+### Fixed
+- Installer and uninstaller relaunch with paths containing spaces.
+- Installer no longer hangs waiting on build servers after the elevated install.
+- History empty-state wording.
+- Uninstall from Installed apps works from a temp copy.
 
 ## [3.2.3] - 2026-11-13
 
