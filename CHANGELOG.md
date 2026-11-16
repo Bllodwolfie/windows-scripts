@@ -2,6 +2,11 @@
 
 All notable changes to ScriptSuite are documented in this file.
 
+## [4.0.1] - 2026-11-16
+
+### Fixed
+- Documentation lists the full built-in ignore list.
+
 ## [4.0.0] - 2026-11-15
 
 ### Added
@@ -14,7 +19,7 @@ All notable changes to ScriptSuite are documented in this file.
 
 ### Changed
 - EmptyFolderCleanup uses a single bottom-up scan.
-- Built-in ignored folder names (.git, .svn, .hg, node_modules, vendor, .venv, venv, \_\_pycache\_\_, .cargo, target, bin, obj) are never deleted unless opted out.
+- Built-in ignored folder names (.git, .svn, .hg, node_modules, vendor, .venv, venv, \_\_pycache\_\_, .cargo, target, bin, obj, .vs, build, dist, packages, .nuget) are never deleted unless opted out.
 - Reparse points (junctions, symlinks, OneDrive placeholders) are never traversed or deleted.
 - Installer and uninstaller logs are capped at 256 KB.
 

@@ -19,8 +19,9 @@ A Windows maintenance suite — a WPF dashboard (`ScriptSuite`) over nine self-c
 2. Right-click the zip → `Extract All` → open the folder.
 3. **Primary install method:** Double-click `Install.cmd`. It automatically unblocks downloaded files, bypasses restrictive execution policies, prompts for UAC elevation to install to `%ProgramFiles%\ScriptSuite\` with admin-only write ACLs (SEC-02), creates the Start Menu shortcut (Windows Search → `ScriptSuite`), and verifies the installation.
    - **Manual fallback:** Open PowerShell and run `powershell -ExecutionPolicy Bypass -File .\Install.ps1`, or run `ScriptSuite.exe` directly as a portable app without installing.
+4. **Uninstallation:** Uninstall via Windows **Settings > Installed apps** (or run `Uninstall.cmd` / `Uninstall.ps1`). This removes the app and its scheduled tasks but keeps `%LOCALAPPDATA%\ScriptSuite` data (`history.db`, configs).
 
-> **First-run SmartScreen:** the exe is unsigned, so Windows SmartScreen / Microsoft Defender SmartScreen may show *Windows protected your PC* → click `More info` → `Run anyway`. The zip comes from GitHub via `Mark of the Web`; double-clicking `Install.cmd` automatically applies `Unblock-File`. No admin needed to run the app itself.
+> **First-run SmartScreen & UAC:** The installer and exe are unsigned, so Windows SmartScreen shows "Windows protected your PC" (`More info` → `Run anyway`) and UAC elevation prompts show `cmd.exe` or `powershell.exe` rather than a publisher. The zip comes from GitHub via `Mark of the Web`; double-clicking `Install.cmd` automatically applies `Unblock-File`. No admin needed to run the app itself.
 
 *Requires Windows 10 / 11 (x64). No PowerShell version check — the shipped `scripts\` are bundled with the publish output.*
 
@@ -65,7 +66,7 @@ Descriptions are verbatim from `ScriptSuite/Manifests/*.json:2` (source of truth
 | [SystemHealthReport](scripts/SystemHealthReport/) | Generates a self-contained HTML report of system health (CPU, memory, disks, network, errors). | No |
 | [ClearEventLogs](scripts/ClearEventLogs/) | Backs up and clears all Windows event logs. | **Yes** |
 | [DownloadsCleanup](scripts/DownloadsCleanup/) | Sorts and cleans the Downloads folder: deletes old installer/archive files and moves others into matching category folders. Supports Advanced per-extension rules (Ignore/Delete/MoveTo) that override the simple `Extensions to delete` list. | No |
-| [EmptyFolderCleanup](scripts/EmptyFolderCleanup/) | Recursively removes empty folders under chosen root folders. Protects common build and project directories (node_modules, .git, bin, obj, etc.), skips NTFS reparse points/junctions, and supports multiple scan roots. | No |
+| [EmptyFolderCleanup](scripts/EmptyFolderCleanup/) | Recursively removes empty folders under chosen root folders. Protects common build and project directories (.git, .svn, .hg, node_modules, vendor, .venv, venv, __pycache__, .cargo, target, bin, obj, .vs, build, dist, packages, .nuget), skips reparse points (junctions, symlinks, OneDrive placeholders), and supports multiple scan roots. | No |
 | [EmptyRecycleBin](scripts/EmptyRecycleBin/) | Permanently empties the Recycle Bin. Deleted files cannot be recovered. Supports “Only delete items older than N days” (0 = everything). | No |
 | [RestorePoint](scripts/RestorePoint/) | Creates a System Restore point and verifies it actually appeared. | **Yes** |
 | [ScreenshotsCleanup](scripts/ScreenshotsCleanup/) | Deletes old screenshots from the Pictures\Screenshots folder. | No |
@@ -83,7 +84,7 @@ Defaults live in `ScriptSuite/DefaultConfigs/*.json:1` and copy to `%LOCALAPPDAT
 - `TempCleanup` → `TargetFolder: %TEMP%`, `CutoffDays: 7`
 
 > [!NOTE]
-> **EmptyFolderCleanup Multi-Root & Protection:** `EmptyFolderCleanup` supports scanning multiple root folders (`TargetFolders`), automatically de-duplicates overlapping roots, skips NTFS junctions and reparse points to prevent traversing external trees, and protects standard build and project folders (`node_modules`, `.git`, `.vs`, `bin`, `obj`, `target`, `build`, `dist`, `packages`, `.nuget`) by default unless opted out via `UseDefaultIgnoreNames: false`.
+> **EmptyFolderCleanup Multi-Root & Protection:** `EmptyFolderCleanup` supports scanning multiple root folders (`TargetFolders`), automatically de-duplicates overlapping roots, skips reparse points (junctions, symlinks, OneDrive placeholders) to prevent traversing external trees, and protects standard build and project folders (`.git`, `.svn`, `.hg`, `node_modules`, `vendor`, `.venv`, `venv`, `__pycache__`, `.cargo`, `target`, `bin`, `obj`, `.vs`, `build`, `dist`, `packages`, `.nuget`) by default unless opted out via `UseDefaultIgnoreNames: false`.
 
 Each script supports dry-run preview where `supportsDryRun: true` in its manifest (7 of 9; `SoftwareInventory` and `SystemHealthReport` are reports, not previews).
 
@@ -106,6 +107,7 @@ Every script (all 9, including the 2 admin ones) can be scheduled from its tile 
 * **Collision warnings:** Non-blocking warning banner notifies you if another enabled script is scheduled at the same time on overlapping days to avoid `Skipped — app was busy` single-instance mutex conflicts.
 * **Two tiers under the hood, one UI:** 7 non-admin scripts register `InteractiveToken Limited` tasks; 2 admin scripts (`ClearEventLogs`, `RestorePoint`) register `S4U HighestAvailable` tasks. If a task requires administrative rights to modify (such as an existing admin-owned task), the UI seamlessly prompts for UAC elevation to update the task cleanly.
 * **Per-script risk opt-in:** first time you schedule an admin script, check `I understand the risks` (stored in `%LOCALAPPDATA%\ScriptSuite\risk-consents.json` per-script, persists after unscheduling). This is separate from the **one-time UAC at Save** needed to register a `HighestAvailable` task — after that, runs are silent forever (no UAC at run time).
+* **UAC on schedule save:** Each schedule save triggers one UAC prompt by design to register or update tasks in Windows Task Scheduler; subsequent scheduled runs execute headlessly in the background without UAC prompts.
 * **Scheduled History is separate:** header `Scheduled` button opens `Scheduled History` (`Services/RunHistoryStore.cs` `ScheduledRuns` table, `INSERT` via headless `ScriptSuite.exe --scheduled-run <id>`). Manual `History` and scheduled history are distinct tabs. `Skipped — app was busy` is a distinct outcome (not silently dropped, not queued) when a trigger fires while the dashboard is open (single-instance `Global\ScriptSuite_SingleInstance_<SID>` mutex + file-lock fallback).
 * **App remains closed between runs:** Task Scheduler launches `ScriptSuite.exe --scheduled-run <id>` headlessly, it runs via `Services/ScriptExecutor.cs` `CreateDefault` (self-contained fix for `PSHOME`/`CimCmdlets` headless), inserts into `ScheduledRuns`, and exits — no tray/background process. Results only visible in `Scheduled` tab (no notifications).
 * **Storage:** schedules in `%LOCALAPPDATA%\ScriptSuite\schedules.json` (`Models/ScheduleEntry.cs`), `risk-consents.json`, and `history.db` `ScheduledRuns` (`Services/RunHistoryStore.cs:25`). `Remove Schedule` in the same dialog unregisters the task (`Unregister-ScheduledTask`) and clears the entry (dashboard `◷` indicator `HasSchedule`/`ScheduleSummary` disappears).
@@ -120,7 +122,9 @@ Contextual `?` buttons appear in the dashboard header (`Script Suite / Dashboard
 
 ## Known limitations & notices
 
-- **Unsigned exe:** SmartScreen warning on first launch (see above). No EV cert yet.
+- **Unsigned installer & exe:** The installer and exe are unsigned, so SmartScreen shows "Windows protected your PC" (`More info` → `Run anyway`) and UAC shows `cmd.exe` or `powershell.exe`, not a publisher. No EV cert yet.
+- **Uninstallation data retention:** Uninstall via Windows **Settings > Installed apps** removes the app and its scheduled tasks but keeps `%LOCALAPPDATA%\ScriptSuite` data (`history.db`, configs).
+- **UAC schedule save prompts:** Each schedule save triggers one UAC prompt by design.
 - **SQLite WAL sidecars:** run history lives at `%LOCALAPPDATA%\ScriptSuite\history.db` (`RunHistoryStore.cs:84` `journal_mode=WAL`, `busy_timeout=5000`). Beside it you will see `history.db-wal` / `history.db-shm` — normal for WAL; don't copy the `.db` alone while the app is running (raw `File.Copy` would miss uncheckpointed wal). Use `wal_checkpoint` or the app’s backup API when it exists.
 - **SEC-03 (Config & temp interchange scope):** elevated runs read user-writable configs from `%LOCALAPPDATA%\ScriptSuite\Configs` and exchange temporary IPC files via `%TEMP%`. Mitigated by `Test-PathScope` and schema validation; not architecturally isolated.
 - **SEC-04 (Configuration Trust System):** All configuration files in `%LOCALAPPDATA%\ScriptSuite\Configs` are protected by a SHA-256 trust store (`%LOCALAPPDATA%\ScriptSuite\config-trust.json`). Saving settings via the application UI automatically approves the configuration. If a configuration file is edited by hand, swapped, or imported, it is marked untrusted until reviewed:
