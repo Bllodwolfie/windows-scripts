@@ -76,15 +76,15 @@ Descriptions are verbatim from `ScriptSuite/Manifests/*.json:2` (source of truth
 Defaults live in `ScriptSuite/DefaultConfigs/*.json:1` and copy to `%LOCALAPPDATA%\ScriptSuite\Configs\` on first run (`AppPaths.cs:37` `EnsureConfigsSeeded`, never overwrites existing):
 
 - `ClearEventLogs` → `BackupDir: %USERPROFILE%\Documents\Script_Logs\EventLogBackups`
-- `DownloadsCleanup` → `SourceDir: %USERPROFILE%\Downloads`, `CutoffDays: 7`, `LogDir: %USERPROFILE%\Documents\Script_Logs` (+ `DeleteExts` / `Categories`)
+- `DownloadsCleanup` → `SourceDirs: ["%USERPROFILE%\Downloads"]`, `CutoffDays: 7`, `LogDir: %USERPROFILE%\Documents\Script_Logs` (+ `DeleteExts` / `Categories`)
 - `EmptyFolderCleanup` → `TargetFolders: ["%USERPROFILE%\Downloads"]`, `UseDefaultIgnoreNames: true`
-- `ScreenshotsCleanup` → `TargetFolder: %USERPROFILE%\Pictures\Screenshots`, `CutoffDays: 7`
+- `ScreenshotsCleanup` → `TargetFolders: ["%USERPROFILE%\Pictures\Screenshots"]`, `CutoffDays: 7`
 - `SoftwareInventory` → `OutputFile: %USERPROFILE%\Documents\Script_Logs\Software_Inventory.txt`
 - `SystemHealthReport` → `OutputDir: %USERPROFILE%\Documents`, `OutputFile: System_Health_Report.html`
-- `TempCleanup` → `TargetFolder: %TEMP%`, `CutoffDays: 7`
+- `TempCleanup` → `TargetFolders: ["%TEMP%"]`, `CutoffDays: 7`
 
 > [!NOTE]
-> **EmptyFolderCleanup Multi-Root & Protection:** `EmptyFolderCleanup` supports scanning multiple root folders (`TargetFolders`), automatically de-duplicates overlapping roots, skips reparse points (junctions, symlinks, OneDrive placeholders) to prevent traversing external trees, and protects standard build and project folders (`.git`, `.svn`, `.hg`, `node_modules`, `vendor`, `.venv`, `venv`, `__pycache__`, `.cargo`, `target`, `bin`, `obj`, `.vs`, `build`, `dist`, `packages`, `.nuget`) by default unless opted out via `UseDefaultIgnoreNames: false`.
+> **Multi-Root Cleanup Scanning:** `EmptyFolderCleanup`, `TempCleanup`, `ScreenshotsCleanup`, and `DownloadsCleanup` support scanning multiple root folders (`TargetFolders` or `SourceDirs`), automatically de-duplicating identical or overlapping nested roots and gracefully skipping inaccessible folders. `EmptyFolderCleanup` also skips reparse points (junctions, symlinks, OneDrive placeholders) and protects standard build and project folders (`.git`, `.svn`, `.hg`, `node_modules`, `vendor`, `.venv`, `venv`, `__pycache__`, `.cargo`, `target`, `bin`, `obj`, `.vs`, `build`, `dist`, `packages`, `.nuget`) by default unless opted out via `UseDefaultIgnoreNames: false`.
 
 Each script supports dry-run preview where `supportsDryRun: true` in its manifest (7 of 9; `SoftwareInventory` and `SystemHealthReport` are reports, not previews).
 

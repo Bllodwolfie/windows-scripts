@@ -32,12 +32,21 @@ public static class ConfigReviewHelper
         {
             case "DownloadsCleanup":
             {
-                string source = root["SourceDirectory"]?.ToString() ?? "%USERPROFILE%\\Downloads";
+                string sourceDesc;
+                if (root["SourceDirs"] is JsonArray arr && arr.Count > 0)
+                {
+                    var items = arr.Select(x => x?.ToString() ?? "").Where(s => !string.IsNullOrEmpty(s)).ToList();
+                    sourceDesc = items.Count == 1 ? $"'{items[0]}'" : string.Join(", ", items.Select(i => $"'{i}'"));
+                }
+                else
+                {
+                    sourceDesc = $"'{root["SourceDir"]?.ToString() ?? root["SourceDirectory"]?.ToString() ?? "%USERPROFILE%\\Downloads"}'";
+                }
                 string cutoff = root["CutoffDays"]?.ToString() ?? "30";
-                var exts = root["DeleteExts"] is JsonArray arr
-                    ? string.Join(", ", arr.Select(x => x?.ToString() ?? "").Where(s => !string.IsNullOrEmpty(s)))
+                var exts = root["DeleteExts"] is JsonArray arrExts
+                    ? string.Join(", ", arrExts.Select(x => x?.ToString() ?? "").Where(s => !string.IsNullOrEmpty(s)))
                     : ".exe, .msi, .zip";
-                actionSummary = $"Will delete files matching [{exts}] older than {cutoff} days under '{source}', and organize other files into category folders.";
+                actionSummary = $"Will delete files matching [{exts}] older than {cutoff} days under {sourceDesc}, and organize other files into category folders.";
                 break;
             }
             case "EmptyFolderCleanup":
@@ -63,16 +72,34 @@ public static class ConfigReviewHelper
             }
             case "ScreenshotsCleanup":
             {
-                string source = root["SourceDirectory"]?.ToString() ?? "%USERPROFILE%\\Pictures\\Screenshots";
+                string sourceDesc;
+                if (root["TargetFolders"] is JsonArray arr && arr.Count > 0)
+                {
+                    var items = arr.Select(x => x?.ToString() ?? "").Where(s => !string.IsNullOrEmpty(s)).ToList();
+                    sourceDesc = items.Count == 1 ? $"'{items[0]}'" : string.Join(", ", items.Select(i => $"'{i}'"));
+                }
+                else
+                {
+                    sourceDesc = $"'{root["TargetFolder"]?.ToString() ?? root["SourceDirectory"]?.ToString() ?? "%USERPROFILE%\\Pictures\\Screenshots"}'";
+                }
                 string cutoff = root["CutoffDays"]?.ToString() ?? "30";
-                actionSummary = $"Will clean screenshots older than {cutoff} days under '{source}'.";
+                actionSummary = $"Will clean screenshots older than {cutoff} days under {sourceDesc}.";
                 break;
             }
             case "TempCleanup":
             {
-                string target = root["TargetFolder"]?.ToString() ?? "%TEMP%";
+                string targetDesc;
+                if (root["TargetFolders"] is JsonArray arr && arr.Count > 0)
+                {
+                    var items = arr.Select(x => x?.ToString() ?? "").Where(s => !string.IsNullOrEmpty(s)).ToList();
+                    targetDesc = items.Count == 1 ? $"'{items[0]}'" : string.Join(", ", items.Select(i => $"'{i}'"));
+                }
+                else
+                {
+                    targetDesc = $"'{root["TargetFolder"]?.ToString() ?? "%TEMP%"}'";
+                }
                 string cutoff = root["CutoffDays"]?.ToString() ?? "7";
-                actionSummary = $"Will delete temporary files older than {cutoff} days under '{target}'.";
+                actionSummary = $"Will delete temporary files older than {cutoff} days under {targetDesc}.";
                 break;
             }
             case "ClearEventLogs":

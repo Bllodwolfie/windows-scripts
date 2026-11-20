@@ -2,6 +2,11 @@
 
 All notable changes to ScriptSuite are documented in this file.
 
+## [Unreleased]
+
+### Added
+- Multi-folder scanning support for TempCleanup, ScreenshotsCleanup, and DownloadsCleanup (`TargetFolders` and `SourceDirs` with backward-compatible single-folder fallback, deduplication, and nested root elimination).
+
 ## [4.0.1] - 2026-11-16
 
 ### Fixed

@@ -11,8 +11,8 @@ param(
 # standalone before the app has ever written a config). The app normally
 # copies its shipped default config to the path above on first run.
 $Config = @{
-    TargetFolder = "$env:TEMP"
-    CutoffDays   = 7
+    TargetFolders = @("$env:TEMP")
+    CutoffDays    = 7
 }
 
 if (Test-Path -LiteralPath $ConfigPath) {
@@ -20,11 +20,11 @@ if (Test-Path -LiteralPath $ConfigPath) {
         $loaded = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
         if ($null -ne $loaded) { $Config = $loaded } else { throw "empty config" }
     } catch {
-        Write-Warning "TempCleanup config is corrupt or unreadable at $ConfigPath — using defaults (TargetFolder=$env:TEMP, CutoffDays=7). Check or reset the config via Settings."
+        Write-Warning "TempCleanup config is corrupt or unreadable at $ConfigPath — using defaults (TargetFolders=$env:TEMP, CutoffDays=7). Check or reset the config via Settings."
     }
     $raw = (Get-Content -LiteralPath $ConfigPath -Raw -ErrorAction SilentlyContinue)
     if ($null -ne $raw -and $raw.Trim() -eq "") {
-        Write-Warning "TempCleanup config is empty at $ConfigPath — using defaults (TargetFolder=$env:TEMP, CutoffDays=7)."
+        Write-Warning "TempCleanup config is empty at $ConfigPath — using defaults (TargetFolders=$env:TEMP, CutoffDays=7)."
     }
 }
 
@@ -261,17 +261,78 @@ function Remove-FileToRecycleBin([string]$Path) {
     }
 }
 
-# Target folder from config; fall back to the original %TEMP% default if the
-# config is missing or empty (e.g. an older config file without the field).
-$target = if ($Config.TargetFolder) { Expand-ConfigPath $Config.TargetFolder } else { $env:TEMP }
-Test-PathScope $target $env:TEMP
+# Target folders resolution (backward-compatible):
+# If both TargetFolders and TargetFolder exist, TargetFolders wins.
+# If only legacy TargetFolder exists, treat it as a single-item list.
+# Never silently rewrite old configs.
+$rawRoots = @()
+if ($Config -is [hashtable]) {
+    if ($Config.ContainsKey("TargetFolders") -and $null -ne $Config["TargetFolders"]) {
+        $rawRoots = @($Config["TargetFolders"])
+    } elseif ($Config.ContainsKey("TargetFolder") -and $null -ne $Config["TargetFolder"]) {
+        $rawRoots = @($Config["TargetFolder"])
+    }
+} elseif ($null -ne $Config.PSObject) {
+    if ($null -ne $Config.PSObject.Properties["TargetFolders"] -and $null -ne $Config.TargetFolders) {
+        $rawRoots = @($Config.TargetFolders)
+    } elseif ($null -ne $Config.PSObject.Properties["TargetFolder"] -and $null -ne $Config.TargetFolder) {
+        $rawRoots = @($Config.TargetFolder)
+    }
+}
+if ($rawRoots.Count -eq 0) {
+    $rawRoots = @("$env:TEMP")
+}
+
+# Every root goes through Test-PathScope and the denylist individually;
+# any denylisted root aborts the whole run before anything is deleted (hard abort).
+$normalizedRoots = [System.Collections.Generic.List[string]]::new()
+$seenRoots = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+foreach ($r in $rawRoots) {
+    if ([string]::IsNullOrWhiteSpace($r)) { continue }
+    $expanded = Expand-ConfigPath ([string]$r)
+    Test-PathScope $expanded $env:TEMP
+    $norm = try { [System.IO.Path]::GetFullPath($expanded).TrimEnd('\', '/') } catch { $expanded.TrimEnd('\', '/') }
+    if ($seenRoots.Add($norm)) {
+        $normalizedRoots.Add($norm)
+    } else {
+        Write-Warning "Dropping duplicate target folder: '$norm'"
+    }
+}
+
+# De-duplicate roots: drop a root that lies inside another listed root
+$sortedRoots = @($normalizedRoots | Sort-Object { $_.Length })
+$filteredRoots = [System.Collections.Generic.List[string]]::new()
+
+foreach ($candidate in $sortedRoots) {
+    $isNested = $false
+    foreach ($existing in $filteredRoots) {
+        if ($candidate.StartsWith($existing + [System.IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase) -or
+            $candidate.StartsWith($existing + [System.IO.Path]::AltDirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+            $isNested = $true
+            Write-Warning "Dropping nested target folder '$candidate' because it is inside '$existing'"
+            break
+        }
+    }
+    if (-not $isNested) {
+        $filteredRoots.Add($candidate)
+    }
+}
 
 # Cat3c low-priority guard: Z:\ (nonexistent drive) and similar bad provider
 # paths make Get-ChildItem -File throw a parameter-binding error instead of a
-# graceful path-not-found. Test-Path first so the run surfaces as a plain
-# warning with 0 items, not a Failed error.
-if (-not (Test-Path -LiteralPath $target)) {
-    Write-Warning "Target folder '$target' does not exist or is not accessible — skipping."
+# graceful path-not-found. Test-Path first so missing folders surface as a plain
+# warning, not a Failed error.
+$validRoots = [System.Collections.Generic.List[string]]::new()
+foreach ($root in $filteredRoots) {
+    if (Test-Path -LiteralPath $root) {
+        $validRoots.Add($root)
+    } else {
+        Write-Warning "Target folder '$root' does not exist or is not accessible — skipping."
+    }
+}
+
+if ($validRoots.Count -eq 0) {
     if (-not $DryRun) { Write-Host "Temp cleanup: 0 deleted, 0 skipped (locked or in use)." }
     return
 }
@@ -290,7 +351,7 @@ if ($cutoffDays -lt 0) {
 }
 $cutoff = (Get-Date).AddDays(-$cutoffDays)
 
-# Recurse through the target folder and either preview (DryRun) or delete files
+# Recurse through target folders and either preview (DryRun) or delete files
 # older than the cutoff. Each delete goes to the Recycle Bin; files/folders that
 # fail (locked, in-use) are skipped and REPORTED (WARN line + summary), never
 # silently swallowed, so a run can't claim success while leaving files behind.
@@ -298,32 +359,34 @@ $cutoff = (Get-Date).AddDays(-$cutoffDays)
 # (Action/Target/Detail) for the app's preview UI.
 $script:deletedCount = 0
 $script:skippedCount  = 0
-Get-ChildItem -LiteralPath $target -File -Force -Recurse -ErrorAction SilentlyContinue |
-    Where-Object { $_.LastWriteTime -lt $cutoff } |
-    ForEach-Object {
-        # IgnoreFolders: files under an ignored folder are never touched,
-        # regardless of age. Single pipeline covers DryRun and real alike.
-        if (Test-Ignored $_.FullName) { return }
-        # Milestone 8: when the app confirms a preview with items deselected,
-        # it passes -IncludeOnly (the Target full paths the user kept checked).
-        # Only those targets are touched; everything else is left alone.
-        if ($IncludeOnly.Count -gt 0 -and $IncludeOnly -notcontains $_.FullName) { return }
-        if ($DryRun) {
-            [PSCustomObject]@{
-                Action = 'Delete'
-                Target = $_.FullName
-                Detail = [string]::Format([System.Globalization.CultureInfo]::InvariantCulture, '{0:N1} MB, last modified {1:yyyy-MM-dd}', $_.Length / 1MB, $_.LastWriteTime)
-            }
-        } else {
-            try {
-                Remove-FileToRecycleBin $_.FullName
-                $script:deletedCount++
-            } catch {
-                Write-Warning "Skipped locked file: $($_.Exception.Message)"
-                $script:skippedCount++
+foreach ($target in $validRoots) {
+    Get-ChildItem -LiteralPath $target -File -Force -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.LastWriteTime -lt $cutoff } |
+        ForEach-Object {
+            # IgnoreFolders: files under an ignored folder are never touched,
+            # regardless of age. Single pipeline covers DryRun and real alike.
+            if (Test-Ignored $_.FullName) { return }
+            # Milestone 8: when the app confirms a preview with items deselected,
+            # it passes -IncludeOnly (the Target full paths the user kept checked).
+            # Only those targets are touched; everything else is left alone.
+            if ($IncludeOnly.Count -gt 0 -and $IncludeOnly -notcontains $_.FullName) { return }
+            if ($DryRun) {
+                [PSCustomObject]@{
+                    Action = 'Delete'
+                    Target = $_.FullName
+                    Detail = [string]::Format([System.Globalization.CultureInfo]::InvariantCulture, '{0:N1} MB, last modified {1:yyyy-MM-dd}', $_.Length / 1MB, $_.LastWriteTime)
+                }
+            } else {
+                try {
+                    Remove-FileToRecycleBin $_.FullName
+                    $script:deletedCount++
+                } catch {
+                    Write-Warning "Skipped locked file: $($_.Exception.Message)"
+                    $script:skippedCount++
+                }
             }
         }
-    }
+}
 if (-not $DryRun) {
     Write-Host "Temp cleanup: $script:deletedCount deleted, $script:skippedCount skipped (locked or in use)."
 }

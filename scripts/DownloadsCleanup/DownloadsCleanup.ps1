@@ -1,4 +1,4 @@
-# Sorts and cleans up the Downloads folder:
+﻿# Sorts and cleans up the Downloads folder:
 #   - Files older than CutoffDays with an extension in DeleteExts are deleted outright.
 #   - Files older than CutoffDays with an extension listed under Categories are
 #     moved into the matching destination folder (created if missing).
@@ -13,7 +13,7 @@ param(
 
 # Fallback defaults, used only when the config file is missing (see TempCleanup).
 $Config = @{
-    SourceDir  = "$env:USERPROFILE\Downloads"
+    SourceDirs = @("$env:USERPROFILE\Downloads")
     CutoffDays = 7
     LogDir     = "$env:USERPROFILE\Documents\Script_Logs"
     LogFile    = "CleanupLog.txt"
@@ -40,11 +40,11 @@ if (Test-Path -LiteralPath $ConfigPath) {
         $loaded = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
         if ($null -ne $loaded) { $Config = $loaded } else { throw "empty config" }
     } catch {
-        Write-Warning "DownloadsCleanup config is corrupt or unreadable at $ConfigPath — using defaults (SourceDir=$($Config.SourceDir), CutoffDays=$($Config.CutoffDays)). Check or reset the config via Settings."
+        Write-Warning "DownloadsCleanup config is corrupt or unreadable at $ConfigPath — using defaults (SourceDirs=$($Config.SourceDirs -join ', '), CutoffDays=$($Config.CutoffDays)). Check or reset the config via Settings."
     }
     $raw = (Get-Content -LiteralPath $ConfigPath -Raw -ErrorAction SilentlyContinue)
     if ($null -ne $raw -and $raw.Trim() -eq "") {
-        Write-Warning "DownloadsCleanup config is empty at $ConfigPath — using defaults (SourceDir=$($Config.SourceDir), CutoffDays=$($Config.CutoffDays))."
+        Write-Warning "DownloadsCleanup config is empty at $ConfigPath — using defaults (SourceDirs=$($Config.SourceDirs -join ', '), CutoffDays=$($Config.CutoffDays))."
     }
 }
 
@@ -224,7 +224,64 @@ function Remove-FileToRecycleBin([string]$Path) {
     }
 }
 
-$source  = Expand-ConfigPath $Config.SourceDir
+# Source folders resolution (backward-compatible):
+# If both SourceDirs and SourceDir exist, SourceDirs wins.
+# If only legacy SourceDir exists, treat it as a single-item list.
+# Never silently rewrite old configs.
+$rawRoots = @()
+if ($Config -is [hashtable]) {
+    if ($Config.ContainsKey("SourceDirs") -and $null -ne $Config["SourceDirs"]) {
+        $rawRoots = @($Config["SourceDirs"])
+    } elseif ($Config.ContainsKey("SourceDir") -and $null -ne $Config["SourceDir"]) {
+        $rawRoots = @($Config["SourceDir"])
+    }
+} elseif ($null -ne $Config.PSObject) {
+    if ($null -ne $Config.PSObject.Properties["SourceDirs"] -and $null -ne $Config.SourceDirs) {
+        $rawRoots = @($Config.SourceDirs)
+    } elseif ($null -ne $Config.PSObject.Properties["SourceDir"] -and $null -ne $Config.SourceDir) {
+        $rawRoots = @($Config.SourceDir)
+    }
+}
+if ($rawRoots.Count -eq 0) {
+    $rawRoots = @("$env:USERPROFILE\Downloads")
+}
+
+# Every root goes through Test-PathScope and the denylist individually;
+# any denylisted root aborts the whole run before anything is deleted (hard abort).
+$normalizedRoots = [System.Collections.Generic.List[string]]::new()
+$seenRoots = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+foreach ($r in $rawRoots) {
+    if ([string]::IsNullOrWhiteSpace($r)) { continue }
+    $expanded = Expand-ConfigPath ([string]$r)
+    Test-PathScope $expanded "$env:USERPROFILE\Downloads"
+    $norm = try { [System.IO.Path]::GetFullPath($expanded).TrimEnd('\', '/') } catch { $expanded.TrimEnd('\', '/') }
+    if ($seenRoots.Add($norm)) {
+        $normalizedRoots.Add($norm)
+    } else {
+        Write-Warning "Dropping duplicate source folder: '$norm'"
+    }
+}
+
+# De-duplicate roots: drop a root that lies inside another listed root
+$sortedRoots = @($normalizedRoots | Sort-Object { $_.Length })
+$filteredRoots = [System.Collections.Generic.List[string]]::new()
+
+foreach ($candidate in $sortedRoots) {
+    $isNested = $false
+    foreach ($existing in $filteredRoots) {
+        if ($candidate.StartsWith($existing + [System.IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase) -or
+            $candidate.StartsWith($existing + [System.IO.Path]::AltDirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+            $isNested = $true
+            Write-Warning "Dropping nested source folder '$candidate' because it is inside '$existing'"
+            break
+        }
+    }
+    if (-not $isNested) {
+        $filteredRoots.Add($candidate)
+    }
+}
+
 # R4: explicit warning on wrong-type CutoffDays
 $cutoffDays = 7
 $rawCut = $null
@@ -246,7 +303,6 @@ $deleteExts = @($Config.DeleteExts | ForEach-Object {
 } | Where-Object { $_ -ne "" })
 $categoriesRaw = $Config.Categories
 
-Test-PathScope $source "$env:USERPROFILE\Downloads"
 if ($logDir) { Test-PathScope $logDir "$env:USERPROFILE" }
 
 $null = New-Item -ItemType Directory -Path $logDir -Force -ErrorAction SilentlyContinue
@@ -353,11 +409,22 @@ function Test-IgnoredPattern([string]$Name) {
 if (-not $DryRun) { Write-Log "Cleanup started" }
 
 # B4: guard non-existent drive / bad provider — Get-ChildItem -File throws parameter-binding error on Z:\ instead of path-not-found
-if (-not (Test-Path -LiteralPath $source)) {
-    Write-Warning "Source folder '$source' does not exist or is not accessible — skipping."
+$validRoots = [System.Collections.Generic.List[string]]::new()
+foreach ($root in $filteredRoots) {
+    if (Test-Path -LiteralPath $root) {
+        $validRoots.Add($root)
+    } else {
+        Write-Warning "Source folder '$root' does not exist or is not accessible — skipping."
+        if (-not $DryRun) {
+            Write-Log "SKIPPED : Source folder not found: $root"
+        }
+    }
+}
+
+if ($validRoots.Count -eq 0) {
     if (-not $DryRun) {
-        Write-Log "SKIPPED : Source folder not found: $source"
         Write-Log "Cleanup finished"
+        Write-Host "DownloadsCleanup: 0 deleted, 0 skipped (locked or in use)."
     }
     return
 }
@@ -367,8 +434,9 @@ if (-not (Test-Path -LiteralPath $source)) {
 $script:deletedCount = 0
 $script:skippedCount  = 0
 
-# Process every file in Downloads that's older than the cutoff
-Get-ChildItem -LiteralPath $source -File -Force -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -lt $cutoff } | ForEach-Object {
+# Process every file across source folders that's older than the cutoff
+foreach ($source in $validRoots) {
+    Get-ChildItem -LiteralPath $source -File -Force -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -lt $cutoff } | ForEach-Object {
     $ext = $_.Extension.ToLower()
     $name = $_.Name
     # Capture file props before any switch (switch overwrites $_)
@@ -505,6 +573,7 @@ Get-ChildItem -LiteralPath $source -File -Force -ErrorAction SilentlyContinue | 
             Write-Log "SKIPPED : $name (unrecognized extension: $ext)"
         }
     }
+}
 }
 
 if (-not $DryRun) { Write-Log "Cleanup finished" }

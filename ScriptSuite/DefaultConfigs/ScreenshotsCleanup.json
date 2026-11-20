@@ -1,5 +1,7 @@
 {
-  "TargetFolder": "%USERPROFILE%\\Pictures\\Screenshots",
+  "TargetFolders": [
+    "%USERPROFILE%\\Pictures\\Screenshots"
+  ],
   "CutoffDays": 7,
   "IgnorePatterns": [],
   "LogDir": "%USERPROFILE%\\Documents\\Script_Logs",

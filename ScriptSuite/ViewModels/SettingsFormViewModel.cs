@@ -43,6 +43,8 @@ public sealed class SettingsFormViewModel : ViewModelBase
         Fields.FirstOrDefault(x => x.Field.Name == name)?.Restore(prior);
         if (name == "TargetFolders")
             _config.SetField(_manifest.Id, "TargetFolder", null);
+        if (name == "SourceDirs")
+            _config.SetField(_manifest.Id, "SourceDir", null);
         _config.SetField(_manifest.Id, name, prior);
         OnPropertyChanged(nameof(CanUndo));
     }
@@ -65,6 +67,8 @@ public sealed class SettingsFormViewModel : ViewModelBase
             JsonNode? def = field.HasDefault ? JsonNode.Parse(field.Default.GetRawText()) : null;
             if (field.Name == "TargetFolders")
                 _config.SetField(_manifest.Id, "TargetFolder", null);
+            if (field.Name == "SourceDirs")
+                _config.SetField(_manifest.Id, "SourceDir", null);
             _config.SetField(_manifest.Id, field.Name, def);
             Fields.FirstOrDefault(x => x.Field.Name == field.Name)?.Restore(def);
         }
@@ -76,6 +80,8 @@ public sealed class SettingsFormViewModel : ViewModelBase
     {
         if (field.Field.Name == "TargetFolders")
             _config.SetField(_manifest.Id, "TargetFolder", null);
+        if (field.Field.Name == "SourceDirs")
+            _config.SetField(_manifest.Id, "SourceDir", null);
         _config.SetField(_manifest.Id, field.Field.Name, next);
         _undoStack.Push((field.Field.Name, prior));
         OnPropertyChanged(nameof(CanUndo));
@@ -87,6 +93,8 @@ public sealed class SettingsFormViewModel : ViewModelBase
             return v.DeepClone();
         if (field.Name == "TargetFolders" && doc.TryGetPropertyValue("TargetFolder", out var legacy) && legacy is not null && legacy.GetValueKind() == JsonValueKind.String)
             return new JsonArray(legacy.DeepClone());
+        if (field.Name == "SourceDirs" && doc.TryGetPropertyValue("SourceDir", out var legacySrc) && legacySrc is not null && legacySrc.GetValueKind() == JsonValueKind.String)
+            return new JsonArray(legacySrc.DeepClone());
         return null; // SettingsFieldViewModel falls back to the manifest default
     }
 }

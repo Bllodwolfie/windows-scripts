@@ -8,12 +8,14 @@
   "scriptPath": "scripts/DownloadsCleanup/DownloadsCleanup.ps1",
   "fields": [
     {
-      "name": "SourceDir",
-      "label": "Folder to clean",
-      "type": "path",
-      "default": "%USERPROFILE%\\Downloads",
-      "helpText": "The Downloads folder this script sorts and cleans.",
-      "helpDetail": "Only files directly in this folder are checked — subfolders are ignored. You can point this at a different folder, but it should be a dedicated downloads-style folder."
+      "name": "SourceDirs",
+      "label": "Folders to clean",
+      "type": "pathList",
+      "default": [
+        "%USERPROFILE%\\Downloads"
+      ],
+      "helpText": "The Downloads folders this script sorts and cleans.",
+      "helpDetail": "Only files directly in these folders are checked — subfolders are ignored. You can point this at different folders, but they should be dedicated downloads-style folders."
     },
     {
       "name": "CutoffDays",

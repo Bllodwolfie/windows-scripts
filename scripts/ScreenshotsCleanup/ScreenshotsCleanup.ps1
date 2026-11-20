@@ -18,10 +18,10 @@ param(
 
 # Fallback defaults, used only when the config file is missing (see TempCleanup).
 $Config = @{
-    TargetFolder = "$env:USERPROFILE\Pictures\Screenshots"
-    CutoffDays   = 7
-    LogDir       = "$env:USERPROFILE\Documents\Script_Logs"
-    LogFile      = "CleanupLog.txt"
+    TargetFolders = @("$env:USERPROFILE\Pictures\Screenshots")
+    CutoffDays    = 7
+    LogDir        = "$env:USERPROFILE\Documents\Script_Logs"
+    LogFile       = "CleanupLog.txt"
 }
 
 if (Test-Path -LiteralPath $ConfigPath) {
@@ -29,11 +29,11 @@ if (Test-Path -LiteralPath $ConfigPath) {
         $loaded = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
         if ($null -ne $loaded) { $Config = $loaded } else { throw "empty config" }
     } catch {
-        Write-Warning "ScreenshotsCleanup config is corrupt or unreadable at $ConfigPath — using defaults (TargetFolder=$($Config.TargetFolder), CutoffDays=$($Config.CutoffDays)). Check or reset the config via Settings."
+        Write-Warning "ScreenshotsCleanup config is corrupt or unreadable at $ConfigPath — using defaults (TargetFolders=$($Config.TargetFolders -join ', '), CutoffDays=$($Config.CutoffDays)). Check or reset the config via Settings."
     }
     $raw = (Get-Content -LiteralPath $ConfigPath -Raw -ErrorAction SilentlyContinue)
     if ($null -ne $raw -and $raw.Trim() -eq "") {
-        Write-Warning "ScreenshotsCleanup config is empty at $ConfigPath — using defaults (TargetFolder=$($Config.TargetFolder), CutoffDays=$($Config.CutoffDays))."
+        Write-Warning "ScreenshotsCleanup config is empty at $ConfigPath — using defaults (TargetFolders=$($Config.TargetFolders -join ', '), CutoffDays=$($Config.CutoffDays))."
     }
 }
 
@@ -234,9 +234,64 @@ function Remove-FileToRecycleBin([string]$Path) {
     }
 }
 
-# Target folder from config; fall back to the original Screenshots default if
-# the config is missing or empty (e.g. an older config file without the field).
-$path    = if ($Config.TargetFolder) { Expand-ConfigPath $Config.TargetFolder } else { "$env:USERPROFILE\Pictures\Screenshots" }
+# Target folders resolution (backward-compatible):
+# If both TargetFolders and TargetFolder exist, TargetFolders wins.
+# If only legacy TargetFolder exists, treat it as a single-item list.
+# Never silently rewrite old configs.
+$rawRoots = @()
+if ($Config -is [hashtable]) {
+    if ($Config.ContainsKey("TargetFolders") -and $null -ne $Config["TargetFolders"]) {
+        $rawRoots = @($Config["TargetFolders"])
+    } elseif ($Config.ContainsKey("TargetFolder") -and $null -ne $Config["TargetFolder"]) {
+        $rawRoots = @($Config["TargetFolder"])
+    }
+} elseif ($null -ne $Config.PSObject) {
+    if ($null -ne $Config.PSObject.Properties["TargetFolders"] -and $null -ne $Config.TargetFolders) {
+        $rawRoots = @($Config.TargetFolders)
+    } elseif ($null -ne $Config.PSObject.Properties["TargetFolder"] -and $null -ne $Config.TargetFolder) {
+        $rawRoots = @($Config.TargetFolder)
+    }
+}
+if ($rawRoots.Count -eq 0) {
+    $rawRoots = @("$env:USERPROFILE\Pictures\Screenshots")
+}
+
+# Every root goes through Test-PathScope and the denylist individually;
+# any denylisted root aborts the whole run before anything is deleted (hard abort).
+$normalizedRoots = [System.Collections.Generic.List[string]]::new()
+$seenRoots = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+foreach ($r in $rawRoots) {
+    if ([string]::IsNullOrWhiteSpace($r)) { continue }
+    $expanded = Expand-ConfigPath ([string]$r)
+    Test-PathScope $expanded "$env:USERPROFILE\Pictures\Screenshots"
+    $norm = try { [System.IO.Path]::GetFullPath($expanded).TrimEnd('\', '/') } catch { $expanded.TrimEnd('\', '/') }
+    if ($seenRoots.Add($norm)) {
+        $normalizedRoots.Add($norm)
+    } else {
+        Write-Warning "Dropping duplicate target folder: '$norm'"
+    }
+}
+
+# De-duplicate roots: drop a root that lies inside another listed root
+$sortedRoots = @($normalizedRoots | Sort-Object { $_.Length })
+$filteredRoots = [System.Collections.Generic.List[string]]::new()
+
+foreach ($candidate in $sortedRoots) {
+    $isNested = $false
+    foreach ($existing in $filteredRoots) {
+        if ($candidate.StartsWith($existing + [System.IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase) -or
+            $candidate.StartsWith($existing + [System.IO.Path]::AltDirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+            $isNested = $true
+            Write-Warning "Dropping nested target folder '$candidate' because it is inside '$existing'"
+            break
+        }
+    }
+    if (-not $isNested) {
+        $filteredRoots.Add($candidate)
+    }
+}
+
 # R4: explicit warning on wrong-type CutoffDays
 $cutoffDays = 7
 $rawCut = $null
@@ -253,7 +308,6 @@ $cutoff  = (Get-Date).AddDays(-$cutoffDays)
 $logDir  = Expand-ConfigPath $Config.LogDir
 $logFile = Join-Path $logDir $Config.LogFile
 
-Test-PathScope $path "$env:USERPROFILE\Pictures\Screenshots"
 if ($logDir) { Test-PathScope $logDir "$env:USERPROFILE" }
 
 $null = New-Item -ItemType Directory -Path $logDir -Force -ErrorAction SilentlyContinue
@@ -265,46 +319,60 @@ function Write-Log($message) {
 
 if (-not $DryRun) { Write-Log "ScreenshotsCleanup started" }
 
-if (-not (Test-Path -LiteralPath $path)) {
-    if (-not $DryRun) {
-        Write-Log "SKIPPED : Screenshots folder not found: $path"
-        Write-Log "ScreenshotsCleanup finished"
+$validRoots = [System.Collections.Generic.List[string]]::new()
+foreach ($root in $filteredRoots) {
+    if (Test-Path -LiteralPath $root) {
+        $validRoots.Add($root)
+    } else {
+        Write-Warning "Target folder '$root' does not exist or is not accessible — skipping."
+        if (-not $DryRun) {
+            Write-Log "SKIPPED : Screenshots folder not found: $root"
+        }
     }
-    exit
+}
+
+if ($validRoots.Count -eq 0) {
+    if (-not $DryRun) {
+        Write-Log "ScreenshotsCleanup finished"
+        Write-Host "ScreenshotsCleanup: 0 removed, 0 skipped (locked or in use)."
+    }
+    return
 }
 
 $removed = 0
 $skipped = 0
-foreach ($f in @(Get-ChildItem -LiteralPath $path -File -Force -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -lt $cutoff })) {
-    # IgnorePatterns wins over age and over IncludeOnly: an ignored filename is
-    # never touched. Single loop covers DryRun and real execution alike.
-    $ignoredBy = Test-IgnoredPattern $f.Name
-    if ($ignoredBy) {
+foreach ($path in $validRoots) {
+    foreach ($f in @(Get-ChildItem -LiteralPath $path -File -Force -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -lt $cutoff })) {
+        # IgnorePatterns wins over age and over IncludeOnly: an ignored filename is
+        # never touched. Single loop covers DryRun and real execution alike.
+        $ignoredBy = Test-IgnoredPattern $f.Name
+        if ($ignoredBy) {
+            if ($DryRun) {
+                [PSCustomObject]@{ Action = 'Skip'; Target = $f.FullName; Detail = 'ignored per ignore pattern: ' + $ignoredBy }
+            } else {
+                Write-Log "SKIPPED : $($f.Name) (ignored per ignore pattern: $ignoredBy)"
+            }
+            continue
+        }
+        # Milestone 8: only touch the targets the user kept checked in the preview.
+        if ($IncludeOnly.Count -gt 0 -and $IncludeOnly -notcontains $f.FullName) { continue }
         if ($DryRun) {
-            [PSCustomObject]@{ Action = 'Skip'; Target = $f.FullName; Detail = 'ignored per ignore pattern: ' + $ignoredBy }
-        } else {
-            Write-Log "SKIPPED : $($f.Name) (ignored per ignore pattern: $ignoredBy)"
+            [PSCustomObject]@{
+                Action = 'Delete'
+                Target = $f.FullName
+                Detail = [string]::Format([System.Globalization.CultureInfo]::InvariantCulture, '{0:N1} MB, last modified {1:yyyy-MM-dd}', $f.Length / 1MB, $f.LastWriteTime)
+            }
+            continue
         }
-        continue
-    }
-    # Milestone 8: only touch the targets the user kept checked in the preview.
-    if ($IncludeOnly.Count -gt 0 -and $IncludeOnly -notcontains $f.FullName) { continue }
-    if ($DryRun) {
-        [PSCustomObject]@{
-            Action = 'Delete'
-            Target = $f.FullName
-            Detail = [string]::Format([System.Globalization.CultureInfo]::InvariantCulture, '{0:N1} MB, last modified {1:yyyy-MM-dd}', $f.Length / 1MB, $f.LastWriteTime)
+        try {
+            Remove-FileToRecycleBin $f.FullName
+            Write-Log "DELETED : $($f.Name)"
+            $removed++
+        } catch {
+            Write-Log "ERROR   : Failed to delete $($f.Name) : $_"
+            Write-Warning "Skipped locked file: $($f.FullName)"
+            $skipped++
         }
-        continue
-    }
-    try {
-        Remove-FileToRecycleBin $f.FullName
-        Write-Log "DELETED : $($f.Name)"
-        $removed++
-    } catch {
-        Write-Log "ERROR   : Failed to delete $($f.Name) : $_"
-        Write-Warning "Skipped locked file: $($f.FullName)"
-        $skipped++
     }
 }
 

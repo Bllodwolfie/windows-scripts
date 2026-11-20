@@ -1,5 +1,7 @@
 {
-  "SourceDir": "%USERPROFILE%\\Downloads",
+  "SourceDirs": [
+    "%USERPROFILE%\\Downloads"
+  ],
   "CutoffDays": 7,
   "LogDir": "%USERPROFILE%\\Documents\\Script_Logs",
   "LogFile": "CleanupLog.txt",

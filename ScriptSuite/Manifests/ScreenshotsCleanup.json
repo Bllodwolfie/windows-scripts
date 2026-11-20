@@ -8,12 +8,14 @@
   "scriptPath": "scripts/ScreenshotsCleanup/ScreenshotsCleanup.ps1",
   "fields": [
     {
-      "name": "TargetFolder",
-      "label": "Folder to clean",
-      "type": "path",
-      "default": "%USERPROFILE%\\Pictures\\Screenshots",
-      "helpText": "The Screenshots folder this script cleans.",
-      "helpDetail": "Only files directly in this folder are checked — subfolders are ignored. If the folder does not exist yet, the script does nothing."
+      "name": "TargetFolders",
+      "label": "Folders to clean",
+      "type": "pathList",
+      "default": [
+        "%USERPROFILE%\\Pictures\\Screenshots"
+      ],
+      "helpText": "The Screenshots folders this script cleans.",
+      "helpDetail": "Only files directly in these folders are checked — subfolders are ignored. If a folder does not exist yet, it is skipped."
     },
     {
       "name": "CutoffDays",

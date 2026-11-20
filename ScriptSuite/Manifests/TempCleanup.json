@@ -8,12 +8,14 @@
   "scriptPath": "scripts/TempCleanup/TempCleanup.ps1",
   "fields": [
     {
-      "name": "TargetFolder",
-      "label": "Folder to clean",
-      "type": "path",
-      "default": "%TEMP%",
-      "helpText": "The temp folder this script cleans. Files older than the cutoff will be deleted from here.",
-      "helpDetail": "This is usually %TEMP% — Windows' temporary files. Files go to the Recycle Bin, so you can restore them. You can point this at another folder, but keep it to a temp-like location."
+      "name": "TargetFolders",
+      "label": "Folders to clean",
+      "type": "pathList",
+      "default": [
+        "%TEMP%"
+      ],
+      "helpText": "The temp folders this script cleans. Files older than the cutoff will be deleted from here.",
+      "helpDetail": "This is usually %TEMP% — Windows' temporary files. Files go to the Recycle Bin, so you can restore them. You can point this at other folders, but keep them to temp-like locations."
     },
     {
       "name": "CutoffDays",

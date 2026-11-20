@@ -1,5 +1,7 @@
 {
-  "TargetFolder": "%TEMP%",
+  "TargetFolders": [
+    "%TEMP%"
+  ],
   "CutoffDays": 7,
   "IgnoreFolders": []
 }

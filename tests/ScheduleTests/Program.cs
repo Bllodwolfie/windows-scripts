@@ -66,6 +66,8 @@ public class Program
             Test20_EmptyFolderCleanup_MultiRootSummaryConsumers(testRoot);
             Test21_EmptyFolderCleanup_UseDefaultIgnoreNamesOptOut(testRoot);
             Test22_HistoryWindow_EmptyStateWording(testRoot);
+            Test23_CleanupScripts_MultiFolderScanning(testRoot);
+            Test24_SettingsFormViewModel_SourceDirsMigration(testRoot);
         }
         finally
         {
@@ -1195,5 +1197,242 @@ public class Program
         Assert(winPop.IsEmptyMessageVisible, "EmptyMessage is visible when filters match 0 runs");
         Assert(winPop.CurrentEmptyMessageText == "No runs match your filters.",
             $"Populated DB with unmatched filter displays 'No runs match your filters.': '{winPop.CurrentEmptyMessageText}'");
+    }
+
+    private static void Test23_CleanupScripts_MultiFolderScanning(string testRoot)
+    {
+        Console.WriteLine("\n--- Test 23: Cleanup Scripts Multi-Folder Scanning (Temp, Screenshots, Downloads) ---");
+        string repoRoot = FindRepoRoot();
+
+        // 1. TempCleanup
+        string tcScript = Path.Combine(repoRoot, @"scripts\TempCleanup\TempCleanup.ps1");
+        string tc1 = Path.Combine(testRoot, "tc_scan1");
+        string tc2 = Path.Combine(testRoot, "tc_scan2");
+        Directory.CreateDirectory(tc1);
+        Directory.CreateDirectory(tc2);
+
+        string oldTc1 = Path.Combine(tc1, "old1.tmp");
+        string oldTc2 = Path.Combine(tc2, "old2.tmp");
+        string youngTc = Path.Combine(tc1, "young.tmp");
+        File.WriteAllText(oldTc1, "temp1"); File.SetLastWriteTime(oldTc1, DateTime.Now.AddDays(-10));
+        File.WriteAllText(oldTc2, "temp2"); File.SetLastWriteTime(oldTc2, DateTime.Now.AddDays(-10));
+        File.WriteAllText(youngTc, "young"); File.SetLastWriteTime(youngTc, DateTime.Now);
+
+        string tcCfg = Path.Combine(testRoot, "tc_cfg.json");
+        File.WriteAllText(tcCfg, $"{{\"TargetFolders\": [\"{tc1.Replace("\\", "\\\\")}\", \"{tc2.Replace("\\", "\\\\")}\"], \"CutoffDays\": 7}}");
+
+        var psiTcDry = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"& '{tcScript}' -DryRun -ConfigPath '{tcCfg}' | Out-String -Width 4096\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        string tcDryOut;
+        using (var p = Process.Start(psiTcDry)!) { tcDryOut = p.StandardOutput.ReadToEnd(); p.WaitForExit(); }
+        Assert(tcDryOut.Contains("old1.tmp") && tcDryOut.Contains("old2.tmp"), "TempCleanup DryRun predicts deletions across multiple TargetFolders");
+        Assert(!tcDryOut.Contains("young.tmp"), "TempCleanup DryRun leaves younger file untouched");
+
+        var psiTcReal = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"& '{tcScript}' -ConfigPath '{tcCfg}' | Out-String -Width 4096\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        using (var p = Process.Start(psiTcReal)!) { p.WaitForExit(); }
+        Assert(!File.Exists(oldTc1) && !File.Exists(oldTc2), "TempCleanup deletes files across all TargetFolders");
+        Assert(File.Exists(youngTc), "TempCleanup preserves younger files");
+
+        // 1b. TempCleanup legacy TargetFolder fallback
+        string legacyTcFile = Path.Combine(tc1, "legacy.tmp");
+        File.WriteAllText(legacyTcFile, "legacy"); File.SetLastWriteTime(legacyTcFile, DateTime.Now.AddDays(-10));
+        string tcLegacyCfg = Path.Combine(testRoot, "tc_legacy_cfg.json");
+        File.WriteAllText(tcLegacyCfg, $"{{\"TargetFolder\": \"{tc1.Replace("\\", "\\\\")}\", \"CutoffDays\": 7}}");
+        var psiTcLegacy = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"& '{tcScript}' -ConfigPath '{tcLegacyCfg}' | Out-String -Width 4096\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        using (var p = Process.Start(psiTcLegacy)!) { p.WaitForExit(); }
+        Assert(!File.Exists(legacyTcFile), "TempCleanup supports legacy single TargetFolder config");
+
+        // 2. ScreenshotsCleanup
+        string scScript = Path.Combine(repoRoot, @"scripts\ScreenshotsCleanup\ScreenshotsCleanup.ps1");
+        string sc1 = Path.Combine(testRoot, "sc_scan1");
+        string sc2 = Path.Combine(testRoot, "sc_scan2");
+        Directory.CreateDirectory(sc1);
+        Directory.CreateDirectory(sc2);
+
+        string oldSc1 = Path.Combine(sc1, "shot1.png");
+        string oldSc2 = Path.Combine(sc2, "shot2.png");
+        File.WriteAllText(oldSc1, "shot1"); File.SetLastWriteTime(oldSc1, DateTime.Now.AddDays(-10));
+        File.WriteAllText(oldSc2, "shot2"); File.SetLastWriteTime(oldSc2, DateTime.Now.AddDays(-10));
+
+        string scLog = Path.Combine(testRoot, "sc_logs");
+        string scCfg = Path.Combine(testRoot, "sc_cfg.json");
+        File.WriteAllText(scCfg, $"{{\"TargetFolders\": [\"{sc1.Replace("\\", "\\\\")}\", \"{sc2.Replace("\\", "\\\\")}\"], \"CutoffDays\": 7, \"LogDir\": \"{scLog.Replace("\\", "\\\\")}\", \"LogFile\": \"CleanupLog.txt\"}}");
+
+        var psiScDry = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"& '{scScript}' -DryRun -ConfigPath '{scCfg}' | Out-String -Width 4096\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        string scDryOut;
+        using (var p = Process.Start(psiScDry)!) { scDryOut = p.StandardOutput.ReadToEnd(); p.WaitForExit(); }
+        Assert(scDryOut.Contains("shot1.png") && scDryOut.Contains("shot2.png"), "ScreenshotsCleanup DryRun predicts deletions across multiple TargetFolders");
+
+        var psiScReal = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"& '{scScript}' -ConfigPath '{scCfg}' | Out-String -Width 4096\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        using (var p = Process.Start(psiScReal)!) { p.WaitForExit(); }
+        Assert(!File.Exists(oldSc1) && !File.Exists(oldSc2), "ScreenshotsCleanup deletes files across all TargetFolders");
+
+        // 2b. ScreenshotsCleanup legacy TargetFolder fallback
+        string legacyScFile = Path.Combine(sc1, "legacy_shot.png");
+        File.WriteAllText(legacyScFile, "shot"); File.SetLastWriteTime(legacyScFile, DateTime.Now.AddDays(-10));
+        string scLegacyCfg = Path.Combine(testRoot, "sc_legacy_cfg.json");
+        File.WriteAllText(scLegacyCfg, $"{{\"TargetFolder\": \"{sc1.Replace("\\", "\\\\")}\", \"CutoffDays\": 7, \"LogDir\": \"{scLog.Replace("\\", "\\\\")}\", \"LogFile\": \"CleanupLog.txt\"}}");
+        var psiScLegacy = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"& '{scScript}' -ConfigPath '{scLegacyCfg}' | Out-String -Width 4096\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        using (var p = Process.Start(psiScLegacy)!) { p.WaitForExit(); }
+        Assert(!File.Exists(legacyScFile), "ScreenshotsCleanup supports legacy single TargetFolder config");
+
+        // 3. DownloadsCleanup
+        string dcScript = Path.Combine(repoRoot, @"scripts\DownloadsCleanup\DownloadsCleanup.ps1");
+        string dc1 = Path.Combine(testRoot, "dc_scan1");
+        string dc2 = Path.Combine(testRoot, "dc_scan2");
+        Directory.CreateDirectory(dc1);
+        Directory.CreateDirectory(dc2);
+
+        string oldZip1 = Path.Combine(dc1, "bundle1.zip");
+        string oldZip2 = Path.Combine(dc2, "bundle2.zip");
+        File.WriteAllText(oldZip1, "zip1"); File.SetLastWriteTime(oldZip1, DateTime.Now.AddDays(-10));
+        File.WriteAllText(oldZip2, "zip2"); File.SetLastWriteTime(oldZip2, DateTime.Now.AddDays(-10));
+
+        string dcLog = Path.Combine(testRoot, "dc_logs");
+        string dcCfg = Path.Combine(testRoot, "dc_cfg.json");
+        File.WriteAllText(dcCfg, $"{{\"SourceDirs\": [\"{dc1.Replace("\\", "\\\\")}\", \"{dc2.Replace("\\", "\\\\")}\"], \"CutoffDays\": 7, \"LogDir\": \"{dcLog.Replace("\\", "\\\\")}\", \"LogFile\": \"CleanupLog.txt\", \"DeleteExts\": [\".zip\"]}}");
+
+        var psiDcDry = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"& '{dcScript}' -DryRun -ConfigPath '{dcCfg}' | Out-String -Width 4096\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        string dcDryOut;
+        using (var p = Process.Start(psiDcDry)!) { dcDryOut = p.StandardOutput.ReadToEnd(); p.WaitForExit(); }
+        Assert(dcDryOut.Contains("bundle1.zip") && dcDryOut.Contains("bundle2.zip"), "DownloadsCleanup DryRun predicts deletions across multiple SourceDirs");
+
+        var psiDcReal = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"& '{dcScript}' -ConfigPath '{dcCfg}' | Out-String -Width 4096\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        using (var p = Process.Start(psiDcReal)!) { p.WaitForExit(); }
+        Assert(!File.Exists(oldZip1) && !File.Exists(oldZip2), "DownloadsCleanup deletes files across all SourceDirs");
+
+        // 3b. DownloadsCleanup overlapping root warning
+        string dcNested = Path.Combine(dc1, "nested_dl");
+        Directory.CreateDirectory(dcNested);
+        string dcOverlapCfg = Path.Combine(testRoot, "dc_overlap_cfg.json");
+        File.WriteAllText(dcOverlapCfg, $"{{\"SourceDirs\": [\"{dc1.Replace("\\", "\\\\")}\", \"{dcNested.Replace("\\", "\\\\")}\", \"{dc1.Replace("\\", "\\\\")}\"], \"CutoffDays\": 7, \"LogDir\": \"{dcLog.Replace("\\", "\\\\")}\", \"LogFile\": \"CleanupLog.txt\", \"DeleteExts\": [\".zip\"]}}");
+        var psiDcOverlap = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"& '{dcScript}' -ConfigPath '{dcOverlapCfg}' 3>&1 | Out-String -Width 4096\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        string dcOverlapOut;
+        using (var p = Process.Start(psiDcOverlap)!) { dcOverlapOut = p.StandardOutput.ReadToEnd(); p.WaitForExit(); }
+        Assert(dcOverlapOut.Contains("duplicate") || dcOverlapOut.Contains("nested"), "DownloadsCleanup warns on duplicate and nested source folders");
+
+        // 3c. DownloadsCleanup legacy SourceDir fallback
+        string legacyZip = Path.Combine(dc1, "legacy_bundle.zip");
+        File.WriteAllText(legacyZip, "legacy"); File.SetLastWriteTime(legacyZip, DateTime.Now.AddDays(-10));
+        string dcLegacyCfg = Path.Combine(testRoot, "dc_legacy_cfg.json");
+        File.WriteAllText(dcLegacyCfg, $"{{\"SourceDir\": \"{dc1.Replace("\\", "\\\\")}\", \"CutoffDays\": 7, \"LogDir\": \"{dcLog.Replace("\\", "\\\\")}\", \"LogFile\": \"CleanupLog.txt\", \"DeleteExts\": [\".zip\"]}}");
+        var psiDcLegacy = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"& '{dcScript}' -ConfigPath '{dcLegacyCfg}' | Out-String -Width 4096\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        using (var p = Process.Start(psiDcLegacy)!) { p.WaitForExit(); }
+        Assert(!File.Exists(legacyZip), "DownloadsCleanup supports legacy single SourceDir config");
+    }
+
+    private static void Test24_SettingsFormViewModel_SourceDirsMigration(string testRoot)
+    {
+        Console.WriteLine("\n--- Test 24: SettingsFormViewModel SourceDirs Migration & ConfigReviewHelper ---");
+        string repoRoot = FindRepoRoot();
+        string manifestPath = Path.Combine(repoRoot, @"ScriptSuite\Manifests\DownloadsCleanup.json");
+        var manifest = System.Text.Json.JsonSerializer.Deserialize<ScriptManifest>(File.ReadAllText(manifestPath))!;
+
+        string configsDir = AppPaths.ConfigsDir;
+        Directory.CreateDirectory(configsDir);
+        string configPath = AppPaths.ConfigPathFor("DownloadsCleanup");
+        var trustStore = new ConfigTrustStore();
+        var configService = new ScriptConfigService(trustStore);
+
+        // Subtest 1: Legacy config (SourceDir only)
+        string legacyContent = "{\n  \"SourceDir\": \"C:\\\\LegacyDownloads\",\n  \"CutoffDays\": 7\n}";
+        File.WriteAllText(configPath, legacyContent);
+        trustStore.Trust("DownloadsCleanup");
+        Assert(trustStore.IsTrusted("DownloadsCleanup"), "Legacy DownloadsCleanup config initially trusted");
+
+        var vmLegacy = new SettingsFormViewModel(manifest, configService);
+        string onDiskAfterLoad = File.ReadAllText(configPath);
+        Assert(onDiskAfterLoad == legacyContent, "Loading legacy DownloadsCleanup config into ViewModel does not modify disk file");
+        Assert(trustStore.IsTrusted("DownloadsCleanup"), "Legacy config remains trusted after loading (never rewritten on load)");
+
+        var sourceDirsField = vmLegacy.Fields.First(f => f.Field.Name == "SourceDirs");
+        Assert(sourceDirsField.Items.Count == 1 && sourceDirsField.Items[0] == "C:\\LegacyDownloads", "Legacy SourceDir loaded as in-memory SourceDirs array");
+
+        // Save a change via AddNewItem
+        sourceDirsField.NewItemText = "C:\\AddedDownloads";
+        sourceDirsField.AddNewItem();
+
+        string onDiskAfterSave = File.ReadAllText(configPath);
+        Assert(onDiskAfterSave.Contains("\"SourceDirs\""), "Saved config contains SourceDirs key");
+        Assert(!onDiskAfterSave.Contains("\"SourceDir\""), "Saved config does not contain legacy SourceDir key (dropped on save)");
+        Assert(trustStore.IsTrusted("DownloadsCleanup"), "Saved config has updated valid trust hash (trusted)");
+
+        // Undo the change
+        Assert(vmLegacy.CanUndo, "CanUndo is true after edit");
+        vmLegacy.Undo();
+        string onDiskAfterUndo = File.ReadAllText(configPath);
+        Assert(onDiskAfterUndo.Contains("\"SourceDirs\""), "Config after Undo contains SourceDirs key");
+        Assert(!onDiskAfterUndo.Contains("\"SourceDir\""), "Config after Undo does not contain legacy SourceDir key");
+        Assert(trustStore.IsTrusted("DownloadsCleanup"), "Config remains trusted after Undo");
+
+        // Subtest 2: ConfigReviewHelper multi-folder and legacy tests
+        string reviewCfgMulti = Path.Combine(testRoot, "review_multi.json");
+        File.WriteAllText(reviewCfgMulti, "{\"SourceDirs\": [\"C:\\\\D1\", \"C:\\\\D2\"], \"CutoffDays\": 7, \"DeleteExts\": [\".zip\"]}");
+        var (summaryDcMulti, _) = ConfigReviewHelper.GetReviewInfo("DownloadsCleanup", reviewCfgMulti);
+        Assert(summaryDcMulti.Contains("'C:\\D1', 'C:\\D2'"), $"DownloadsCleanup multi-dir review summary: '{summaryDcMulti}'");
+
+        string reviewCfgLegacy = Path.Combine(testRoot, "review_legacy.json");
+        File.WriteAllText(reviewCfgLegacy, "{\"SourceDir\": \"C:\\\\LegacyD\", \"CutoffDays\": 7, \"DeleteExts\": [\".zip\"]}");
+        var (summaryDcLegacy, _) = ConfigReviewHelper.GetReviewInfo("DownloadsCleanup", reviewCfgLegacy);
+        Assert(summaryDcLegacy.Contains("'C:\\LegacyD'"), $"DownloadsCleanup legacy review summary: '{summaryDcLegacy}'");
+
+        string reviewScMulti = Path.Combine(testRoot, "review_sc_multi.json");
+        File.WriteAllText(reviewScMulti, "{\"TargetFolders\": [\"C:\\\\S1\", \"C:\\\\S2\"], \"CutoffDays\": 7}");
+        var (summaryScMulti, _) = ConfigReviewHelper.GetReviewInfo("ScreenshotsCleanup", reviewScMulti);
+        Assert(summaryScMulti.Contains("'C:\\S1', 'C:\\S2'"), $"ScreenshotsCleanup multi-dir review summary: '{summaryScMulti}'");
+
+        string reviewTcMulti = Path.Combine(testRoot, "review_tc_multi.json");
+        File.WriteAllText(reviewTcMulti, "{\"TargetFolders\": [\"C:\\\\T1\", \"C:\\\\T2\"], \"CutoffDays\": 7}");
+        var (summaryTcMulti, _) = ConfigReviewHelper.GetReviewInfo("TempCleanup", reviewTcMulti);
+        Assert(summaryTcMulti.Contains("'C:\\T1', 'C:\\T2'"), $"TempCleanup multi-dir review summary: '{summaryTcMulti}'");
     }
 }
